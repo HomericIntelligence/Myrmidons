@@ -1,0 +1,29 @@
+name: Validate Agent YAML Schemas
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'agents/**'
+      - 'fleets/**'
+
+jobs:
+  validate:
+    name: Validate YAML Schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        env:
+          YQ_VERSION: "v4.40.5"
+        run: |
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Validate all YAML files
+        run: |
+          chmod +x tests/validate-schemas.sh
+          ./tests/validate-schemas.sh

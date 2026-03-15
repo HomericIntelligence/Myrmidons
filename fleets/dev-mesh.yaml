@@ -1,0 +1,26 @@
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: dev-mesh
+  host: hermes
+  description: "Local development fleet — existing 5 agents plus a CI worker"
+spec:
+  agents:
+    - ref: hermes/aindrea
+    - ref: hermes/baird
+    - ref: hermes/vegai
+    # Inline agent definition — a Docker worker not in the main agent dir
+    - name: ci-worker
+      program: none
+      workingDirectory: /tmp/ci
+      taskDescription: "CI shell worker for local dev tasks"
+      tags:
+        - worker
+        - ci
+      deployment:
+        type: docker
+        docker:
+          image: achaean-worker:latest
+          cpus: 1
+          memory: 2g
+      desiredState: active

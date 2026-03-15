@@ -1,0 +1,25 @@
+# Template: Aider agent (Docker deployment)
+# Copy to agents/<host>/<name>.yaml and fill in the metadata fields.
+
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: CHANGE_ME
+  host: hermes
+spec:
+  label: CHANGE_ME
+  program: aider
+  model: null
+  workingDirectory: /home/mvillmow/CHANGE_ME
+  programArgs: "--yes --model claude-3-5-sonnet-20241022"
+  taskDescription: "Describe what this agent does"
+  tags: []
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-aider:latest
+      cpus: 1
+      memory: 2g
+  desiredState: active

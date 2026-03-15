@@ -1,0 +1,24 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: villmow-general-agent
+  host: hermes
+spec:
+  label: VegAI
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow
+  programArgs: "--model claude-sonnet-4-5"
+  taskDescription: "Agent for villmow-general-agent"
+  tags:
+    - villmow
+    - general
+  owner: mvillmow
+  role: member
+  deployment:
+    type: local
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active

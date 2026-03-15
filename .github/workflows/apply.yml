@@ -1,0 +1,40 @@
+name: Apply Agent Definitions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agents/**'
+      - 'fleets/**'
+
+jobs:
+  apply:
+    name: Reconcile Desired State
+    runs-on: self-hosted  # hermes runner (Tailscale-connected) or local
+    env:
+      AIM_HOST: ${{ secrets.AIM_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq if needed
+        run: |
+          if ! command -v yq &>/dev/null; then
+            YQ_URL="https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
+            curl -fsSL "$YQ_URL" -o /usr/local/bin/yq
+            chmod +x /usr/local/bin/yq
+          fi
+
+      - name: Plan — show what will change
+        run: |
+          chmod +x scripts/plan.sh scripts/lib/api.sh scripts/lib/reconcile.sh
+          ./scripts/plan.sh || true
+
+      - name: Apply — reconcile desired state
+        run: |
+          chmod +x scripts/apply.sh
+          ./scripts/apply.sh
+
+      - name: Status — verify no drift remains
+        run: |
+          chmod +x scripts/status.sh
+          ./scripts/status.sh

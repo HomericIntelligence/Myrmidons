@@ -1,0 +1,24 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: laptop-mnemosyne-devops
+  host: hermes
+spec:
+  label: JulIA
+  program: claude-code
+  model: null
+  workingDirectory: ~/agents/devops
+  programArgs: "--dangerously-skip-permissions --model claude-opus-4-6"
+  taskDescription: "Agent for laptop-mnemosyne-devops"
+  tags:
+    - laptop
+    - mnemosyne
+  owner: mvillmow
+  role: member
+  deployment:
+    type: local
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: hibernated

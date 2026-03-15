@@ -1,0 +1,38 @@
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: ci-review
+  host: hermes
+  description: "Fleet for CI/CD pull request review tasks"
+spec:
+  agents:
+    - name: pr-reviewer
+      program: claude-code
+      workingDirectory: /tmp/pr-review
+      programArgs: "--dangerously-skip-permissions"
+      taskDescription: "Reviews pull requests in CI context"
+      tags:
+        - ci
+        - review
+      deployment:
+        type: docker
+        docker:
+          image: achaean-claude:latest
+          cpus: 2
+          memory: 4g
+      desiredState: active
+
+    - name: pr-worker
+      program: none
+      workingDirectory: /tmp/pr-scripts
+      taskDescription: "Runs CI scripts and validation tasks"
+      tags:
+        - ci
+        - worker
+      deployment:
+        type: docker
+        docker:
+          image: achaean-worker:latest
+          cpus: 1
+          memory: 1g
+      desiredState: active

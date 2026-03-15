@@ -1,0 +1,25 @@
+# Template: Claude Code agent (local deployment)
+# Copy to agents/<host>/<name>.yaml and fill in the metadata fields.
+
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: CHANGE_ME          # Must be unique per host (used as tmux session name)
+  host: hermes             # Must match the hostId in ai-maestro
+spec:
+  label: CHANGE_ME         # Display name in ai-maestro UI
+  program: claude-code
+  model: null              # null = use ai-maestro default; or "claude-sonnet-4-6"
+  workingDirectory: /home/mvillmow/CHANGE_ME
+  programArgs: ""          # Extra flags, e.g. "--model claude-opus-4-6"
+  taskDescription: "Describe what this agent does"
+  tags: []
+  owner: mvillmow
+  role: member             # "member" | "admin"
+  deployment:
+    type: local            # "local" = tmux on host; "docker" = container
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active     # "active" = wake; "hibernated" = hibernate

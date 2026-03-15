@@ -1,0 +1,24 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: odyssey-mainline-analysis
+  host: hermes
+spec:
+  label: Aindrea
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Agents/Aindrea
+  programArgs: ""
+  taskDescription: "Agent for odyssey-mainline-analysis"
+  tags:
+    - odyssey
+    - mainline
+  owner: mvillmow
+  role: member
+  deployment:
+    type: local
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active

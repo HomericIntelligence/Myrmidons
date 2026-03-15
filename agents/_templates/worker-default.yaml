@@ -1,0 +1,27 @@
+# Template: Shell Worker agent (Docker deployment, no AI tool)
+# Copy to agents/<host>/<name>.yaml and fill in the metadata fields.
+
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: CHANGE_ME
+  host: hermes
+spec:
+  label: CHANGE_ME
+  program: none
+  model: null
+  workingDirectory: /tmp/CHANGE_ME
+  programArgs: ""
+  taskDescription: "Shell worker for scripting and CI tasks"
+  tags:
+    - worker
+    - ci
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-worker:latest
+      cpus: 1
+      memory: 1g
+  desiredState: active

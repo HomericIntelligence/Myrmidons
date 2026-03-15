@@ -1,0 +1,22 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: scyllamonitor
+  host: hermes
+spec:
+  label: Raiden
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/ProjectHephaestus
+  programArgs: ""
+  taskDescription: "Agent for scyllamonitor"
+  tags: []
+  owner: mvillmow
+  role: member
+  deployment:
+    type: local
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: hibernated

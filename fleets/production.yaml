@@ -1,0 +1,13 @@
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: production
+  host: hermes
+  description: "Production fleet — all 5 managed agents at desired state"
+spec:
+  agents:
+    - ref: hermes/aindrea
+    - ref: hermes/raiden
+    - ref: hermes/baird
+    - ref: hermes/vegai
+    - ref: hermes/julia

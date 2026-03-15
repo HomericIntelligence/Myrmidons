@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Myrmidons pre-commit hook — validates YAML schema before commit
+#
+# Installs to: .git/hooks/pre-commit
+# Setup: cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# Checks:
+#   1. All staged agent/*.yaml files are valid YAML
+#   2. Required fields (apiVersion, kind, metadata.name, metadata.host, spec.program)
+#   3. desiredState is "active" or "hibernated"
+#   4. apiVersion is "myrmidons/v1"
+
+set -euo pipefail
+
+ERRORS=0
+
+# Get staged YAML files in agents/ and fleets/
+STAGED_YAMLS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(agents|fleets)/.*\.yaml$' || true)
+
+if [[ -z "$STAGED_YAMLS" ]]; then
+    exit 0
+fi
+
+if ! command -v yq &>/dev/null; then
+    echo "WARNING: yq not found — skipping YAML validation" >&2
+    echo "  Install: https://github.com/mikefarah/yq" >&2
+    exit 0
+fi
+
+echo "Validating staged YAML files..."
+
+while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+
+    echo -n "  ${file}: "
+
+    # Check basic YAML validity
+    if ! yq eval '.' "$file" > /dev/null 2>&1; then
+        echo "FAIL (invalid YAML)"
+        ERRORS=$((ERRORS + 1))
+        continue
+    fi
+
+    # Check apiVersion
+    api_version="$(yq eval '.apiVersion // ""' "$file")"
+    if [[ "$api_version" != "myrmidons/v1" ]]; then
+        echo "FAIL (apiVersion must be 'myrmidons/v1', got '${api_version}')"
+        ERRORS=$((ERRORS + 1))
+        continue
+    fi
+
+    # Check kind
+    kind="$(yq eval '.kind // ""' "$file")"
+    if [[ "$kind" != "Agent" && "$kind" != "Fleet" ]]; then
+        echo "FAIL (kind must be 'Agent' or 'Fleet', got '${kind}')"
+        ERRORS=$((ERRORS + 1))
+        continue
+    fi
+
+    # Skip further validation for Fleet kind
+    if [[ "$kind" == "Fleet" ]]; then
+        echo "ok (Fleet)"
+        continue
+    fi
+
+    # Agent-specific validation
+    name="$(yq eval '.metadata.name // ""' "$file")"
+    host="$(yq eval '.metadata.host // ""' "$file")"
+    program="$(yq eval '.spec.program // ""' "$file")"
+    desired_state="$(yq eval '.spec.desiredState // ""' "$file")"
+
+    local_errors=()
+
+    [[ -z "$name" ]] && local_errors+=("metadata.name is required")
+    [[ -z "$host" ]] && local_errors+=("metadata.host is required")
+    [[ -z "$program" ]] && local_errors+=("spec.program is required")
+
+    if [[ -n "$desired_state" && "$desired_state" != "active" && "$desired_state" != "hibernated" ]]; then
+        local_errors+=("spec.desiredState must be 'active' or 'hibernated', got '${desired_state}'")
+    fi
+
+    # Validate deployment type
+    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$file")"
+    if [[ "$deploy_type" != "local" && "$deploy_type" != "docker" ]]; then
+        local_errors+=("spec.deployment.type must be 'local' or 'docker', got '${deploy_type}'")
+    fi
+
+    if [[ ${#local_errors[@]} -gt 0 ]]; then
+        echo "FAIL"
+        for err in "${local_errors[@]}"; do
+            echo "    - ${err}"
+        done
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "ok"
+    fi
+done <<< "$STAGED_YAMLS"
+
+if [[ $ERRORS -gt 0 ]]; then
+    echo ""
+    echo "Pre-commit: ${ERRORS} validation error(s). Fix before committing."
+    exit 1
+fi
+
+echo "All YAML files valid."
+exit 0
