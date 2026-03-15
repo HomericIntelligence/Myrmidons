@@ -64,6 +64,23 @@ agent_filename() {
     echo "${name}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
 }
 
+# Map program name → default AchaeanFleet image name
+program_to_image() {
+    local prog="$1"
+    case "$prog" in
+        claude-code|claude) echo "achaean-claude:latest" ;;
+        codex)              echo "achaean-codex:latest" ;;
+        aider)              echo "achaean-aider:latest" ;;
+        goose)              echo "achaean-goose:latest" ;;
+        cline)              echo "achaean-cline:latest" ;;
+        opencode)           echo "achaean-opencode:latest" ;;
+        codebuff)           echo "achaean-codebuff:latest" ;;
+        ampcode)            echo "achaean-ampcode:latest" ;;
+        none|worker|"")     echo "achaean-worker:latest" ;;
+        *)                  echo "achaean-worker:latest" ;;
+    esac
+}
+
 export_agent() {
     local agent_json="$1"
 
@@ -90,9 +107,9 @@ export_agent() {
     local tags_yaml
     tags_yaml="$(echo "$agent_json" | jq -r '.tags // [] | if length == 0 then "  tags: []" else "  tags:\n" + (map("    - " + .) | join("\n")) end')"
 
-    # Determine filename from label (lowercased)
+    # Determine filename from label (lowercased, spaces→dashes)
     local label_lower
-    label_lower="$(echo "$label" | tr '[:upper:]' '[:lower:]')"
+    label_lower="$(echo "$label" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
     local outfile="${OUTPUT_DIR}/${label_lower}.yaml"
 
     # Handle model: if "null" string, write null (no quotes)
@@ -103,26 +120,46 @@ export_agent() {
         model_yaml="\"${model}\""
     fi
 
+    # Map program → correct docker image
+    local docker_image
+    docker_image="$(program_to_image "$program")"
+
+    # Use jq to safely quote string fields that may contain special characters.
+    # Scalar YAML strings only need quoting when they contain: :, #, {, }, [, ], , &, * ! | > ' " % @ `
+    # Using double-quoted YAML strings throughout is safe and simple.
+    local name_yaml label_yaml program_yaml workdir_yaml owner_yaml role_yaml
+    name_yaml="$(echo "$name" | jq -Rr '.')"
+    label_yaml="$(echo "$label" | jq -Rr '.')"
+    program_yaml="$(echo "$program" | jq -Rr '.')"
+    workdir_yaml="$(echo "$workdir" | jq -Rr '.')"
+    owner_yaml="$(echo "$owner" | jq -Rr '.')"
+    role_yaml="$(echo "$role" | jq -Rr '.')"
+
+    # args and desc always get explicit double-quotes in the YAML
+    local args_escaped desc_escaped
+    args_escaped="$(echo "$args" | jq -Rr '.')"
+    desc_escaped="$(echo "$desc" | jq -Rr '.')"
+
     cat > "$outfile" <<YAML
 apiVersion: myrmidons/v1
 kind: Agent
 metadata:
-  name: ${name}
+  name: ${name_yaml}
   host: ${HOST}
 spec:
-  label: ${label}
-  program: ${program}
+  label: ${label_yaml}
+  program: ${program_yaml}
   model: ${model_yaml}
-  workingDirectory: ${workdir}
-  programArgs: "${args}"
-  taskDescription: "${desc}"
+  workingDirectory: ${workdir_yaml}
+  programArgs: "${args_escaped}"
+  taskDescription: "${desc_escaped}"
 ${tags_yaml}
-  owner: ${owner}
-  role: ${role}
+  owner: ${owner_yaml}
+  role: ${role_yaml}
   deployment:
     type: ${deployment_type}
     docker:
-      image: achaean-claude:latest
+      image: ${docker_image}
       cpus: 2
       memory: 4g
   desiredState: ${desired_state}

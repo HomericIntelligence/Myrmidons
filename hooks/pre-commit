@@ -22,9 +22,10 @@ if [[ -z "$STAGED_YAMLS" ]]; then
 fi
 
 if ! command -v yq &>/dev/null; then
-    echo "WARNING: yq not found — skipping YAML validation" >&2
+    echo "ERROR: yq not found — cannot validate YAML before commit" >&2
     echo "  Install: https://github.com/mikefarah/yq" >&2
-    exit 0
+    echo "  Or run: just install-hooks  (after installing yq)" >&2
+    exit 1
 fi
 
 echo "Validating staged YAML files..."

@@ -119,8 +119,8 @@ compute_drift() {
         echo "WAKE"
         return
     fi
-    if [[ "$desired_state" == "hibernated" && \
-          ("$actual_status" == "active" || "$actual_status" == "online") ]]; then
+    if [[ "$desired_state" == "hibernated" ]] && \
+       [[ "$actual_status" == "active" || "$actual_status" == "online" ]]; then
         echo "HIBERNATE"
         return
     fi
@@ -128,12 +128,14 @@ compute_drift() {
     # Check field-level drift (simplified: check key fields)
     local drifted_fields=()
 
-    local actual_label actual_program actual_workdir actual_args actual_desc
+    local actual_label actual_program actual_workdir actual_args actual_desc actual_tags_sorted
     actual_label="$(echo "$actual_json" | jq -r '.label // ""')"
     actual_program="$(echo "$actual_json" | jq -r '.program // ""')"
     actual_workdir="$(echo "$actual_json" | jq -r '.workingDirectory // ""')"
     actual_args="$(echo "$actual_json" | jq -r '.programArgs // ""')"
     actual_desc="$(echo "$actual_json" | jq -r '.taskDescription // ""')"
+    # Tags: sorted comma-joined for stable comparison
+    actual_tags_sorted="$(echo "$actual_json" | jq -r '.tags // [] | sort | join(",")')"
 
     # These are passed as positional args from the caller
     local desired_label="$4"
@@ -141,12 +143,24 @@ compute_drift() {
     local desired_workdir="$6"
     local desired_args="$7"
     local desired_desc="$8"
+    local desired_tags_csv="${9:-}"
+
+    # Normalize tilde paths before comparison
+    actual_workdir="$(normalize_path "$actual_workdir")"
+    desired_workdir="$(normalize_path "$desired_workdir")"
+
+    # Sort desired tags for stable comparison
+    local desired_tags_sorted=""
+    if [[ -n "$desired_tags_csv" ]]; then
+        desired_tags_sorted="$(echo "$desired_tags_csv" | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')"
+    fi
 
     [[ "$actual_label" != "$desired_label" ]] && drifted_fields+=("label")
     [[ "$actual_program" != "$desired_program" ]] && drifted_fields+=("program")
     [[ "$actual_workdir" != "$desired_workdir" ]] && drifted_fields+=("workingDirectory")
     [[ "$actual_args" != "$desired_args" ]] && drifted_fields+=("programArgs")
     [[ "$actual_desc" != "$desired_desc" ]] && drifted_fields+=("taskDescription")
+    [[ "$actual_tags_sorted" != "$desired_tags_sorted" ]] && drifted_fields+=("tags")
 
     if [[ ${#drifted_fields[@]} -gt 0 ]]; then
         local joined
@@ -155,4 +169,11 @@ compute_drift() {
     else
         echo "UNCHANGED"
     fi
+}
+
+# Expand ~ to $HOME so path comparisons are stable regardless of how the
+# path was entered (e.g. "~/foo" vs "/home/mvillmow/foo").
+normalize_path() {
+    local p="$1"
+    echo "${p/#\~/$HOME}"
 }

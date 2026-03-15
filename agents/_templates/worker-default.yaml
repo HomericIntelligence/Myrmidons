@@ -19,9 +19,11 @@ spec:
   owner: mvillmow
   role: member
   deployment:
-    type: docker
+    type: docker           # "local" = tmux on host; "docker" = container
+    # docker block required when type: docker.
+    # Image must be built from AchaeanFleet repo before deploying.
     docker:
-      image: achaean-worker:latest
+      image: achaean-worker:latest  # Image from AchaeanFleet repo
       cpus: 1
       memory: 1g
   desiredState: active

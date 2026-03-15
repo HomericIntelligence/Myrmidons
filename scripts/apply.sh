@@ -99,7 +99,10 @@ main() {
     echo ""
 
     for yaml_file in "${yaml_files[@]}"; do
-        apply_agent "$yaml_file" "$agents_json" || true
+        if ! apply_agent "$yaml_file" "$agents_json"; then
+            echo "ERROR: apply_agent failed for ${yaml_file}" >&2
+            ERRORS=$((ERRORS + 1))
+        fi
         # Refresh actual state after each change
         agents_json="$(aim_list_agents)"
     done
@@ -173,7 +176,7 @@ apply_agent() {
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc")"
+        "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
 
     case "$action" in
         UNCHANGED)

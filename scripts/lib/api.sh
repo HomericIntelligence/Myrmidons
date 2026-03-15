@@ -21,28 +21,60 @@ aim_check_connection() {
     fi
 }
 
+# Internal helper: curl with standard flags (timeout, error output on failure).
+# Usage: _aim_curl [-X METHOD] URL [-H header] [-d body]
+_aim_curl() {
+    local http_code
+    local response
+    local tmpfile
+    tmpfile="$(mktemp)"
+
+    # Write response body to tmpfile; capture HTTP status code separately.
+    http_code="$(curl -s --max-time 10 -w "%{http_code}" -o "$tmpfile" "$@")"
+    local curl_exit=$?
+
+    response="$(cat "$tmpfile")"
+    rm -f "$tmpfile"
+
+    if [[ $curl_exit -ne 0 ]]; then
+        echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
+        return 1
+    fi
+
+    if [[ "${http_code:0:1}" != "2" ]]; then
+        echo "ERROR: HTTP ${http_code} from ai-maestro" >&2
+        echo "  URL: $*" >&2
+        if [[ -n "$response" ]]; then
+            echo "  Body: ${response}" >&2
+        fi
+        return 1
+    fi
+
+    echo "$response"
+}
+
 # List all agents registered on this host.
 aim_list_agents() {
-    curl -sf "${AIM_HOST}/api/agents"
+    _aim_curl "${AIM_HOST}/api/agents"
 }
 
 # Get a single agent by ID.
 aim_get_agent() {
     local agent_id="$1"
-    curl -sf "${AIM_HOST}/api/agents/${agent_id}"
+    _aim_curl "${AIM_HOST}/api/agents/${agent_id}"
 }
 
 # Get a single agent by name (rich resolution).
 aim_by_name() {
     local name="$1"
-    curl -sf "${AIM_HOST}/api/agents/by-name/${name}"
+    _aim_curl "${AIM_HOST}/api/agents/by-name/${name}"
 }
 
 # Create a new agent. $1 = JSON body.
 # Required fields: name, program, workingDirectory
 aim_create_agent() {
     local body="$1"
-    curl -sf -X POST \
+    _aim_curl -X POST \
         "${AIM_HOST}/api/agents" \
         -H 'Content-Type: application/json' \
         -d "${body}"
@@ -52,7 +84,7 @@ aim_create_agent() {
 aim_update_agent() {
     local agent_id="$1"
     local body="$2"
-    curl -sf -X PATCH \
+    _aim_curl -X PATCH \
         "${AIM_HOST}/api/agents/${agent_id}" \
         -H 'Content-Type: application/json' \
         -d "${body}"
@@ -62,13 +94,13 @@ aim_update_agent() {
 # Always hibernate first for graceful shutdown.
 aim_delete_agent() {
     local agent_id="$1"
-    curl -sf -X DELETE "${AIM_HOST}/api/agents/${agent_id}?hard=true"
+    _aim_curl -X DELETE "${AIM_HOST}/api/agents/${agent_id}?hard=true"
 }
 
 # Wake an agent (starts tmux session + AI program).
 aim_wake_agent() {
     local agent_id="$1"
-    curl -sf -X POST \
+    _aim_curl -X POST \
         "${AIM_HOST}/api/agents/${agent_id}/wake" \
         -H 'Content-Type: application/json' \
         -d '{}'
@@ -77,7 +109,7 @@ aim_wake_agent() {
 # Hibernate an agent (graceful stop: Ctrl-C, exit, kill tmux).
 aim_hibernate_agent() {
     local agent_id="$1"
-    curl -sf -X POST \
+    _aim_curl -X POST \
         "${AIM_HOST}/api/agents/${agent_id}/hibernate" \
         -H 'Content-Type: application/json' \
         -d '{}'
@@ -86,7 +118,7 @@ aim_hibernate_agent() {
 # Create a Docker-deployed agent.
 aim_docker_create() {
     local body="$1"
-    curl -sf -X POST \
+    _aim_curl -X POST \
         "${AIM_HOST}/api/agents/docker/create" \
         -H 'Content-Type: application/json' \
         -d "${body}"

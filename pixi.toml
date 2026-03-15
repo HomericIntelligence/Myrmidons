@@ -1,0 +1,18 @@
+[project]
+name = "myrmidons"
+version = "0.1.0"
+description = "GitOps agent provisioning for the HomericIntelligence mesh"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+just = ">=1.13"
+yq   = ">=4.0"
+jq   = ">=1.6"
+
+[tasks]
+status   = "just status"
+plan     = "just plan"
+apply    = "just apply"
+validate = "just validate"
+export   = "just export"

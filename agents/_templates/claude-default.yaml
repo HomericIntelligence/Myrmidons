@@ -18,8 +18,10 @@ spec:
   role: member             # "member" | "admin"
   deployment:
     type: local            # "local" = tmux on host; "docker" = container
+    # docker block is only used when type: docker.
+    # For type: local, this block is ignored by apply.sh but kept for easy switching.
     docker:
-      image: achaean-claude:latest
+      image: achaean-claude:latest  # Image from AchaeanFleet repo
       cpus: 2
       memory: 4g
   desiredState: active     # "active" = wake; "hibernated" = hibernate
