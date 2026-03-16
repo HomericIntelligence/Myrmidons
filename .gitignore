@@ -1,0 +1,21 @@
+# Never commit secrets or local overrides
+.env
+*.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test output
+/tmp/
+tests/*.log
+
+# Local state (not config)
+*.bak
