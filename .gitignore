@@ -19,3 +19,7 @@ tests/*.log
 
 # Local state (not config)
 *.bak
+
+# Cloned repos from /advise skill
+ProjectMnemosyne/
+build/
