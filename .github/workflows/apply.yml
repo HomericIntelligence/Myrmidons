@@ -10,7 +10,7 @@ on:
 jobs:
   apply:
     name: Reconcile Desired State
-    runs-on: self-hosted  # hermes runner (Tailscale-connected) or local
+    runs-on: ubuntu-latest
     env:
       AIM_HOST: ${{ secrets.AIM_HOST }}
     steps:
