@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# scripts/apply.sh — Reconcile desired state → actual via ai-maestro API
+# scripts/apply.sh — Reconcile desired state → actual via Agamemnon API
 #
 # The core GitOps reconciliation loop. Reads agent YAML files and ensures
-# ai-maestro matches the desired state. NEVER modifies registry.json directly —
-# all changes go through the REST API.
+# Agamemnon matches the desired state. All changes go through the REST API.
 #
 # Usage:
 #   ./scripts/apply.sh                 # Apply all agents on all hosts
@@ -55,12 +54,12 @@ usage() {
     cat <<EOF
 Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run]
 
-Reconciles agent YAML definitions against ai-maestro's actual state.
+Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
   host           Only apply agents for this host (default: all)
   --fleet NAME   Only apply agents in this fleet
-  --prune        Hibernate and delete unmanaged agents (agents in ai-maestro
+  --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
                  but not in YAML). DEFAULT: warn only.
   --dry-run      Show what would happen, make no changes (same as plan.sh)
   -h, --help     Show this help
@@ -81,10 +80,10 @@ main() {
     fi
 
     check_deps
-    aim_check_connection
+    agamemnon_check_connection
 
     local agents_json
-    agents_json="$(aim_list_agents)"
+    agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
     mapfile -t yaml_files < <(get_agent_files "$HOST")
@@ -94,7 +93,7 @@ main() {
         exit 0
     fi
 
-    echo "Applying desired state to ${AIM_HOST}"
+    echo "Applying desired state to ${AGAMEMNON_URL}"
     echo "================================================"
     echo ""
 
@@ -104,7 +103,7 @@ main() {
             ERRORS=$((ERRORS + 1))
         fi
         # Refresh actual state after each change
-        agents_json="$(aim_list_agents)"
+        agents_json="$(agamemnon_list_agents)"
     done
 
     # Handle unmanaged agents
@@ -149,7 +148,7 @@ apply_agent() {
         create_body="$(build_create_json "$name" "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role")"
 
         local result
-        if result="$(aim_create_agent "$create_body" 2>&1)"; then
+        if result="$(agamemnon_create_agent "$create_body" 2>&1)"; then
             local new_id
             new_id="$(echo "$result" | jq -r '.id // empty')"
             echo "    Created: id=${new_id}"
@@ -157,9 +156,9 @@ apply_agent() {
 
             # Wake if desired
             if [[ "$desired_state" == "active" && -n "$new_id" ]]; then
-                echo "    Waking ${name}..."
-                aim_wake_agent "$new_id" > /dev/null
-                echo "    Woken."
+                echo "    Starting ${name}..."
+                agamemnon_wake_agent "$new_id" > /dev/null
+                echo "    Started."
                 WOKEN=$((WOKEN + 1))
             fi
         else
@@ -184,14 +183,14 @@ apply_agent() {
             UNCHANGED=$((UNCHANGED + 1))
             ;;
         WAKE)
-            echo "[!] Waking ${name} (status=${actual_status}, desired=active)..."
-            aim_wake_agent "$actual_id" > /dev/null
-            echo "    Woken."
+            echo "[!] Starting ${name} (status=${actual_status}, desired=active)..."
+            agamemnon_wake_agent "$actual_id" > /dev/null
+            echo "    Started."
             WOKEN=$((WOKEN + 1))
             ;;
         HIBERNATE)
-            echo "[z] Hibernating ${name} (status=${actual_status}, desired=hibernated)..."
-            aim_hibernate_agent "$actual_id" > /dev/null
+            echo "[z] Stopping ${name} (status=${actual_status}, desired=hibernated)..."
+            agamemnon_hibernate_agent "$actual_id" > /dev/null
             echo "    Hibernated."
             HIBERNATED=$((HIBERNATED + 1))
             ;;
@@ -209,7 +208,7 @@ apply_agent() {
                 '{label: $label, program: $program, workingDirectory: $workingDirectory,
                   programArgs: $programArgs, taskDescription: $taskDescription}')"
 
-            if aim_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
+            if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
                 echo "    Updated."
                 UPDATED=$((UPDATED + 1))
             else
@@ -217,13 +216,13 @@ apply_agent() {
                 ERRORS=$((ERRORS + 1))
             fi
 
-            # Also wake/hibernate if state needs to change
+            # Also start/stop if state needs to change
             if [[ "$desired_state" == "active" && "$actual_status" == "offline" ]]; then
-                aim_wake_agent "$actual_id" > /dev/null
+                agamemnon_wake_agent "$actual_id" > /dev/null
                 WOKEN=$((WOKEN + 1))
             elif [[ "$desired_state" == "hibernated" && \
                     ("$actual_status" == "active" || "$actual_status" == "online") ]]; then
-                aim_hibernate_agent "$actual_id" > /dev/null
+                agamemnon_hibernate_agent "$actual_id" > /dev/null
                 HIBERNATED=$((HIBERNATED + 1))
             fi
             ;;
@@ -257,13 +256,13 @@ handle_unmanaged() {
                     '.[] | select(.name == $n) | .id')"
                 echo "[-] Pruning unmanaged: ${actual_name}"
                 echo "    Hibernating first..."
-                aim_hibernate_agent "$agent_id" > /dev/null || true
+                agamemnon_hibernate_agent "$agent_id" > /dev/null || true
                 sleep 2
                 echo "    Deleting..."
-                aim_delete_agent "$agent_id" > /dev/null
+                agamemnon_delete_agent "$agent_id" > /dev/null
                 echo "    Deleted (backup created)."
             else
-                echo "[-] UNMANAGED: ${actual_name} (in ai-maestro but not in YAML — use --prune to remove)"
+                echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
             fi
         fi
     done < <(echo "$agents_json" | jq -r '.[].name')

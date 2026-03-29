@@ -22,10 +22,10 @@ HOST="${1:-}"
 
 main() {
     check_deps
-    aim_check_connection
+    agamemnon_check_connection
 
     local agents_json
-    agents_json="$(aim_list_agents)"
+    agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
     mapfile -t yaml_files < <(get_agent_files "$HOST")
