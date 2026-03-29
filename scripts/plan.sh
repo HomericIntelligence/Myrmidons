@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/plan.sh — Dry-run: show what apply.sh would do
 #
-# Compares desired state (YAML files) against actual state (ai-maestro API)
+# Compares desired state (YAML files) against actual state (Agamemnon API)
 # and prints what changes would be made. Makes NO changes.
 #
 # Usage:
@@ -50,10 +50,10 @@ usage() {
 main() {
     parse_args "$@"
     check_deps
-    aim_check_connection
+    agamemnon_check_connection
 
     local agents_json
-    agents_json="$(aim_list_agents)"
+    agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
     mapfile -t yaml_files < <(get_agent_files "$HOST")
@@ -65,7 +65,7 @@ main() {
 
     local has_changes=0
 
-    echo "Plan for ${AIM_HOST} (dry-run — no changes will be made)"
+    echo "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
     echo "================================================================"
     echo ""
 
@@ -73,7 +73,7 @@ main() {
         plan_agent "$yaml_file" "$agents_json" || has_changes=1
     done
 
-    # Report unmanaged agents (in ai-maestro but not in YAML)
+    # Report unmanaged agents (in Agamemnon but not in YAML)
     echo ""
     echo "Checking for unmanaged agents..."
     report_unmanaged "$agents_json" "${yaml_files[@]}"
@@ -166,7 +166,7 @@ report_unmanaged() {
             [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
         done
         if [[ $is_managed -eq 0 ]]; then
-            echo "[-] UNMANAGED ${actual_name} (not in desired state — use --prune to remove)"
+            echo "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
         fi
     done
 }

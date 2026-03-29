@@ -2,7 +2,7 @@
 
 GitOps agent provisioning for the HomericIntelligence mesh.
 Agent YAML files are the source of truth for **desired** state.
-Scripts reconcile against [ai-maestro](https://github.com/HomericIntelligence/ai-maestro) via its REST API.
+Scripts reconcile against [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon) via its REST API.
 
 Container images are built separately in [AchaeanFleet](../AchaeanFleet).
 
@@ -15,7 +15,7 @@ pixi install   # or: apt install jq && curl -fsSL .../yq_linux_amd64 -o /usr/loc
 # Install pre-commit hook
 just install-hooks
 
-# Phase 1: export current ai-maestro state to YAML (run once)
+# Bootstrap: export current Agamemnon state to YAML (run once)
 just export hermes
 
 # Review what Myrmidons would do
@@ -53,9 +53,9 @@ metadata:
   name: my-agent           # Unique per host — matches tmux session name
   host: hermes
 spec:
-  label: My Agent          # Display name in ai-maestro UI
+  label: My Agent          # Display name in Agamemnon UI
   program: claude-code     # claude-code | aider | codex | goose | cline | opencode | none
-  model: null              # null = ai-maestro default; or "claude-sonnet-4-6"
+  model: null              # null = Agamemnon default; or "claude-sonnet-4-6"
   workingDirectory: /home/mvillmow/MyProject
   programArgs: ""
   taskDescription: "What this agent does"
@@ -92,12 +92,12 @@ agents/
     ...
 fleets/                Fleet definitions (group multiple agents)
 scripts/
-  export.sh            Bootstrap: ai-maestro → YAML
+  export.sh            Bootstrap: Agamemnon → YAML
   plan.sh              Dry-run reconciliation
   apply.sh             Reconcile desired → actual
   status.sh            Show desired vs actual table
   lib/
-    api.sh             ai-maestro REST API client
+    api.sh             Agamemnon REST API client
     reconcile.sh       Drift computation logic
 hooks/
   pre-commit           Validates YAML schema before commit
@@ -107,7 +107,7 @@ hooks/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AIM_HOST` | `http://localhost:23000` | ai-maestro base URL |
+| `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
 
 ## Dependencies
 

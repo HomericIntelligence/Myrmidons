@@ -1,6 +1,6 @@
 # Myrmidons justfile — operational task runner
 # Usage: just <recipe>
-# Requires: just, yq, jq, curl (and a running ai-maestro)
+# Requires: just, yq, jq, curl (and a running ProjectAgamemnon)
 
 # Default: show help
 default:
@@ -11,7 +11,7 @@ default:
 # =============================================================================
 
 host := env_var_or_default("HOST", "hermes")
-aim_host := env_var_or_default("AIM_HOST", "http://localhost:23000")
+agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 
 # =============================================================================
 # Observability
@@ -19,7 +19,7 @@ aim_host := env_var_or_default("AIM_HOST", "http://localhost:23000")
 
 # Show desired vs actual state for all agents (or a specific host)
 status HOST=host:
-    AIM_HOST={{aim_host}} bash scripts/status.sh {{HOST}}
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh {{HOST}}
 
 # =============================================================================
 # Planning
@@ -27,27 +27,27 @@ status HOST=host:
 
 # Dry-run: show what apply would do (no changes made)
 plan HOST=host:
-    AIM_HOST={{aim_host}} bash scripts/apply.sh {{HOST}} --dry-run
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --dry-run
 
 # =============================================================================
 # Apply
 # =============================================================================
 
-# Reconcile desired state → ai-maestro (creates/updates/wakes/hibernates)
+# Reconcile desired state → Agamemnon (creates/updates/starts/stops)
 apply HOST=host:
-    AIM_HOST={{aim_host}} bash scripts/apply.sh {{HOST}}
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}}
 
-# Apply with --prune (removes agents in ai-maestro that are not in YAML)
+# Apply with --prune (removes agents in Agamemnon that are not in YAML)
 apply-prune HOST=host:
-    AIM_HOST={{aim_host}} bash scripts/apply.sh {{HOST}} --prune
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
 
 # =============================================================================
 # Bootstrap
 # =============================================================================
 
-# Export current ai-maestro agents to YAML (Phase 1 bootstrap — run once)
+# Export current Agamemnon agents to YAML (bootstrap — run once)
 export HOST=host:
-    AIM_HOST={{aim_host}} bash scripts/export.sh {{HOST}}
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/export.sh {{HOST}}
 
 # =============================================================================
 # Validation

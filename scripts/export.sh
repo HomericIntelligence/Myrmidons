@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# scripts/export.sh — Bootstrap: export current ai-maestro agents to YAML
+# scripts/export.sh — Bootstrap: export current Agamemnon agents to YAML
 #
-# Reads the current agent registry from ai-maestro and writes one YAML
+# Reads the current agent registry from Agamemnon and writes one YAML
 # file per agent into agents/<host>/.
 #
 # Usage:
 #   ./scripts/export.sh hermes
 #   ./scripts/export.sh                # defaults to "hermes"
 #
-# This is the Phase 1 bootstrap script. Run it once to seed Myrmidons
-# from the current ai-maestro state.
+# This is the bootstrap script. Run it once to seed Myrmidons
+# from the current Agamemnon state.
 
 set -euo pipefail
 
@@ -24,21 +24,21 @@ OUTPUT_DIR="${REPO_ROOT}/agents/${HOST}"
 
 main() {
     check_jq
-    aim_check_connection
+    agamemnon_check_connection
 
-    echo "Exporting agents from ai-maestro (${AIM_HOST}) for host: ${HOST}"
+    echo "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
     echo ""
 
     mkdir -p "${OUTPUT_DIR}"
 
     local agents_json
-    agents_json="$(aim_list_agents)"
+    agents_json="$(agamemnon_list_agents)"
 
     local count
     count="$(echo "$agents_json" | jq 'length')"
 
     if [[ "$count" -eq 0 ]]; then
-        echo "No agents found in ai-maestro."
+        echo "No agents found in Agamemnon."
         exit 0
     fi
 

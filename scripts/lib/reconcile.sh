@@ -2,7 +2,7 @@
 # scripts/lib/reconcile.sh — diff and reconciliation logic
 #
 # Provides functions used by apply.sh and plan.sh.
-# Parses YAML agent definitions, compares with actual ai-maestro state,
+# Parses YAML agent definitions, compares with actual Agamemnon state,
 # and produces a list of actions to take.
 #
 # Requires: yq (YAML parser), jq, source of api.sh

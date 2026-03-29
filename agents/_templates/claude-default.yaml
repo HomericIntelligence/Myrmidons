@@ -5,11 +5,11 @@ apiVersion: myrmidons/v1
 kind: Agent
 metadata:
   name: CHANGE_ME          # Must be unique per host (used as tmux session name)
-  host: hermes             # Must match the hostId in ai-maestro
+  host: hermes             # Must match the hostId in Agamemnon
 spec:
-  label: CHANGE_ME         # Display name in ai-maestro UI
+  label: CHANGE_ME         # Display name in Agamemnon UI
   program: claude-code
-  model: null              # null = use ai-maestro default; or "claude-sonnet-4-6"
+  model: null              # null = use Agamemnon default; or "claude-sonnet-4-6"
   workingDirectory: /home/mvillmow/CHANGE_ME
   programArgs: ""          # Extra flags, e.g. "--model claude-opus-4-6"
   taskDescription: "Describe what this agent does"
