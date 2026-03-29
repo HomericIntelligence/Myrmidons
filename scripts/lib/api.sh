@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# scripts/lib/api.sh — ai-maestro API client
+# scripts/lib/api.sh — ProjectAgamemnon API client
 #
-# Thin wrapper around curl calls to the ai-maestro REST API.
+# Thin wrapper around curl calls to the ProjectAgamemnon REST API.
 # All functions print raw JSON to stdout. Callers parse with jq.
 #
 # Usage:
 #   source scripts/lib/api.sh
-#   aim_list_agents | jq '.[].name'
+#   agamemnon_list_agents | jq '.[].name'
 
 set -euo pipefail
 
-AIM_HOST="${AIM_HOST:-http://localhost:23000}"
+AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
 
-# Check that ai-maestro is reachable before making calls.
-aim_check_connection() {
-    if ! curl -sf --max-time 5 "${AIM_HOST}/api/sessions" > /dev/null 2>&1; then
-        echo "ERROR: Cannot reach ai-maestro at ${AIM_HOST}" >&2
-        echo "  Is ai-maestro running? Check: pm2 status ai-maestro" >&2
+# Check that Agamemnon is reachable before making calls.
+agamemnon_check_connection() {
+    if ! curl -sf --max-time 5 "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
+        echo "ERROR: Cannot reach Agamemnon at ${AGAMEMNON_URL}" >&2
+        echo "  Is Agamemnon running? Check your ProjectAgamemnon deployment." >&2
         return 1
     fi
 }
 
 # Internal helper: curl with standard flags (timeout, error output on failure).
-# Usage: _aim_curl [-X METHOD] URL [-H header] [-d body]
-_aim_curl() {
+# Usage: _agamemnon_curl [-X METHOD] URL [-H header] [-d body]
+_agamemnon_curl() {
     local http_code
     local response
     local tmpfile
@@ -42,7 +42,7 @@ _aim_curl() {
     fi
 
     if [[ "${http_code:0:1}" != "2" ]]; then
-        echo "ERROR: HTTP ${http_code} from ai-maestro" >&2
+        echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
         echo "  URL: $*" >&2
         if [[ -n "$response" ]]; then
             echo "  Body: ${response}" >&2
@@ -54,86 +54,87 @@ _aim_curl() {
 }
 
 # List all agents registered on this host.
-aim_list_agents() {
-    _aim_curl "${AIM_HOST}/api/agents"
+agamemnon_list_agents() {
+    _agamemnon_curl "${AGAMEMNON_URL}/v1/agents"
 }
 
 # Get a single agent by ID.
-aim_get_agent() {
+agamemnon_get_agent() {
     local agent_id="$1"
-    _aim_curl "${AIM_HOST}/api/agents/${agent_id}"
+    _agamemnon_curl "${AGAMEMNON_URL}/v1/agents/${agent_id}"
 }
 
 # Get a single agent by name (rich resolution).
-aim_by_name() {
+agamemnon_by_name() {
     local name="$1"
-    _aim_curl "${AIM_HOST}/api/agents/by-name/${name}"
+    _agamemnon_curl "${AGAMEMNON_URL}/v1/agents/by-name/${name}"
 }
 
 # Create a new agent. $1 = JSON body.
 # Required fields: name, program, workingDirectory
-aim_create_agent() {
+agamemnon_create_agent() {
     local body="$1"
-    _aim_curl -X POST \
-        "${AIM_HOST}/api/agents" \
+    _agamemnon_curl -X POST \
+        "${AGAMEMNON_URL}/v1/agents" \
         -H 'Content-Type: application/json' \
         -d "${body}"
 }
 
 # Partially update an agent. $1 = agent ID, $2 = JSON patch body.
-aim_update_agent() {
+agamemnon_update_agent() {
     local agent_id="$1"
     local body="$2"
-    _aim_curl -X PATCH \
-        "${AIM_HOST}/api/agents/${agent_id}" \
+    _agamemnon_curl -X PATCH \
+        "${AGAMEMNON_URL}/v1/agents/${agent_id}" \
         -H 'Content-Type: application/json' \
         -d "${body}"
 }
 
 # Delete an agent (hard delete creates a backup).
-# Always hibernate first for graceful shutdown.
-aim_delete_agent() {
+# Always stop first for graceful shutdown.
+agamemnon_delete_agent() {
     local agent_id="$1"
-    _aim_curl -X DELETE "${AIM_HOST}/api/agents/${agent_id}?hard=true"
+    _agamemnon_curl -X DELETE "${AGAMEMNON_URL}/v1/agents/${agent_id}?hard=true"
 }
 
-# Wake an agent (starts tmux session + AI program).
-aim_wake_agent() {
+# Start an agent (starts tmux session + AI program).
+agamemnon_wake_agent() {
     local agent_id="$1"
-    _aim_curl -X POST \
-        "${AIM_HOST}/api/agents/${agent_id}/wake" \
+    _agamemnon_curl -X POST \
+        "${AGAMEMNON_URL}/v1/agents/${agent_id}/start" \
         -H 'Content-Type: application/json' \
         -d '{}'
 }
 
-# Hibernate an agent (graceful stop: Ctrl-C, exit, kill tmux).
-aim_hibernate_agent() {
+# Stop an agent (graceful stop: Ctrl-C, exit, kill tmux).
+agamemnon_hibernate_agent() {
     local agent_id="$1"
-    _aim_curl -X POST \
-        "${AIM_HOST}/api/agents/${agent_id}/hibernate" \
+    _agamemnon_curl -X POST \
+        "${AGAMEMNON_URL}/v1/agents/${agent_id}/stop" \
         -H 'Content-Type: application/json' \
         -d '{}'
 }
 
 # Create a Docker-deployed agent.
-aim_docker_create() {
+agamemnon_docker_create() {
     local body="$1"
-    _aim_curl -X POST \
-        "${AIM_HOST}/api/agents/docker/create" \
+    _agamemnon_curl -X POST \
+        "${AGAMEMNON_URL}/v1/agents/docker" \
         -H 'Content-Type: application/json' \
         -d "${body}"
 }
 
 # Helper: get agent ID by name. Returns empty string if not found.
-aim_id_by_name() {
+agamemnon_id_by_name() {
     local name="$1"
-    aim_list_agents | jq -r --arg name "$name" \
+    agamemnon_list_agents | jq -r --arg name "$name" \
         '.[] | select(.name == $name) | .id // empty'
 }
 
 # Helper: get agent status by name. Returns "unknown" if not found.
-aim_status_by_name() {
+agamemnon_status_by_name() {
     local name="$1"
-    aim_list_agents | jq -r --arg name "$name" \
+    agamemnon_list_agents | jq -r --arg name "$name" \
         '.[] | select(.name == $name) | .status // "unknown"'
 }
+
