@@ -138,19 +138,3 @@ agamemnon_status_by_name() {
         '.[] | select(.name == $name) | .status // "unknown"'
 }
 
-# =============================================================================
-# Backward-compatibility aliases (for callers not yet migrated from ai-maestro)
-# =============================================================================
-
-aim_check_connection()  { agamemnon_check_connection "$@"; }
-aim_list_agents()       { agamemnon_list_agents "$@"; }
-aim_get_agent()         { agamemnon_get_agent "$@"; }
-aim_by_name()           { agamemnon_by_name "$@"; }
-aim_create_agent()      { agamemnon_create_agent "$@"; }
-aim_update_agent()      { agamemnon_update_agent "$@"; }
-aim_delete_agent()      { agamemnon_delete_agent "$@"; }
-aim_wake_agent()        { agamemnon_wake_agent "$@"; }
-aim_hibernate_agent()   { agamemnon_hibernate_agent "$@"; }
-aim_docker_create()     { agamemnon_docker_create "$@"; }
-aim_id_by_name()        { agamemnon_id_by_name "$@"; }
-aim_status_by_name()    { agamemnon_status_by_name "$@"; }
