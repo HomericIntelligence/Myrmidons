@@ -54,6 +54,10 @@ void ensure_stream(jsCtx* js, const char* name, const char** subjects, int subje
 }
 
 int main() {
+    // Disable stdout/stderr buffering for container logging
+    std::cout.setf(std::ios::unitbuf);
+    std::cerr.setf(std::ios::unitbuf);
+
     std::signal(SIGINT,  signal_handler);
     std::signal(SIGTERM, signal_handler);
 
