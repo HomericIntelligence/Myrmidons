@@ -1,6 +1,16 @@
-FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY worker.py .
-CMD ["python", "worker.py"]
+FROM ubuntu:24.04 AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake ninja-build g++ git ca-certificates libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY CMakeLists.txt main.cpp ./
+RUN cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build
+
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /src/build/hello_myrmidon /usr/local/bin/
+ENV NATS_URL=nats://localhost:4222
+CMD ["hello_myrmidon"]
