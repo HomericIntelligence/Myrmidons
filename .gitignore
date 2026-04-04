@@ -23,3 +23,6 @@ tests/*.log
 # Cloned repos from /advise skill
 ProjectMnemosyne/
 build/
+
+# Old/unused implementations
+hello-world/main.py
