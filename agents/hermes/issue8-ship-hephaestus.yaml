@@ -1,0 +1,25 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue8-ship-hephaestus
+  host: hermes
+spec:
+  label: "Issue 8 Ship - Hephaestus"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Creates PR in ProjectHephaestus repo for justfile recipes. Git-only + read-only workspace."
+  tags:
+    - issue-8
+    - ship
+    - hephaestus
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active

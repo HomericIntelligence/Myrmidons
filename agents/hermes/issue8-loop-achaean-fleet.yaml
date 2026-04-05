@@ -1,0 +1,25 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue8-loop-achaean-fleet
+  host: hermes
+spec:
+  label: "Issue 8 Loop - AchaeanFleet"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Test/implement/review loop for AchaeanFleet justfile recipes. Read-write workspace."
+  tags:
+    - issue-8
+    - loop
+    - achaean-fleet
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active

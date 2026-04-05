@@ -1,0 +1,25 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue8-ship-achaean-fleet
+  host: hermes
+spec:
+  label: "Issue 8 Ship - AchaeanFleet"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Creates PR in AchaeanFleet repo for justfile recipes. Git-only + read-only workspace."
+  tags:
+    - issue-8
+    - ship
+    - achaean-fleet
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active
