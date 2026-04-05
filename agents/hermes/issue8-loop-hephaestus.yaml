@@ -1,0 +1,25 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue8-loop-hephaestus
+  host: hermes
+spec:
+  label: "Issue 8 Loop - Hephaestus"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Test/implement/review loop for ProjectHephaestus justfile recipes. Read-write workspace."
+  tags:
+    - issue-8
+    - loop
+    - hephaestus
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active
