@@ -6,6 +6,8 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
+      - 'pixi.toml'
+      - 'pixi.lock'
 
 jobs:
   apply:
@@ -16,6 +18,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache pixi environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pixi
+            ~/.cache/rattler/cache
+          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+
+      - name: Install dependencies (locked)
+        run: pixi install --locked
+
       - name: Install yq
         env:
           YQ_VERSION: "v4.40.5"
@@ -24,13 +37,6 @@ jobs:
             -o /usr/local/bin/yq
           chmod +x /usr/local/bin/yq
           yq --version
-
-      - name: Install jq if needed
-        run: |
-          if ! command -v jq &>/dev/null; then
-            apt-get install -y jq
-          fi
-          jq --version
 
       - name: Plan — show what will change
         run: |

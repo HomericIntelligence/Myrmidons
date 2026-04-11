@@ -1,0 +1,26 @@
+name: Lock File Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pixi.toml'
+      - 'pixi.lock'
+
+jobs:
+  lock-check:
+    name: Verify pixi.lock is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache pixi environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pixi
+            ~/.cache/rattler/cache
+          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+
+      - name: Install dependencies (locked)
+        run: pixi install --locked
