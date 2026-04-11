@@ -25,11 +25,16 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
 source "${SCRIPT_DIR}/lib/reconcile.sh"
+# shellcheck source=scripts/lib/lock.sh
+source "${SCRIPT_DIR}/lib/lock.sh"
+
+AIM_LOCK_FILE="${AIM_LOCK_FILE:-/tmp/myrmidons-apply.lock}"
 
 HOST=""
 FLEET=""
 PRUNE=0
 DRY_RUN=0
+FORCE=0
 
 CREATED=0
 UPDATED=0
@@ -44,6 +49,7 @@ parse_args() {
             --prune)   PRUNE=1; shift ;;
             --dry-run) DRY_RUN=1; shift ;;
             --fleet)   FLEET="$2"; shift 2 ;;
+            --force)   FORCE=1; shift ;;
             -h|--help) usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
@@ -62,7 +68,12 @@ Options:
   --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
                  but not in YAML). DEFAULT: warn only.
   --dry-run      Show what would happen, make no changes (same as plan.sh)
+  --force        Break a stale lock file before acquiring (use only if the
+                 previous apply process is confirmed dead)
   -h, --help     Show this help
+
+Environment:
+  AIM_LOCK_FILE  Lock file path (default: /tmp/myrmidons-apply.lock)
 
 Examples:
   $0                         # Reconcile everything
@@ -76,11 +87,11 @@ main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        local plan_args=()
-        [[ -n "$HOST" ]]  && plan_args+=("$HOST")
-        [[ -n "$FLEET" ]] && plan_args+=("--fleet" "$FLEET")
-        exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
+        exec "${SCRIPT_DIR}/plan.sh" "$@"
     fi
+
+    acquire_lock "$AIM_LOCK_FILE" "$FORCE"
+    trap 'release_lock "$AIM_LOCK_FILE"' EXIT
 
     check_deps
     agamemnon_check_connection

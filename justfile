@@ -41,6 +41,10 @@ apply HOST=host:
 apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
 
+# Apply with --force (breaks a stale lock before acquiring — use only if previous apply is confirmed dead)
+apply-force HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --force
+
 # =============================================================================
 # Bootstrap
 # =============================================================================
