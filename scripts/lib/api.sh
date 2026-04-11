@@ -26,15 +26,19 @@ agamemnon_check_connection() {
 _agamemnon_curl() {
     local http_code
     local response
+    local tmpdir
     local tmpfile
-    tmpfile="$(mktemp)"
+    tmpdir="$(mktemp -d)"
+    tmpfile="${tmpdir}/response"
+    # Ensure private temp dir is cleaned up on function return, even if interrupted.
+    trap "rm -rf '${tmpdir}'" RETURN
 
     # Write response body to tmpfile; capture HTTP status code separately.
     http_code="$(curl -s --max-time 10 -w "%{http_code}" -o "$tmpfile" "$@")"
     local curl_exit=$?
 
     response="$(cat "$tmpfile")"
-    rm -f "$tmpfile"
+    # tmpdir cleaned up by trap on RETURN
 
     if [[ $curl_exit -ne 0 ]]; then
         echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
