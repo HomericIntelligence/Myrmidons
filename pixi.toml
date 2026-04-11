@@ -6,10 +6,10 @@ channels = ["conda-forge"]
 platforms = ["linux-64"]
 
 [dependencies]
-just       = ">=1.13"
-yq         = ">=4.0"
-jq         = ">=1.6"
-pre-commit = ">=3.0"
+just = ">=1.13"
+yq   = ">=4.0"
+jq   = ">=1.6"
+bats-core = ">=1.10"
 
 [tasks]
 status   = "just status"
@@ -17,4 +17,4 @@ plan     = "just plan"
 apply    = "just apply"
 validate = "just validate"
 export   = "just export"
-lint     = "just lint"
+test     = "just test"

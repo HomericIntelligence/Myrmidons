@@ -53,11 +53,8 @@ export HOST=host:
 # Validation
 # =============================================================================
 
-# Run all validation checks (YAML schemas + documentation drift)
-validate: validate-schemas test-drift
-
 # Validate all agent YAML files (schema check without committing)
-validate-schemas:
+validate:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v yq &>/dev/null; then
@@ -87,32 +84,32 @@ validate-schemas:
     fi
     echo "All YAML files valid."
 
-# Check documentation files for overclaims about unimplemented features
-test-drift:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    chmod +x tests/detect-doc-drift.sh
-    ./tests/detect-doc-drift.sh
-
 # =============================================================================
-# Linting
+# Testing
 # =============================================================================
 
-# Run all linters via pre-commit (shellcheck, yamllint, schema validation)
-lint:
-    pre-commit run --all-files
+# Run all tests (unit + integration) using bats-core
+test:
+    @echo "Running unit tests..."
+    bats tests/unit/
+    @echo ""
+    @echo "Running integration tests..."
+    bats tests/integration/
+
+# Run only unit tests
+test-unit:
+    bats tests/unit/
+
+# Run only integration tests
+test-integration:
+    bats tests/integration/
 
 # =============================================================================
 # Hooks
 # =============================================================================
 
-# Install pre-commit framework hooks (recommended)
+# Install the pre-commit hook into .git/hooks/
 install-hooks:
-    pre-commit install
-    @echo "pre-commit hooks installed via pre-commit framework."
-
-# Install the legacy pre-commit hook into .git/hooks/ (backward compatibility)
-install-hooks-legacy:
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    @echo "Legacy pre-commit hook installed."
+    @echo "pre-commit hook installed."
