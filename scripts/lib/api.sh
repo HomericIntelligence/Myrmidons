@@ -12,8 +12,26 @@ set -euo pipefail
 
 AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
 
+# Validate that AGAMEMNON_URL matches an expected safe format.
+# Accepts only http:// or https:// followed by hostname/IP with optional port/path.
+# Rejects embedded credentials, unusual characters, or other injection vectors.
+_agamemnon_validate_url() {
+    local url="$1"
+    if [[ ! "$url" =~ ^https?://[a-zA-Z0-9._-]+(:[0-9]+)?(/[a-zA-Z0-9._~:@!$&\'()*+,;=%-]*)*$ ]]; then
+        echo "ERROR: AGAMEMNON_URL contains an invalid or unsafe value: '${url}'" >&2
+        echo "  Expected format: http(s)://hostname[:port][/path]" >&2
+        echo "  Only alphanumeric hostnames and standard URL characters are permitted." >&2
+        return 1
+    fi
+}
+
 # Check that Agamemnon is reachable before making calls.
+# Also validates AGAMEMNON_URL format to prevent SSRF via env var injection.
 agamemnon_check_connection() {
+    _agamemnon_validate_url "${AGAMEMNON_URL}"
+
+    echo "Connecting to Agamemnon at: ${AGAMEMNON_URL}"
+
     if ! curl -sf --max-time 5 "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
         echo "ERROR: Cannot reach Agamemnon at ${AGAMEMNON_URL}" >&2
         echo "  Is Agamemnon running? Check your ProjectAgamemnon deployment." >&2
