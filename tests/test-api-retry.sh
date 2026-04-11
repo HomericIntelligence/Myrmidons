@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# tests/test-api-retry.sh — Unit tests for _agamemnon_curl_retry()
+#
+# Tests retry logic, exponential backoff, transient vs permanent error
+# classification, and AGAMEMNON_TIMEOUT env var handling in api.sh.
+#
+# Usage:
+#   ./tests/test-api-retry.sh
+#
+# Exit codes:
+#   0 = all tests passed
+#   1 = one or more tests failed
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+PASS=0
+FAIL=0
+
+# ── Test harness ──────────────────────────────────────────────────────────────
+
+_pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
+_fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
+
+assert_eq() {
+    local desc="$1" expected="$2" actual="$3"
+    if [[ "$actual" == "$expected" ]]; then
+        _pass "$desc"
+    else
+        _fail "$desc — expected '${expected}', got '${actual}'"
+    fi
+}
+
+assert_zero() {
+    local desc="$1" actual="$2"
+    if [[ "$actual" -eq 0 ]]; then
+        _pass "$desc"
+    else
+        _fail "$desc — expected exit 0, got ${actual}"
+    fi
+}
+
+assert_nonzero() {
+    local desc="$1" actual="$2"
+    if [[ "$actual" -ne 0 ]]; then
+        _pass "$desc"
+    else
+        _fail "$desc — expected non-zero exit, got 0"
+    fi
+}
+
+assert_contains() {
+    local desc="$1" needle="$2" haystack="$3"
+    if [[ "$haystack" == *"$needle"* ]]; then
+        _pass "$desc"
+    else
+        _fail "$desc — expected to find '${needle}' in: ${haystack}"
+    fi
+}
+
+# ── Mock infrastructure ───────────────────────────────────────────────────────
+# Because _agamemnon_curl_retry calls curl inside $() subshells, we track
+# call counts and sequence state via temp files so mutations survive the
+# subshell boundary.
+
+_CALL_FILE=""
+_SEQ_FILE=""
+_BODY_FILE=""
+_STDERR_FILE=""
+
+setup_mock() {
+    _CALL_FILE="$(mktemp)"
+    _SEQ_FILE="$(mktemp)"
+    _BODY_FILE="$(mktemp)"
+    _STDERR_FILE="$(mktemp)"
+    echo 0 > "$_CALL_FILE"
+    echo '{"ok":true}' > "$_BODY_FILE"
+}
+
+teardown_mock() {
+    rm -f "$_CALL_FILE" "$_SEQ_FILE" "$_BODY_FILE" "$_STDERR_FILE"
+}
+
+# Set a single response for all calls: exit_code http_code
+mock_single() {
+    local exit_code="$1" http_code="$2"
+    echo "${exit_code},${http_code}" > "$_SEQ_FILE"
+}
+
+# Set a sequence of responses: each arg is "exit_code,http_code"
+# The last entry repeats indefinitely.
+mock_sequence() {
+    local IFS='|'
+    echo "$*" > "$_SEQ_FILE"
+}
+
+# Override curl so tests don't hit the network.
+# Reads sequence from _SEQ_FILE, writes body from _BODY_FILE to -o target,
+# outputs http_code, returns exit_code.
+curl() {
+    # Increment call count
+    local count
+    count=$(<"$_CALL_FILE")
+    echo $((count + 1)) > "$_CALL_FILE"
+
+    # Read next sequence entry
+    local seq entry rest exit_code http_code
+    seq=$(<"$_SEQ_FILE")
+    entry="${seq%%|*}"
+    rest="${seq#*|}"
+    exit_code="${entry%%,*}"
+    http_code="${entry#*,}"
+
+    # Advance sequence (last entry repeats)
+    if [[ "$rest" != "$seq" ]]; then
+        echo "$rest" > "$_SEQ_FILE"
+    fi
+
+    # Write body to -o file
+    local args=("$@")
+    local i
+    for (( i=0; i<${#args[@]}; i++ )); do
+        if [[ "${args[$i]}" == "-o" ]]; then
+            cat "$_BODY_FILE" > "${args[$((i+1))]}"
+            break
+        fi
+    done
+
+    echo -n "$http_code"
+    return "$exit_code"
+}
+
+# Override sleep so tests run instantly.
+sleep() { : ; }
+
+# ── Load api.sh ───────────────────────────────────────────────────────────────
+AGAMEMNON_URL="http://mock.test:9999"
+AGAMEMNON_TIMEOUT=5
+source "${REPO_ROOT}/scripts/lib/api.sh"
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+echo "Running api retry tests..."
+echo ""
+
+# ── Test 1: Success on first attempt — no retries ─────────────────────────────
+setup_mock
+mock_single 0 200
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")"
+rc=$?
+calls=$(<"$_CALL_FILE")
+assert_zero "success on first attempt: exit 0" "$rc"
+assert_eq "success on first attempt: response body" '{"ok":true}' "$output"
+assert_eq "success on first attempt: curl called once" "1" "$calls"
+teardown_mock
+
+# ── Test 2: Retry on exit 7 (connection refused), success on 2nd attempt ──────
+setup_mock
+mock_sequence "7,000" "0,200"
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")"
+rc=$?
+calls=$(<"$_CALL_FILE")
+stderr_content="$(cat "$_STDERR_FILE")"
+assert_zero "retry on exit 7, success on 2nd: exit 0" "$rc"
+assert_eq "retry on exit 7, success on 2nd: curl called twice" "2" "$calls"
+assert_contains "retry on exit 7: WARN emitted" "WARN: Retry 1/3" "$stderr_content"
+teardown_mock
+
+# ── Test 3: Retry on exit 28 (timeout), success on 2nd attempt ────────────────
+setup_mock
+mock_sequence "28,000" "0,200"
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")"
+rc=$?
+calls=$(<"$_CALL_FILE")
+stderr_content="$(cat "$_STDERR_FILE")"
+assert_zero "retry on exit 28, success on 2nd: exit 0" "$rc"
+assert_eq "retry on exit 28, success on 2nd: curl called twice" "2" "$calls"
+assert_contains "retry on exit 28: WARN emitted" "WARN: Retry 1/3" "$stderr_content"
+teardown_mock
+
+# ── Test 4: Retry on HTTP 503, success on 2nd attempt ─────────────────────────
+setup_mock
+mock_sequence "0,503" "0,200"
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")"
+rc=$?
+calls=$(<"$_CALL_FILE")
+stderr_content="$(cat "$_STDERR_FILE")"
+assert_zero "retry on HTTP 503, success on 2nd: exit 0" "$rc"
+assert_eq "retry on HTTP 503, success on 2nd: curl called twice" "2" "$calls"
+assert_contains "retry on HTTP 503: WARN emitted" "WARN: Retry 1/3" "$stderr_content"
+teardown_mock
+
+# ── Test 5: No retry on HTTP 404 (permanent error) ────────────────────────────
+setup_mock
+mock_single 0 404
+rc=0
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents/missing" 2>"$_STDERR_FILE")" && rc=0 || rc=$?
+calls=$(<"$_CALL_FILE")
+assert_nonzero "no retry on HTTP 404: non-zero exit" "$rc"
+assert_eq "no retry on HTTP 404: curl called exactly once" "1" "$calls"
+teardown_mock
+
+# ── Test 6: No retry on HTTP 401 (permanent error) ────────────────────────────
+setup_mock
+mock_single 0 401
+rc=0
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")" && rc=0 || rc=$?
+calls=$(<"$_CALL_FILE")
+assert_nonzero "no retry on HTTP 401: non-zero exit" "$rc"
+assert_eq "no retry on HTTP 401: curl called exactly once" "1" "$calls"
+teardown_mock
+
+# ── Test 7: AGAMEMNON_TIMEOUT is passed to curl as --max-time ─────────────────
+setup_mock
+mock_single 0 200
+# Capture curl args by overriding curl once more
+CAPTURED_ARGS=""
+_CAPTURED_FILE="$(mktemp)"
+curl() {
+    echo "$*" > "$_CAPTURED_FILE"
+    local count
+    count=$(<"$_CALL_FILE")
+    echo $((count + 1)) > "$_CALL_FILE"
+    local args=("$@")
+    local i
+    for (( i=0; i<${#args[@]}; i++ )); do
+        if [[ "${args[$i]}" == "-o" ]]; then
+            cat "$_BODY_FILE" > "${args[$((i+1))]}"; break
+        fi
+    done
+    echo -n "200"
+    return 0
+}
+AGAMEMNON_TIMEOUT=42
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null
+AGAMEMNON_TIMEOUT=5
+CAPTURED_ARGS="$(cat "$_CAPTURED_FILE")"
+rm -f "$_CAPTURED_FILE"
+# Restore standard curl mock
+curl() {
+    local count
+    count=$(<"$_CALL_FILE")
+    echo $((count + 1)) > "$_CALL_FILE"
+    local seq entry rest exit_code http_code
+    seq=$(<"$_SEQ_FILE")
+    entry="${seq%%|*}"; rest="${seq#*|}"
+    exit_code="${entry%%,*}"; http_code="${entry#*,}"
+    [[ "$rest" != "$seq" ]] && echo "$rest" > "$_SEQ_FILE"
+    local args=("$@"); local i
+    for (( i=0; i<${#args[@]}; i++ )); do
+        if [[ "${args[$i]}" == "-o" ]]; then cat "$_BODY_FILE" > "${args[$((i+1))]}"; break; fi
+    done
+    echo -n "$http_code"
+    return "$exit_code"
+}
+assert_contains "AGAMEMNON_TIMEOUT passed as --max-time 42" "--max-time 42" "$CAPTURED_ARGS"
+teardown_mock
+
+# ── Test 8: All 3 attempts fail (exit 7 each), non-zero exit returned ──────────
+setup_mock
+mock_single 7 000
+rc=0
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")" && rc=0 || rc=$?
+calls=$(<"$_CALL_FILE")
+stderr_content="$(cat "$_STDERR_FILE")"
+assert_nonzero "all 3 attempts fail: non-zero exit" "$rc"
+assert_eq "all 3 attempts fail: curl called 3 times" "3" "$calls"
+assert_contains "all 3 attempts fail: ERROR in stderr" "ERROR:" "$stderr_content"
+teardown_mock
+
+# ── Test 9: WARN retry messages count up correctly (1/3, 2/3) ─────────────────
+setup_mock
+mock_single 7 000
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")" && true || true
+stderr_content="$(cat "$_STDERR_FILE")"
+assert_contains "WARN messages: Retry 1/3 present" "Retry 1/3" "$stderr_content"
+assert_contains "WARN messages: Retry 2/3 present" "Retry 2/3" "$stderr_content"
+teardown_mock
+
+# ── Test 10: HTTP 500 also treated as transient ────────────────────────────────
+setup_mock
+mock_sequence "0,500" "0,200"
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")"
+rc=$?
+calls=$(<"$_CALL_FILE")
+assert_zero "HTTP 500 is transient, retried: exit 0" "$rc"
+assert_eq "HTTP 500 retried: curl called twice" "2" "$calls"
+teardown_mock
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+
+echo ""
+echo "================================================"
+echo "Results: ${PASS} passed, ${FAIL} failed"
+
+if [[ $FAIL -gt 0 ]]; then
+    exit 1
+fi
+exit 0

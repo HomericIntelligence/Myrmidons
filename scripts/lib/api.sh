@@ -11,6 +11,7 @@
 set -euo pipefail
 
 AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
+AGAMEMNON_TIMEOUT="${AGAMEMNON_TIMEOUT:-10}"
 
 # Check that Agamemnon is reachable before making calls.
 agamemnon_check_connection() {
@@ -34,7 +35,7 @@ _agamemnon_curl() {
     trap "rm -rf '${tmpdir}'" RETURN
 
     # Write response body to tmpfile; capture HTTP status code separately.
-    http_code="$(curl -s --max-time 10 -w "%{http_code}" -o "$tmpfile" "$@")"
+    http_code="$(curl -s --max-time "${AGAMEMNON_TIMEOUT}" -w "%{http_code}" -o "$tmpfile" "$@")"
     local curl_exit=$?
 
     response="$(cat "$tmpfile")"
@@ -57,28 +58,102 @@ _agamemnon_curl() {
     echo "$response"
 }
 
+# Retry wrapper around _agamemnon_curl with exponential backoff.
+# Retries on transient errors: curl exit 7 (connection refused), exit 28 (timeout),
+# or HTTP 5xx responses. Fails immediately on HTTP 4xx (permanent errors).
+# Usage: _agamemnon_curl_retry [-X METHOD] URL [-H header] [-d body]
+_agamemnon_curl_retry() {
+    local max_attempts=3
+    local delay=1
+    local attempt=1
+    local http_code response tmpfile curl_exit
+
+    while [[ $attempt -le $max_attempts ]]; do
+        tmpfile="$(mktemp)"
+        http_code="$(curl -s --max-time "${AGAMEMNON_TIMEOUT}" -w "%{http_code}" -o "$tmpfile" "$@" 2>/dev/null)"
+        curl_exit=$?
+        response="$(cat "$tmpfile")"
+        rm -f "$tmpfile"
+
+        # Success
+        if [[ $curl_exit -eq 0 && "${http_code:0:1}" == "2" ]]; then
+            echo "$response"
+            return 0
+        fi
+
+        # Classify the failure
+        local is_transient=0
+
+        # curl exit 7 = connection refused, exit 28 = timeout
+        if [[ $curl_exit -eq 7 || $curl_exit -eq 28 ]]; then
+            is_transient=1
+        elif [[ $curl_exit -ne 0 ]]; then
+            # Other curl errors are not transient
+            is_transient=0
+        elif [[ "${http_code:0:1}" == "5" ]]; then
+            # HTTP 5xx = server-side transient error
+            is_transient=1
+        fi
+        # HTTP 4xx = permanent client error — fail immediately
+
+        if [[ $is_transient -eq 0 ]]; then
+            # Permanent failure — report and return
+            if [[ $curl_exit -ne 0 ]]; then
+                echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
+            else
+                echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
+                echo "  URL: $*" >&2
+                if [[ -n "$response" ]]; then
+                    echo "  Body: ${response}" >&2
+                fi
+            fi
+            return 1
+        fi
+
+        if [[ $attempt -lt $max_attempts ]]; then
+            echo "WARN: Retry ${attempt}/${max_attempts} in ${delay}s (curl_exit=${curl_exit} http=${http_code}): $*" >&2
+            sleep "$delay"
+            delay=$((delay * 2))
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    # All attempts exhausted
+    if [[ $curl_exit -ne 0 ]]; then
+        echo "ERROR: curl failed after ${max_attempts} attempts (exit ${curl_exit}) for: $*" >&2
+    else
+        echo "ERROR: HTTP ${http_code} from Agamemnon after ${max_attempts} attempts" >&2
+        echo "  URL: $*" >&2
+        if [[ -n "$response" ]]; then
+            echo "  Body: ${response}" >&2
+        fi
+    fi
+    return 1
+}
+
 # List all agents registered on this host.
 agamemnon_list_agents() {
-    _agamemnon_curl "${AGAMEMNON_URL}/v1/agents"
+    _agamemnon_curl_retry "${AGAMEMNON_URL}/v1/agents"
 }
 
 # Get a single agent by ID.
 agamemnon_get_agent() {
     local agent_id="$1"
-    _agamemnon_curl "${AGAMEMNON_URL}/v1/agents/${agent_id}"
+    _agamemnon_curl_retry "${AGAMEMNON_URL}/v1/agents/${agent_id}"
 }
 
 # Get a single agent by name (rich resolution).
 agamemnon_by_name() {
     local name="$1"
-    _agamemnon_curl "${AGAMEMNON_URL}/v1/agents/by-name/${name}"
+    _agamemnon_curl_retry "${AGAMEMNON_URL}/v1/agents/by-name/${name}"
 }
 
 # Create a new agent. $1 = JSON body.
 # Required fields: name, program, workingDirectory
 agamemnon_create_agent() {
     local body="$1"
-    _agamemnon_curl -X POST \
+    _agamemnon_curl_retry -X POST \
         "${AGAMEMNON_URL}/v1/agents" \
         -H 'Content-Type: application/json' \
         -d "${body}"
@@ -88,7 +163,7 @@ agamemnon_create_agent() {
 agamemnon_update_agent() {
     local agent_id="$1"
     local body="$2"
-    _agamemnon_curl -X PATCH \
+    _agamemnon_curl_retry -X PATCH \
         "${AGAMEMNON_URL}/v1/agents/${agent_id}" \
         -H 'Content-Type: application/json' \
         -d "${body}"
@@ -98,13 +173,13 @@ agamemnon_update_agent() {
 # Always stop first for graceful shutdown.
 agamemnon_delete_agent() {
     local agent_id="$1"
-    _agamemnon_curl -X DELETE "${AGAMEMNON_URL}/v1/agents/${agent_id}?hard=true"
+    _agamemnon_curl_retry -X DELETE "${AGAMEMNON_URL}/v1/agents/${agent_id}?hard=true"
 }
 
 # Start an agent (starts tmux session + AI program).
 agamemnon_wake_agent() {
     local agent_id="$1"
-    _agamemnon_curl -X POST \
+    _agamemnon_curl_retry -X POST \
         "${AGAMEMNON_URL}/v1/agents/${agent_id}/start" \
         -H 'Content-Type: application/json' \
         -d '{}'
@@ -113,7 +188,7 @@ agamemnon_wake_agent() {
 # Stop an agent (graceful stop: Ctrl-C, exit, kill tmux).
 agamemnon_hibernate_agent() {
     local agent_id="$1"
-    _agamemnon_curl -X POST \
+    _agamemnon_curl_retry -X POST \
         "${AGAMEMNON_URL}/v1/agents/${agent_id}/stop" \
         -H 'Content-Type: application/json' \
         -d '{}'
@@ -122,7 +197,7 @@ agamemnon_hibernate_agent() {
 # Create a Docker-deployed agent.
 agamemnon_docker_create() {
     local body="$1"
-    _agamemnon_curl -X POST \
+    _agamemnon_curl_retry -X POST \
         "${AGAMEMNON_URL}/v1/agents/docker" \
         -H 'Content-Type: application/json' \
         -d "${body}"
