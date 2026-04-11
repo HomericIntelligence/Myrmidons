@@ -93,4 +93,7 @@ echo "Checked: ${CHECKED} files, Errors: ${ERRORS}"
 if [[ $ERRORS -gt 0 ]]; then
     exit 1
 fi
-exit 0
+
+# Also validate fleet ref referential integrity
+echo ""
+"${SCRIPT_DIR}/validate-fleet-refs.sh"

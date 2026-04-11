@@ -6,6 +6,7 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
+      - 'tests/**'
 
 jobs:
   validate:
