@@ -205,3 +205,31 @@ normalize_path() {
     local p="$1"
     echo "${p/#\~/$HOME}"
 }
+
+# Find agent names that exist in Agamemnon but are not managed by any YAML file.
+# Outputs one unmanaged agent name per line.
+# Usage: get_unmanaged_names <agents_json> <yaml_file>...
+get_unmanaged_names() {
+    local agents_json="$1"
+    shift
+    local yaml_files=("$@")
+
+    # Collect all managed names from YAML files
+    local managed_names=()
+    for yaml_file in "${yaml_files[@]}"; do
+        local n
+        n="$(yq eval '.metadata.name' "$yaml_file")"
+        managed_names+=("$n")
+    done
+
+    # Emit names present in Agamemnon but absent from managed list
+    while IFS= read -r actual_name; do
+        local is_managed=0
+        for mn in "${managed_names[@]}"; do
+            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
+        done
+        if [[ $is_managed -eq 0 ]]; then
+            echo "$actual_name"
+        fi
+    done < <(echo "$agents_json" | jq -r '.[].name')
+}
