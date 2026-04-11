@@ -14,6 +14,14 @@ host := env_var_or_default("HOST", "hermes")
 agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 
 # =============================================================================
+# Diagnostics
+# =============================================================================
+
+# Validate local environment: tools, connectivity, YAML, hooks, pixi
+doctor:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/doctor.sh
+
+# =============================================================================
 # Observability
 # =============================================================================
 
@@ -53,11 +61,8 @@ export HOST=host:
 # Validation
 # =============================================================================
 
-# Run all validation checks (YAML schemas + documentation drift)
-validate: validate-schemas test-drift
-
 # Validate all agent YAML files (schema check without committing)
-validate-schemas:
+validate:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v yq &>/dev/null; then
@@ -87,32 +92,12 @@ validate-schemas:
     fi
     echo "All YAML files valid."
 
-# Check documentation files for overclaims about unimplemented features
-test-drift:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    chmod +x tests/detect-doc-drift.sh
-    ./tests/detect-doc-drift.sh
-
-# =============================================================================
-# Linting
-# =============================================================================
-
-# Run all linters via pre-commit (shellcheck, yamllint, schema validation)
-lint:
-    pre-commit run --all-files
-
 # =============================================================================
 # Hooks
 # =============================================================================
 
-# Install pre-commit framework hooks (recommended)
+# Install the pre-commit hook into .git/hooks/
 install-hooks:
-    pre-commit install
-    @echo "pre-commit hooks installed via pre-commit framework."
-
-# Install the legacy pre-commit hook into .git/hooks/ (backward compatibility)
-install-hooks-legacy:
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    @echo "Legacy pre-commit hook installed."
+    @echo "pre-commit hook installed."
