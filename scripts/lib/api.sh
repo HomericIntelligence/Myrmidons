@@ -52,6 +52,14 @@ _agamemnon_curl() {
     # Ensure private temp dir is cleaned up on function return, even if interrupted.
     trap "rm -rf '${tmpdir}'" RETURN
 
+    # Track API calls for reconciliation reporting.
+    # Use a file counter so increments survive subshell boundaries.
+    if [[ -n "${AGAMEMNON_API_CALL_COUNTER:-}" ]]; then
+        local _count
+        _count="$(cat "${AGAMEMNON_API_CALL_COUNTER}" 2>/dev/null || echo 0)"
+        echo $(( _count + 1 )) > "${AGAMEMNON_API_CALL_COUNTER}"
+    fi
+
     # Write response body to tmpfile; capture HTTP status code separately.
     http_code="$(curl -s --max-time "${AGAMEMNON_TIMEOUT}" -w "%{http_code}" -o "$tmpfile" "$@")"
     local curl_exit=$?

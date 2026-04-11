@@ -30,6 +30,7 @@ HOST=""
 FLEET=""
 PRUNE=0
 DRY_RUN=0
+VERIFY=0
 
 CREATED=0
 UPDATED=0
@@ -37,12 +38,23 @@ WOKEN=0
 HIBERNATED=0
 UNCHANGED=0
 ERRORS=0
+API_CALLS=0
+
+# How long (seconds) to wait for an agent to reach desired state after apply.
+APPLY_VERIFY_TIMEOUT="${APPLY_VERIFY_TIMEOUT:-30}"
+
+# Temp file used to count API calls across subshells.
+AGAMEMNON_API_CALL_COUNTER="$(mktemp)"
+export AGAMEMNON_API_CALL_COUNTER
+echo 0 > "${AGAMEMNON_API_CALL_COUNTER}"
+trap 'rm -f "${AGAMEMNON_API_CALL_COUNTER}"' EXIT
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --prune)   PRUNE=1; shift ;;
             --dry-run) DRY_RUN=1; shift ;;
+            --verify)  VERIFY=1; shift ;;
             --fleet)   FLEET="$2"; shift 2 ;;
             -h|--help) usage; exit 0 ;;
             *) HOST="$1"; shift ;;
@@ -52,7 +64,7 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--verify]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
@@ -62,13 +74,18 @@ Options:
   --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
                  but not in YAML). DEFAULT: warn only.
   --dry-run      Show what would happen, make no changes (same as plan.sh)
+  --verify       Exit non-zero if any agent still shows drift after apply
   -h, --help     Show this help
+
+Environment:
+  APPLY_VERIFY_TIMEOUT  Seconds to wait for convergence (default: 30)
 
 Examples:
   $0                         # Reconcile everything
   $0 hermes                  # Reconcile hermes only
   $0 --fleet dev-mesh        # Reconcile dev-mesh fleet
   $0 --prune                 # Reconcile + remove unmanaged agents
+  $0 --verify                # Reconcile and fail if drift remains
 EOF
 }
 
@@ -76,10 +93,7 @@ main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        local plan_args=()
-        [[ -n "$HOST" ]]  && plan_args+=("$HOST")
-        [[ -n "$FLEET" ]] && plan_args+=("--fleet" "$FLEET")
-        exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
+        exec "${SCRIPT_DIR}/plan.sh" "$@"
     fi
 
     check_deps
@@ -112,11 +126,23 @@ main() {
     # Handle unmanaged agents
     handle_unmanaged "$agents_json" "${yaml_files[@]}"
 
+    # Post-apply convergence check (always runs)
+    DRIFT_COUNT=0
+    verify_convergence "${yaml_files[@]}"
+
+    # Read final API call count from the counter file (survives subshells).
+    API_CALLS="$(cat "${AGAMEMNON_API_CALL_COUNTER}" 2>/dev/null || echo 0)"
+
     echo ""
     echo "================================================"
-    echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS}"
+    echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS} api_calls=${API_CALLS}"
 
     if [[ $ERRORS -gt 0 ]]; then
+        exit 1
+    fi
+
+    if [[ $VERIFY -eq 1 && $DRIFT_COUNT -gt 0 ]]; then
+        echo "ERROR: --verify set and ${DRIFT_COUNT} agent(s) still drifted after apply." >&2
         exit 1
     fi
 }
@@ -203,12 +229,12 @@ apply_agent() {
 
             local patch_body
             patch_body="$(jq -n \
-                --arg label "$label" \
+                --arg agentLabel "$label" \
                 --arg program "$program" \
                 --arg workingDirectory "$workdir" \
                 --arg programArgs "$args" \
                 --arg taskDescription "$desc" \
-                '{label: $label, program: $program, workingDirectory: $workingDirectory,
+                '{label: $agentLabel, program: $program, workingDirectory: $workingDirectory,
                   programArgs: $programArgs, taskDescription: $taskDescription}')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
@@ -269,6 +295,87 @@ handle_unmanaged() {
             fi
         fi
     done < <(echo "$agents_json" | jq -r '.[].name')
+}
+
+# Post-apply convergence check.
+#
+# Re-fetches actual agent state and runs drift detection on each managed agent.
+# For agents in transitional states (waking/starting/hibernating/stopping),
+# polls up to APPLY_VERIFY_TIMEOUT seconds before reporting as drifted.
+#
+# Sets global DRIFT_COUNT to the number of agents that did not converge.
+# Prints a summary section unconditionally.
+verify_convergence() {
+    local yaml_files=("$@")
+
+    echo ""
+    echo "Post-apply convergence check (timeout=${APPLY_VERIFY_TIMEOUT}s)"
+    echo "------------------------------------------------------------"
+
+    DRIFT_COUNT=0
+    local agents_json
+    agents_json="$(agamemnon_list_agents)"
+
+    for yaml_file in "${yaml_files[@]}"; do
+        local name label program workdir args desc tags desired_state
+        name="$(yq eval '.metadata.name' "$yaml_file")"
+        label="$(yq eval '.spec.label // ""' "$yaml_file")"
+        program="$(yq eval '.spec.program // "claude-code"' "$yaml_file")"
+        workdir="$(yq eval '.spec.workingDirectory // ""' "$yaml_file")"
+        args="$(yq eval '.spec.programArgs // ""' "$yaml_file")"
+        desc="$(yq eval '.spec.taskDescription // ""' "$yaml_file")"
+        tags="$(yq eval '.spec.tags // [] | join(",")' "$yaml_file")"
+        desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
+
+        local actual_json
+        actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
+
+        if [[ -z "$actual_json" ]]; then
+            echo "  [!] MISSING: ${name} (not found in Agamemnon after apply)"
+            DRIFT_COUNT=$((DRIFT_COUNT + 1))
+            continue
+        fi
+
+        # Poll for convergence on transitional states
+        local deadline=$(( $(date +%s) + APPLY_VERIFY_TIMEOUT ))
+        local status
+        status="$(echo "$actual_json" | jq -r '.status // "unknown"')"
+
+        while [[ "$status" =~ ^(waking|starting|hibernating|stopping)$ ]]; do
+            if [[ $(date +%s) -ge $deadline ]]; then
+                break
+            fi
+            sleep 2
+            agents_json="$(agamemnon_list_agents)"
+            actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
+            status="$(echo "$actual_json" | jq -r '.status // "unknown"')"
+        done
+
+        local action
+        action="$(compute_drift "$name" "$desired_state" "$actual_json" \
+            "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+
+        case "$action" in
+            UNCHANGED)
+                echo "  [ok] ${name}: converged (status=${status})"
+                ;;
+            WAKE|HIBERNATE|UPDATE:*)
+                echo "  [!!] ${name}: still drifted after apply — ${action} (status=${status})"
+                DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                ;;
+            *)
+                # Unknown action — skip rather than treat as drift
+                echo "  [?]  ${name}: unknown state '${status}' — skipping"
+                ;;
+        esac
+    done
+
+    echo ""
+    if [[ $DRIFT_COUNT -eq 0 ]]; then
+        echo "Convergence: all ${#yaml_files[@]} agent(s) reached desired state."
+    else
+        echo "Convergence: ${DRIFT_COUNT} agent(s) did not reach desired state."
+    fi
 }
 
 main "$@"

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Wrapper: fail /start calls, pass everything else to the real mock
+for arg in "$@"; do
+    if [[ "$arg" == */start ]]; then
+        # Respond success to curl but don't change state
+        for a in "$@"; do
+            case "$a" in
+                -o) shift; echo '{"status":"ok"}' > "$1"; shift ;;
+                -w) shift; printf "%s" "200"; shift ;;
+            esac
+        done
+        exit 0
+    fi
+done
+exec "$(dirname "$0")/curl" "$@"

@@ -14,6 +14,17 @@ host := env_var_or_default("HOST", "hermes")
 agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 
 # =============================================================================
+# Configuration
+# =============================================================================
+
+# Show effective configuration (merged from defaults, .myrmidons.yaml, .myrmidons.local.yaml, env)
+config:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/lib/config.sh
+    show_config
+
+# =============================================================================
 # Observability
 # =============================================================================
 
@@ -24,6 +35,10 @@ status HOST=host:
 # =============================================================================
 # Planning
 # =============================================================================
+
+# Show field-level diff between desired YAML state and actual Agamemnon state
+diff HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/diff.sh {{HOST}}
 
 # Dry-run: show what apply would do (no changes made)
 plan HOST=host:
@@ -41,6 +56,22 @@ apply HOST=host:
 apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
 
+# Reconcile and fail if any agent still drifts after apply
+apply-verify HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --verify
+
+# =============================================================================
+# Rollback
+# =============================================================================
+
+# Restore agents to their state from the most recent pre-apply snapshot
+rollback:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/rollback.sh
+
+# List available snapshots
+snapshots:
+    @bash scripts/rollback.sh --list
+
 # =============================================================================
 # Bootstrap
 # =============================================================================
@@ -53,11 +84,12 @@ export HOST=host:
 # Validation
 # =============================================================================
 
-# Run all validation checks (YAML schemas + documentation drift)
-validate: validate-schemas test-drift
+# Run shell (BATS) tests for apply.sh idempotency and convergence
+test-shell:
+    bats tests/shell/
 
 # Validate all agent YAML files (schema check without committing)
-validate-schemas:
+validate:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v yq &>/dev/null; then
@@ -87,32 +119,26 @@ validate-schemas:
     fi
     echo "All YAML files valid."
 
-# Check documentation files for overclaims about unimplemented features
-test-drift:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    chmod +x tests/detect-doc-drift.sh
-    ./tests/detect-doc-drift.sh
-
 # =============================================================================
-# Linting
+# Scaffolding
 # =============================================================================
 
-# Run all linters via pre-commit (shellcheck, yamllint, schema validation)
-lint:
-    pre-commit run --all-files
+# Scaffold a new agent YAML interactively (or pass flags for non-interactive mode)
+# Examples:
+#   just new-agent
+#   just new-agent -- --name my-agent --host hermes --program claude-code \
+#     --working-directory /home/mvillmow/MyProject --task-description "What it does"
+#   just new-agent -- --non-interactive --name ci-agent --host hermes \
+#     --program claude-code --working-directory /tmp --task-description "CI helper"
+new-agent *ARGS:
+    @bash scripts/new-agent.sh {{ARGS}}
 
 # =============================================================================
 # Hooks
 # =============================================================================
 
-# Install pre-commit framework hooks (recommended)
+# Install the pre-commit hook into .git/hooks/
 install-hooks:
-    pre-commit install
-    @echo "pre-commit hooks installed via pre-commit framework."
-
-# Install the legacy pre-commit hook into .git/hooks/ (backward compatibility)
-install-hooks-legacy:
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    @echo "Legacy pre-commit hook installed."
+    @echo "pre-commit hook installed."

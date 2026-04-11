@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+STATE_FILE="${MOCK_AGENT_STATE_FILE:-/tmp/mock_agent_state.json}"
+method="GET"; url=""; output_file=""; write_out=""; body=""
+i=1
+while [[ $i -le $# ]]; do
+    arg="${!i}"
+    case "$arg" in
+        -X) i=$((i+1)); method="${!i}" ;;
+        -o) i=$((i+1)); output_file="${!i}" ;;
+        -w) i=$((i+1)); write_out="${!i}" ;;
+        -d) i=$((i+1)); body="${!i}" ;;
+        -H|--max-time) i=$((i+1)) ;;
+        -s|-f|-sf|-fs) ;;
+        http://*) url="$arg" ;;
+    esac
+    i=$((i+1))
+done
+[[ ! -f "$STATE_FILE" ]] && echo "[]" > "$STATE_FILE"
+respond() {
+    local code="$1" body_out="$2"
+    [[ -n "$output_file" ]] && printf '%s' "$body_out" > "$output_file" || printf '%s' "$body_out"
+    [[ "$write_out" == "%{http_code}" ]] && printf '%s' "$code"
+    return 0
+}
+path="${url#http://mock-agamemnon:8080}"
+case "${method} ${path}" in
+    "GET /v1/health") respond "200" '{"status":"ok"}' ;;
+    "GET /v1/agents") respond "200" "$(cat "$STATE_FILE")" ;;
+    "POST /v1/agents")
+        id="agent-$(date +%s%3N)"
+        new_agent="$(echo "$body" | jq --arg id "$id" --arg s "offline" '. + {id:$id,status:$s}')"
+        jq --argjson a "$new_agent" '. + [$a]' "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        respond "201" "$new_agent" ;;
+    "POST /v1/agents/"*/start)
+        aid="${path#/v1/agents/}"; aid="${aid%/start}"
+        jq --arg id "$aid" 'map(if .id==$id then .status="online" else . end)' "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        respond "200" '{"status":"ok"}' ;;
+    "POST /v1/agents/"*/stop)
+        # Silent no-op: return 200 but do NOT update state (simulate silent wake failure)
+        respond "200" '{"status":"ok"}' ;;
+    "PATCH /v1/agents/"*)
+        aid="${path#/v1/agents/}"
+        jq --arg id "$aid" --argjson p "$body" 'map(if .id==$id then . + $p else . end)' "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        agent="$(jq -r --arg id "$aid" '.[] | select(.id==$id)' "$STATE_FILE")"
+        respond "200" "$agent" ;;
+    *) respond "404" '{"error":"not found"}' ;;
+esac
+exit 0

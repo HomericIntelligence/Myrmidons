@@ -66,18 +66,28 @@ validate_host() {
 
 # Get all agent YAML files for a given host (or all hosts).
 # Usage: get_agent_files [host]
+#
+# Respects AGENTS_ROOT env var to override the default agents/ directory.
+# This is used by tests to point at fixture YAML trees without modifying
+# the real agents/ directory.
 get_agent_files() {
     local host="${1:-}"
-    local repo_root
-    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    local agents_root
+    if [[ -n "${AGENTS_ROOT:-}" ]]; then
+        agents_root="${AGENTS_ROOT}"
+    else
+        local repo_root
+        repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+        agents_root="${repo_root}/agents"
+    fi
 
     validate_host "$host" || return 1
 
     if [[ -n "$host" ]]; then
-        find "${repo_root}/agents/${host}" -name "*.yaml" \
+        find "${agents_root}/${host}" -name "*.yaml" \
             ! -path "*/\_templates/*" 2>/dev/null || true
     else
-        find "${repo_root}/agents" -name "*.yaml" \
+        find "${agents_root}" -name "*.yaml" \
             ! -path "*/\_templates/*" 2>/dev/null || true
     fi
 }
@@ -206,7 +216,7 @@ build_create_json() {
 
     jq -n \
         --arg name "$name" \
-        --arg label "$label" \
+        --arg agentLabel "$label" \
         --arg program "$program" \
         --arg workingDirectory "$workdir" \
         --arg programArgs "$args" \
@@ -216,7 +226,7 @@ build_create_json() {
         --arg role "$role" \
         '{
             name: $name,
-            label: $label,
+            label: $agentLabel,
             program: $program,
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,
