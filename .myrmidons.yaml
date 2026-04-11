@@ -1,0 +1,22 @@
+# Myrmidons project-level configuration
+#
+# This file sets project defaults for all scripts and `just` recipes.
+# Override per-developer with .myrmidons.local.yaml (gitignored).
+# Override at runtime with environment variables (highest precedence).
+#
+# Precedence: env vars > .myrmidons.local.yaml > this file > built-in defaults
+
+# Default host used when no HOST argument is given to scripts.
+defaultHost: hermes
+
+# ProjectAgamemnon base URL. Overridden by AGAMEMNON_URL env var.
+aimHost: http://localhost:8080
+
+# Log verbosity: debug | info | warn | error
+logLevel: info
+
+# Prune policy: manual (only with --prune flag) | auto (always prune on apply)
+prunePolicy: manual
+
+# Snapshot retention in days (for agent snapshots managed by Agamemnon).
+snapshotRetention: 7
