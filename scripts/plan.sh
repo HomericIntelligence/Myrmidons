@@ -56,7 +56,13 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    if [[ -n "$FLEET" ]]; then
+        local fleet_file
+        fleet_file="$(find_fleet_file "$FLEET")" || exit 1
+        mapfile -t yaml_files < <(resolve_fleet_files "$fleet_file")
+    else
+        mapfile -t yaml_files < <(get_agent_files "$HOST")
+    fi
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
         echo "No agent YAML files found."
@@ -79,6 +85,8 @@ main() {
     while IFS= read -r actual_name; do
         echo "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
     done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+
+    cleanup_fleet_tmpdir
 
     echo ""
     if [[ $has_changes -eq 0 ]]; then

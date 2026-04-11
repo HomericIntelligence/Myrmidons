@@ -93,7 +93,13 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    if [[ -n "$FLEET" ]]; then
+        local fleet_file
+        fleet_file="$(find_fleet_file "$FLEET")" || exit 1
+        mapfile -t yaml_files < <(resolve_fleet_files "$fleet_file")
+    else
+        mapfile -t yaml_files < <(get_agent_files "$HOST")
+    fi
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
         echo "No agent YAML files found."
@@ -119,6 +125,8 @@ main() {
 
     # Handle unmanaged agents
     handle_unmanaged "$agents_json" "${yaml_files[@]}"
+
+    cleanup_fleet_tmpdir
 
     echo ""
     echo "================================================"
