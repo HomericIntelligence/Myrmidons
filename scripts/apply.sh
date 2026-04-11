@@ -178,7 +178,8 @@ apply_agent() {
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+        "$label" "$program" "$workdir" "$args" "$desc" "$tags" \
+        "$model" "$owner" "$role" "$deploy_type")"
 
     case "$action" in
         UNCHANGED)
@@ -208,8 +209,15 @@ apply_agent() {
                 --arg workingDirectory "$workdir" \
                 --arg programArgs "$args" \
                 --arg taskDescription "$desc" \
+                --arg model "$model" \
+                --arg owner "$owner" \
+                --arg role "$role" \
+                --arg deploymentType "$deploy_type" \
                 '{label: $label, program: $program, workingDirectory: $workingDirectory,
-                  programArgs: $programArgs, taskDescription: $taskDescription}')"
+                  programArgs: $programArgs, taskDescription: $taskDescription,
+                  model: $model, owner: $owner, role: $role, deploymentType: $deploymentType}')"
+            # Convert empty model string to JSON null (API expects null, not "")
+            patch_body="$(echo "$patch_body" | jq 'if .model == "" then .model = null else . end')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
                 echo "    Updated."

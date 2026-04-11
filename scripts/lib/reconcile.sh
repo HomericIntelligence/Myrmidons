@@ -105,7 +105,21 @@ build_create_json() {
 
 # Compare desired agent state (YAML fields) with actual state (JSON from API).
 # Outputs: "UNCHANGED", "CREATE", "UPDATE:<field1>,<field2>...", "WAKE", "HIBERNATE"
-# Usage: compute_action <yaml_fields_assoc_array_name> <actual_json>
+#
+# Positional parameters:
+#   $1  name              — agent name (for context)
+#   $2  desired_state     — "active" | "hibernated"
+#   $3  actual_json       — full agent JSON from API
+#   $4  desired_label
+#   $5  desired_program
+#   $6  desired_workdir
+#   $7  desired_args
+#   $8  desired_desc
+#   $9  desired_tags_csv
+#   $10 desired_model
+#   $11 desired_owner
+#   $12 desired_role
+#   $13 desired_deploy_type
 compute_drift() {
     local name="$1"
     local desired_state="$2"    # "active" | "hibernated"
@@ -129,6 +143,7 @@ compute_drift() {
     local drifted_fields=()
 
     local actual_label actual_program actual_workdir actual_args actual_desc actual_tags_sorted
+    local actual_model actual_owner actual_role actual_deploy_type
     actual_label="$(echo "$actual_json" | jq -r '.label // ""')"
     actual_program="$(echo "$actual_json" | jq -r '.program // ""')"
     actual_workdir="$(echo "$actual_json" | jq -r '.workingDirectory // ""')"
@@ -136,6 +151,11 @@ compute_drift() {
     actual_desc="$(echo "$actual_json" | jq -r '.taskDescription // ""')"
     # Tags: sorted comma-joined for stable comparison
     actual_tags_sorted="$(echo "$actual_json" | jq -r '.tags // [] | sort | join(",")')"
+    # Normalize null model to empty string to avoid false positives
+    actual_model="$(echo "$actual_json" | jq -r '.model // ""')"
+    actual_owner="$(echo "$actual_json" | jq -r '.owner // ""')"
+    actual_role="$(echo "$actual_json" | jq -r '.role // ""')"
+    actual_deploy_type="$(echo "$actual_json" | jq -r '.deployment.type // "local"')"
 
     # These are passed as positional args from the caller
     local desired_label="$4"
@@ -144,6 +164,10 @@ compute_drift() {
     local desired_args="$7"
     local desired_desc="$8"
     local desired_tags_csv="${9:-}"
+    local desired_model="${10:-}"
+    local desired_owner="${11:-}"
+    local desired_role="${12:-}"
+    local desired_deploy_type="${13:-local}"
 
     # Normalize tilde paths before comparison
     actual_workdir="$(normalize_path "$actual_workdir")"
@@ -161,6 +185,10 @@ compute_drift() {
     [[ "$actual_args" != "$desired_args" ]] && drifted_fields+=("programArgs")
     [[ "$actual_desc" != "$desired_desc" ]] && drifted_fields+=("taskDescription")
     [[ "$actual_tags_sorted" != "$desired_tags_sorted" ]] && drifted_fields+=("tags")
+    [[ "$actual_model" != "$desired_model" ]] && drifted_fields+=("model")
+    [[ "$actual_owner" != "$desired_owner" ]] && drifted_fields+=("owner")
+    [[ "$actual_role" != "$desired_role" ]] && drifted_fields+=("role")
+    [[ "$actual_deploy_type" != "$desired_deploy_type" ]] && drifted_fields+=("deploymentType")
 
     if [[ ${#drifted_fields[@]} -gt 0 ]]; then
         local joined
