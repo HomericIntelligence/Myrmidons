@@ -14,17 +14,6 @@ host := env_var_or_default("HOST", "hermes")
 agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 
 # =============================================================================
-# Configuration
-# =============================================================================
-
-# Show effective configuration (merged from defaults, .myrmidons.yaml, .myrmidons.local.yaml, env)
-config:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source scripts/lib/config.sh
-    show_config
-
-# =============================================================================
 # Observability
 # =============================================================================
 
@@ -35,10 +24,6 @@ status HOST=host:
 # =============================================================================
 # Planning
 # =============================================================================
-
-# Show field-level diff between desired YAML state and actual Agamemnon state
-diff HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/diff.sh {{HOST}}
 
 # Dry-run: show what apply would do (no changes made)
 plan HOST=host:
@@ -55,18 +40,6 @@ apply HOST=host:
 # Apply with --prune (removes agents in Agamemnon that are not in YAML)
 apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
-
-# =============================================================================
-# Rollback
-# =============================================================================
-
-# Restore agents to their state from the most recent pre-apply snapshot
-rollback:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/rollback.sh
-
-# List available snapshots
-snapshots:
-    @bash scripts/rollback.sh --list
 
 # =============================================================================
 # Bootstrap
@@ -112,25 +85,24 @@ validate:
     echo "All YAML files valid."
 
 # =============================================================================
-# Scaffolding
+# Linting
 # =============================================================================
 
-# Scaffold a new agent YAML interactively (or pass flags for non-interactive mode)
-# Examples:
-#   just new-agent
-#   just new-agent -- --name my-agent --host hermes --program claude-code \
-#     --working-directory /home/mvillmow/MyProject --task-description "What it does"
-#   just new-agent -- --non-interactive --name ci-agent --host hermes \
-#     --program claude-code --working-directory /tmp --task-description "CI helper"
-new-agent *ARGS:
-    @bash scripts/new-agent.sh {{ARGS}}
+# Run all linters via pre-commit (shellcheck, yamllint, schema validation)
+lint:
+    pre-commit run --all-files
 
 # =============================================================================
 # Hooks
 # =============================================================================
 
-# Install the pre-commit hook into .git/hooks/
+# Install pre-commit framework hooks (recommended)
 install-hooks:
+    pre-commit install
+    @echo "pre-commit hooks installed via pre-commit framework."
+
+# Install the legacy pre-commit hook into .git/hooks/ (backward compatibility)
+install-hooks-legacy:
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    @echo "pre-commit hook installed."
+    @echo "Legacy pre-commit hook installed."
