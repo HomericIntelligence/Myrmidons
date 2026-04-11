@@ -7,7 +7,6 @@
 # Usage:
 #   ./scripts/apply.sh                 # Apply all agents on all hosts
 #   ./scripts/apply.sh hermes          # Apply agents for a specific host
-#   ./scripts/apply.sh --fleet dev-mesh
 #   ./scripts/apply.sh --prune         # Also hibernate+delete unmanaged agents
 #   ./scripts/apply.sh --dry-run       # Same as plan.sh
 #
@@ -27,7 +26,6 @@ source "${SCRIPT_DIR}/lib/api.sh"
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 HOST=""
-FLEET=""
 PRUNE=0
 DRY_RUN=0
 
@@ -43,7 +41,6 @@ parse_args() {
         case "$1" in
             --prune)   PRUNE=1; shift ;;
             --dry-run) DRY_RUN=1; shift ;;
-            --fleet)   FLEET="$2"; shift 2 ;;
             -h|--help) usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
@@ -52,13 +49,12 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run]
+Usage: $0 [host] [--prune] [--dry-run]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
   host           Only apply agents for this host (default: all)
-  --fleet NAME   Only apply agents in this fleet
   --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
                  but not in YAML). DEFAULT: warn only.
   --dry-run      Show what would happen, make no changes (same as plan.sh)
@@ -67,7 +63,6 @@ Options:
 Examples:
   $0                         # Reconcile everything
   $0 hermes                  # Reconcile hermes only
-  $0 --fleet dev-mesh        # Reconcile dev-mesh fleet
   $0 --prune                 # Reconcile + remove unmanaged agents
 EOF
 }
@@ -76,10 +71,7 @@ main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        local plan_args=()
-        [[ -n "$HOST" ]]  && plan_args+=("$HOST")
-        [[ -n "$FLEET" ]] && plan_args+=("--fleet" "$FLEET")
-        exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
+        exec "${SCRIPT_DIR}/plan.sh" "$@"
     fi
 
     check_deps
@@ -202,14 +194,14 @@ apply_agent() {
             echo "[~] Updating ${name} (fields: ${changed_fields})..."
 
             local patch_body
+            # Note: jq 1.6 reserves $label as a keyword; use $lbl to avoid parse errors.
             patch_body="$(jq -n \
-                --arg label "$label" \
+                --arg lbl "$label" \
                 --arg program "$program" \
                 --arg workingDirectory "$workdir" \
                 --arg programArgs "$args" \
                 --arg taskDescription "$desc" \
-                '{label: $label, program: $program, workingDirectory: $workingDirectory,
-                  programArgs: $programArgs, taskDescription: $taskDescription}')"
+                '{"label":$lbl,"program":$program,"workingDirectory":$workingDirectory,"programArgs":$programArgs,"taskDescription":$taskDescription}')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
                 echo "    Updated."

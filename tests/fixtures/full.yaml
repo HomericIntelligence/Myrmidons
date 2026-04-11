@@ -1,0 +1,20 @@
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: full-agent
+  host: hermes
+spec:
+  label: Full Agent
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/full
+  programArgs: "--verbose"
+  taskDescription: "A fully specified agent for testing"
+  tags:
+    - test
+    - unit
+  owner: mvillmow
+  role: member
+  deployment:
+    type: local
+  desiredState: active

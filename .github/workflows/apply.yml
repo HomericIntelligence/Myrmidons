@@ -7,6 +7,13 @@ on:
       - 'agents/**'
       - 'fleets/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   apply:
     name: Reconcile Desired State
@@ -24,13 +31,6 @@ jobs:
             -o /usr/local/bin/yq
           chmod +x /usr/local/bin/yq
           yq --version
-
-      - name: Install jq if needed
-        run: |
-          if ! command -v jq &>/dev/null; then
-            apt-get install -y jq
-          fi
-          jq --version
 
       - name: Plan — show what will change
         run: |

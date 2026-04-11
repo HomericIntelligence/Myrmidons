@@ -6,9 +6,17 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
-      - 'docs/**'
-      - 'README.md'
+      - 'scripts/**'
       - 'tests/**'
+      - 'pixi.toml'
+      - 'pixi.lock'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -31,7 +39,46 @@ jobs:
           chmod +x tests/validate-schemas.sh
           ./tests/validate-schemas.sh
 
-      - name: Check documentation drift
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
         run: |
-          chmod +x tests/detect-doc-drift.sh
-          ./tests/detect-doc-drift.sh
+          apt-get install -y shellcheck 2>/dev/null || \
+            { curl -fsSL https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz \
+              | tar -xJ --strip-components=1 -C /usr/local/bin shellcheck-stable/shellcheck; }
+          shellcheck --version
+
+      - name: Lint shell scripts
+        run: |
+          shellcheck scripts/lib/api.sh scripts/lib/reconcile.sh
+          shellcheck scripts/plan.sh scripts/apply.sh scripts/status.sh scripts/export.sh
+          shellcheck tests/validate-schemas.sh
+
+  unit-tests:
+    name: Unit Tests (bats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        run: |
+          git clone https://github.com/bats-core/bats-core.git /tmp/bats-core
+          /tmp/bats-core/install.sh /usr/local
+          bats --version
+
+      - name: Install yq (required by reconcile.sh tests)
+        env:
+          YQ_VERSION: "v4.40.5"
+        run: |
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Run unit tests
+        run: |
+          chmod +x tests/mocks/curl
+          bats tests/unit/

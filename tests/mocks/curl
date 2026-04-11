@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Mock curl for unit tests.
+# Behavior is controlled by environment variables:
+#   MOCK_CURL_HTTP_CODE  — HTTP status code to return (default: 200)
+#   MOCK_CURL_BODY       — Response body to write to -o file (default: '{}')
+#   MOCK_CURL_EXIT_CODE  — Exit code to simulate (default: 0)
+#   MOCK_CURL_CALL_COUNT_FILE — Path to file tracking call count (optional)
+
+MOCK_HTTP_CODE="${MOCK_CURL_HTTP_CODE:-200}"
+MOCK_BODY="${MOCK_CURL_BODY:-'{}'}"
+MOCK_EXIT="${MOCK_CURL_EXIT_CODE:-0}"
+
+# Track call count if requested
+if [[ -n "${MOCK_CURL_CALL_COUNT_FILE:-}" ]]; then
+    count=0
+    [[ -f "$MOCK_CURL_CALL_COUNT_FILE" ]] && count="$(cat "$MOCK_CURL_CALL_COUNT_FILE")"
+    echo $((count + 1)) > "$MOCK_CURL_CALL_COUNT_FILE"
+fi
+
+# Parse arguments to find -o <file> and -w <format>
+output_file=""
+write_format=""
+i=1
+while [[ $i -le $# ]]; do
+    arg="${!i}"
+    case "$arg" in
+        -o)
+            i=$((i + 1))
+            output_file="${!i}"
+            ;;
+        -w)
+            i=$((i + 1))
+            write_format="${!i}"
+            ;;
+        -o*)
+            output_file="${arg#-o}"
+            ;;
+        -w*)
+            write_format="${arg#-w}"
+            ;;
+    esac
+    i=$((i + 1))
+done
+
+# Write body to output file
+if [[ -n "$output_file" ]]; then
+    echo -n "$MOCK_BODY" > "$output_file"
+fi
+
+# Write format string (http_code) to stdout
+if [[ -n "$write_format" ]]; then
+    # Replace %{http_code} with the mock code
+    echo -n "${write_format//%\{http_code\}/$MOCK_HTTP_CODE}"
+fi
+
+exit "$MOCK_EXIT"

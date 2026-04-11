@@ -1,0 +1,13 @@
+{
+  "id": "abc-123",
+  "name": "test-agent",
+  "label": "Test Agent",
+  "program": "claude-code",
+  "workingDirectory": "/home/mvillmow/test",
+  "programArgs": "",
+  "taskDescription": "A test agent",
+  "tags": ["test", "unit"],
+  "owner": "mvillmow",
+  "role": "member",
+  "status": "active"
+}

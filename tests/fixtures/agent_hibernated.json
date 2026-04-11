@@ -1,0 +1,13 @@
+{
+  "id": "abc-456",
+  "name": "sleeping-agent",
+  "label": "Sleeping Agent",
+  "program": "aider",
+  "workingDirectory": "/home/mvillmow/sleep",
+  "programArgs": "",
+  "taskDescription": "A hibernated agent",
+  "tags": [],
+  "owner": "mvillmow",
+  "role": "member",
+  "status": "offline"
+}

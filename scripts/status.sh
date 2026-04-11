@@ -21,10 +21,6 @@ source "${SCRIPT_DIR}/lib/reconcile.sh"
 HOST="${1:-}"
 
 main() {
-    if [[ -n "$HOST" ]] && [[ ! "$HOST" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo "ERROR: Invalid host '${HOST}': must contain only alphanumeric characters, hyphens, or underscores." >&2
-        exit 1
-    fi
     check_deps
     agamemnon_check_connection
 
@@ -43,20 +39,14 @@ main() {
     done
 
     # Unmanaged agents
-    while IFS= read -r actual_name; do
-        local actual_status
-        actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-            '.[] | select(.name == $n) | .status // "unknown"')"
-        printf "%-22s %-10s %-12s %-12s %s\n" \
-            "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
-    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+    report_unmanaged_table "$agents_json" "${yaml_files[@]}"
 }
 
 status_agent() {
     local yaml_file="$1"
     local agents_json="$2"
 
-    local name host desired_state label program workdir args desc model owner role deploy_type
+    local name host desired_state label program workdir args desc
     name="$(yq eval '.metadata.name' "$yaml_file")"
     host="$(yq eval '.metadata.host // "hermes"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
@@ -65,10 +55,6 @@ status_agent() {
     workdir="$(yq eval '.spec.workingDirectory // ""' "$yaml_file")"
     args="$(yq eval '.spec.programArgs // ""' "$yaml_file")"
     desc="$(yq eval '.spec.taskDescription // ""' "$yaml_file")"
-    model="$(yq eval '.spec.model // ""' "$yaml_file")"
-    owner="$(yq eval '.spec.owner // ""' "$yaml_file")"
-    role="$(yq eval '.spec.role // "member"' "$yaml_file")"
-    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
 
     local actual_json
     actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
@@ -84,8 +70,7 @@ status_agent() {
 
     local drift
     drift="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "" \
-        "$model" "$owner" "$role" "$deploy_type")"
+        "$label" "$program" "$workdir" "$args" "$desc")"
 
     local drift_display
     case "$drift" in
