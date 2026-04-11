@@ -1,0 +1,35 @@
+repos:
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [--severity=warning]
+
+  # YAML linting for agents/ and fleets/
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        files: ^(agents|fleets)/.*\.yaml$
+        args: [--config-data, "{extends: default, rules: {line-length: {max: 120}, truthy: {allowed-values: ['true', 'false', 'null']}}}"]
+
+  # Custom local hook: Myrmidons schema validation
+  - repo: local
+    hooks:
+      - id: myrmidons-validate
+        name: Myrmidons schema validation
+        language: script
+        entry: hooks/pre-commit
+        types: [yaml]
+        files: ^(agents|fleets)/.*\.yaml$
+        pass_filenames: false

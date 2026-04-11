@@ -9,11 +9,13 @@ Container images are built separately in [AchaeanFleet](../AchaeanFleet).
 ## Quick start
 
 ```bash
-# Install dependencies (yq, jq, just)
-pixi install   # or: apt install jq && curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+# Install dependencies (yq, jq, just, pre-commit)
+pixi install   # or: apt install jq && curl -fsSL .../yq_linux_amd64 -o /usr/local/bin/yq
 
-# Install pre-commit hook
-just install-hooks
+# Install pre-commit hooks (runs automatically on every commit)
+just install-hooks   # uses pre-commit framework
+# Alternatively, for backward compatibility without pre-commit:
+# just install-hooks-legacy
 
 # Bootstrap: export current Agamemnon state to YAML (run once)
 just export hermes
@@ -42,6 +44,9 @@ just apply-prune hermes
 
 # Validate all YAML files
 just validate
+
+# Run all linters (shellcheck, yamllint, schema validation)
+just lint
 ```
 
 ## Agent definition format
@@ -50,10 +55,10 @@ just validate
 apiVersion: myrmidons/v1
 kind: Agent
 metadata:
-  name: my-agent           # Agamemnon API name / tmux session name — NOT the filename
+  name: my-agent           # Unique per host — matches tmux session name
   host: hermes
 spec:
-  label: My Agent          # Display name; filename = lowercase(label) + ".yaml"
+  label: My Agent          # Display name in Agamemnon UI
   program: claude-code     # claude-code | aider | codex | goose | cline | opencode | none
   model: null              # null = Agamemnon default; or "claude-sonnet-4-6"
   workingDirectory: /home/mvillmow/MyProject
@@ -71,25 +76,11 @@ spec:
   desiredState: active     # active | hibernated
 ```
 
-### Naming convention
-
-| Field | Example | Purpose |
-|-------|---------|---------|
-| **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
-| **`metadata.name`** | `odyssey-mainline-analysis` | Agamemnon API identifier / tmux session name. Used by scripts and the REST API. |
-| **`spec.label`** | `Aindrea` | Display name shown in the Agamemnon UI. |
-
-**Fleet `ref:` entries resolve by filename stem**, not by `metadata.name`:
-```
-ref: hermes/aindrea   →   agents/hermes/aindrea.yaml   ✓
-```
-
 ## Adding an agent
 
 ```bash
-# Filename = lowercase(spec.label); e.g. label "MyAgent" → my-agent.yaml
 cp agents/_templates/claude-default.yaml agents/hermes/my-agent.yaml
-# Edit: metadata.name (Agamemnon name), spec.label, workingDirectory, taskDescription, tags
+# Edit: name, label, workingDirectory, taskDescription, tags
 just plan hermes     # preview
 just apply hermes    # create + wake
 git add agents/hermes/my-agent.yaml && git commit -m "add my-agent"
@@ -114,7 +105,8 @@ scripts/
     api.sh             Agamemnon REST API client
     reconcile.sh       Drift computation logic
 hooks/
-  pre-commit           Validates YAML schema before commit
+  pre-commit           Validates YAML schema before commit (legacy)
+.pre-commit-config.yaml  pre-commit framework configuration
 ```
 
 ## Environment variables
@@ -137,3 +129,4 @@ future phase. See [ADR-007](docs/adr/ADR-007-nomad-integration-strategy.md).
 - `jq` ≥ 1.6 — JSON processor
 - `curl` — HTTP client
 - `just` ≥ 1.13 — task runner
+- `pre-commit` ≥ 3.0 — hook management and linting (`just install-hooks`)
