@@ -6,6 +6,8 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
+      - 'docs/**'
+      - 'README.md'
       - 'tests/**'
 
 jobs:
@@ -24,15 +26,12 @@ jobs:
           chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Install check-jsonschema
-        run: pip install check-jsonschema
-
       - name: Validate all YAML files
         run: |
           chmod +x tests/validate-schemas.sh
           ./tests/validate-schemas.sh
 
-      - name: Check for dangerous programArgs flags
+      - name: Check documentation drift
         run: |
-          chmod +x scripts/check-dangerous-flags.sh
-          ./scripts/check-dangerous-flags.sh
+          chmod +x tests/detect-doc-drift.sh
+          ./tests/detect-doc-drift.sh
