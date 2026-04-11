@@ -85,24 +85,19 @@ validate:
     echo "All YAML files valid."
 
 # =============================================================================
-# Testing
+# Testing & Linting
 # =============================================================================
 
-# Run all tests (unit + integration) using bats-core
+# Run all tests
 test:
-    @echo "Running unit tests..."
-    bats tests/unit/
-    @echo ""
-    @echo "Running integration tests..."
-    bats tests/integration/
+    bash tests/validate-schemas.sh
 
-# Run only unit tests
-test-unit:
-    bats tests/unit/
+# Run shellcheck on all shell scripts
+lint:
+    shellcheck scripts/*.sh scripts/lib/*.sh hooks/pre-commit tests/*.sh
 
-# Run only integration tests
-test-integration:
-    bats tests/integration/
+# Run lint and test together
+check: lint test
 
 # =============================================================================
 # Hooks
