@@ -234,38 +234,22 @@ handle_unmanaged() {
     shift
     local yaml_files=("$@")
 
-    # Collect managed names
-    local managed_names=()
-    for yaml_file in "${yaml_files[@]}"; do
-        local n
-        n="$(yq eval '.metadata.name' "$yaml_file")"
-        managed_names+=("$n")
-    done
-
-    # Find unmanaged
     while IFS= read -r actual_name; do
-        local is_managed=0
-        for mn in "${managed_names[@]}"; do
-            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
-        done
-
-        if [[ $is_managed -eq 0 ]]; then
-            if [[ $PRUNE -eq 1 ]]; then
-                local agent_id
-                agent_id="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-                    '.[] | select(.name == $n) | .id')"
-                echo "[-] Pruning unmanaged: ${actual_name}"
-                echo "    Hibernating first..."
-                agamemnon_hibernate_agent "$agent_id" > /dev/null || true
-                sleep 2
-                echo "    Deleting..."
-                agamemnon_delete_agent "$agent_id" > /dev/null
-                echo "    Deleted (backup created)."
-            else
-                echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
-            fi
+        if [[ $PRUNE -eq 1 ]]; then
+            local agent_id
+            agent_id="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
+                '.[] | select(.name == $n) | .id')"
+            echo "[-] Pruning unmanaged: ${actual_name}"
+            echo "    Hibernating first..."
+            agamemnon_hibernate_agent "$agent_id" > /dev/null || true
+            sleep 2
+            echo "    Deleting..."
+            agamemnon_delete_agent "$agent_id" > /dev/null
+            echo "    Deleted (backup created)."
+        else
+            echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
         fi
-    done < <(echo "$agents_json" | jq -r '.[].name')
+    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
 }
 
 main "$@"
