@@ -21,6 +21,17 @@ agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 status HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh {{HOST}}
 
+# Display the last reconciliation report (JSON)
+report:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    report_file="reports/last-reconciliation.json"
+    if [[ ! -f "$report_file" ]]; then
+        echo "No reconciliation report found. Run 'just apply' first." >&2
+        exit 1
+    fi
+    jq '.' "$report_file"
+
 # =============================================================================
 # Planning
 # =============================================================================
