@@ -112,6 +112,20 @@ validate:
     echo "All YAML files valid."
 
 # =============================================================================
+# Scaffolding
+# =============================================================================
+
+# Scaffold a new agent YAML interactively (or pass flags for non-interactive mode)
+# Examples:
+#   just new-agent
+#   just new-agent -- --name my-agent --host hermes --program claude-code \
+#     --working-directory /home/mvillmow/MyProject --task-description "What it does"
+#   just new-agent -- --non-interactive --name ci-agent --host hermes \
+#     --program claude-code --working-directory /tmp --task-description "CI helper"
+new-agent *ARGS:
+    @bash scripts/new-agent.sh {{ARGS}}
+
+# =============================================================================
 # Hooks
 # =============================================================================
 
