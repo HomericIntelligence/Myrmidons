@@ -21,6 +21,10 @@ source "${SCRIPT_DIR}/lib/reconcile.sh"
 HOST="${1:-}"
 
 main() {
+    if [[ -n "$HOST" ]] && [[ ! "$HOST" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "ERROR: Invalid host '${HOST}': must contain only alphanumeric characters, hyphens, or underscores." >&2
+        exit 1
+    fi
     check_deps
     agamemnon_check_connection
 

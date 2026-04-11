@@ -50,12 +50,28 @@ parse_agent_yaml() {
     } | to_entries[] | .key + "=" + (.value | tostring)' "$file"
 }
 
+# Validate a host parameter: alphanumeric, hyphens, and underscores only.
+# Rejects path separators and dot sequences that could enable path traversal.
+# Usage: validate_host <host>
+validate_host() {
+    local host="$1"
+    if [[ -z "$host" ]]; then
+        return 0  # Empty host is valid (means "all hosts")
+    fi
+    if [[ ! "$host" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "ERROR: Invalid host '${host}': must contain only alphanumeric characters, hyphens, or underscores." >&2
+        return 1
+    fi
+}
+
 # Get all agent YAML files for a given host (or all hosts).
 # Usage: get_agent_files [host]
 get_agent_files() {
     local host="${1:-}"
     local repo_root
     repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+    validate_host "$host" || return 1
 
     if [[ -n "$host" ]]; then
         find "${repo_root}/agents/${host}" -name "*.yaml" \
