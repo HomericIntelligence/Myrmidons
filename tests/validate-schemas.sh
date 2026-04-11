@@ -107,6 +107,11 @@ done < <(find "${REPO_ROOT}/agents" "${REPO_ROOT}/fleets" \
 echo ""
 echo "Checked: ${CHECKED} files, Errors: ${ERRORS}"
 
+if [[ $CHECKED -eq 0 ]]; then
+    echo "WARNING: No YAML files found to validate." >&2
+    exit 1
+fi
+
 if [[ $ERRORS -gt 0 ]]; then
     exit 1
 fi
