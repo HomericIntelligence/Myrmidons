@@ -18,8 +18,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# shellcheck source=scripts/lib/log.sh
-source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
@@ -58,34 +56,39 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    if [[ -n "$FLEET" ]]; then
+        trap cleanup_fleet_tmpdir EXIT
+        mapfile -t yaml_files < <(resolve_fleet "$FLEET")
+    else
+        mapfile -t yaml_files < <(get_agent_files "$HOST")
+    fi
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
-        log_info "No agent YAML files found."
+        echo "No agent YAML files found."
         exit 0
     fi
 
     local has_changes=0
 
-    log_info "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
-    log_info "================================================================"
-    log_info ""
+    echo "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
+    echo "================================================================"
+    echo ""
 
     for yaml_file in "${yaml_files[@]}"; do
         plan_agent "$yaml_file" "$agents_json" || has_changes=1
     done
 
     # Report unmanaged agents (in Agamemnon but not in YAML)
-    log_info ""
-    log_info "Checking for unmanaged agents..."
+    echo ""
+    echo "Checking for unmanaged agents..."
     report_unmanaged "$agents_json" "${yaml_files[@]}"
 
-    log_info ""
+    echo ""
     if [[ $has_changes -eq 0 ]]; then
-        log_info "No changes needed. Desired state matches actual state."
+        echo "No changes needed. Desired state matches actual state."
         exit 0
     else
-        log_warn "Changes would be made. Run ./scripts/apply.sh to apply."
+        echo "Changes would be made. Run ./scripts/apply.sh to apply."
         exit 1
     fi
 }
@@ -115,9 +118,9 @@ plan_agent() {
         '.[] | select(.name == $name)')"
 
     if [[ -z "$actual_json" ]]; then
-        log_info "[+] CREATE ${name} (program=${program}, deploy=${fields[deploymentType]:-local})"
+        echo "[+] CREATE ${name} (program=${program}, deploy=${fields[deploymentType]:-local})"
         if [[ "$desired_state" == "active" ]]; then
-            log_info "    └─ WAKE after create"
+            echo "    └─ WAKE after create"
         fi
         return 1
     fi
@@ -128,19 +131,19 @@ plan_agent() {
 
     case "$action" in
         UNCHANGED)
-            log_info "[=] UNCHANGED ${name}"
+            echo "[=] UNCHANGED ${name}"
             ;;
         WAKE)
-            log_warn "[!] WAKE ${name} (desired=active, actual=$(echo "$actual_json" | jq -r '.status'))"
+            echo "[!] WAKE ${name} (desired=active, actual=$(echo "$actual_json" | jq -r '.status'))"
             return 1
             ;;
         HIBERNATE)
-            log_warn "[z] HIBERNATE ${name} (desired=hibernated, actual=$(echo "$actual_json" | jq -r '.status'))"
+            echo "[z] HIBERNATE ${name} (desired=hibernated, actual=$(echo "$actual_json" | jq -r '.status'))"
             return 1
             ;;
         UPDATE:*)
             local fields_changed="${action#UPDATE:}"
-            log_warn "[~] UPDATE ${name}: ${fields_changed} differ"
+            echo "[~] UPDATE ${name}: ${fields_changed} differ"
             return 1
             ;;
     esac
@@ -168,7 +171,7 @@ report_unmanaged() {
             [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
         done
         if [[ $is_managed -eq 0 ]]; then
-            log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
+            echo "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
         fi
     done
 }

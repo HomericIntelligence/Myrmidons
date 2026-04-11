@@ -5,8 +5,9 @@
 # actual state, and whether there's any drift.
 #
 # Usage:
-#   ./scripts/status.sh                # Status of all agents
-#   ./scripts/status.sh hermes         # Status of agents on a specific host
+#   ./scripts/status.sh                    # Status of all agents
+#   ./scripts/status.sh hermes             # Status of agents on a specific host
+#   ./scripts/status.sh --fleet dev-mesh   # Status of a specific fleet
 
 set -euo pipefail
 
@@ -20,13 +21,20 @@ source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 
-HOST="${1:-}"
+HOST=""
+FLEET=""
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --fleet) FLEET="$2"; shift 2 ;;
+            *) HOST="$1"; shift ;;
+        esac
+    done
+}
 
 main() {
-    if [[ -n "$HOST" ]] && [[ ! "$HOST" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo "ERROR: Invalid host '${HOST}': must contain only alphanumeric characters, hyphens, or underscores." >&2
-        exit 1
-    fi
+    parse_args "$@"
     check_deps
     agamemnon_check_connection
 
@@ -34,7 +42,12 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    if [[ -n "$FLEET" ]]; then
+        trap cleanup_fleet_tmpdir EXIT
+        mapfile -t yaml_files < <(resolve_fleet "$FLEET")
+    else
+        mapfile -t yaml_files < <(get_agent_files "$HOST")
+    fi
 
     # Header
     printf "%-22s %-10s %-12s %-12s %s\n" "AGENT" "HOST" "DESIRED" "ACTUAL" "DRIFT"
@@ -45,20 +58,14 @@ main() {
     done
 
     # Unmanaged agents
-    while IFS= read -r actual_name; do
-        local actual_status
-        actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-            '.[] | select(.name == $n) | .status // "unknown"')"
-        printf "%-22s %-10s %-12s %-12s %s\n" \
-            "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
-    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+    report_unmanaged "$agents_json" "${yaml_files[@]}"
 }
 
 status_agent() {
     local yaml_file="$1"
     local agents_json="$2"
 
-    local name host desired_state label program workdir args desc model owner role deploy_type
+    local name host desired_state label program workdir args desc
     name="$(yq eval '.metadata.name' "$yaml_file")"
     host="$(yq eval '.metadata.host // "hermes"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
@@ -67,10 +74,6 @@ status_agent() {
     workdir="$(yq eval '.spec.workingDirectory // ""' "$yaml_file")"
     args="$(yq eval '.spec.programArgs // ""' "$yaml_file")"
     desc="$(yq eval '.spec.taskDescription // ""' "$yaml_file")"
-    model="$(yq eval '.spec.model // ""' "$yaml_file")"
-    owner="$(yq eval '.spec.owner // ""' "$yaml_file")"
-    role="$(yq eval '.spec.role // "member"' "$yaml_file")"
-    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
 
     local actual_json
     actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
@@ -86,8 +89,7 @@ status_agent() {
 
     local drift
     drift="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "" \
-        "$model" "$owner" "$role" "$deploy_type")"
+        "$label" "$program" "$workdir" "$args" "$desc")"
 
     local drift_display
     case "$drift" in
@@ -110,6 +112,34 @@ status_agent() {
 
     printf "%-22s %-10s %-12s %-12s %s\n" \
         "${name:0:21}" "${host:0:9}" "$desired_state" "$actual_status" "$drift_display"
+}
+
+report_unmanaged() {
+    local agents_json="$1"
+    shift
+    local yaml_files=("$@")
+
+    local managed_names=()
+    for yaml_file in "${yaml_files[@]}"; do
+        local n
+        n="$(yq eval '.metadata.name' "$yaml_file")"
+        managed_names+=("$n")
+    done
+
+    while IFS= read -r actual_name; do
+        local is_managed=0
+        for mn in "${managed_names[@]}"; do
+            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
+        done
+
+        if [[ $is_managed -eq 0 ]]; then
+            local actual_status
+            actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
+                '.[] | select(.name == $n) | .status // "unknown"')"
+            printf "%-22s %-10s %-12s %-12s %s\n" \
+                "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
+        fi
+    done < <(echo "$agents_json" | jq -r '.[].name')
 }
 
 main "$@"

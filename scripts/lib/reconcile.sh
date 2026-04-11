@@ -50,20 +50,6 @@ parse_agent_yaml() {
     } | to_entries[] | .key + "=" + (.value | tostring)' "$file"
 }
 
-# Validate a host parameter: alphanumeric, hyphens, and underscores only.
-# Rejects path separators and dot sequences that could enable path traversal.
-# Usage: validate_host <host>
-validate_host() {
-    local host="$1"
-    if [[ -z "$host" ]]; then
-        return 0  # Empty host is valid (means "all hosts")
-    fi
-    if [[ ! "$host" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo "ERROR: Invalid host '${host}': must contain only alphanumeric characters, hyphens, or underscores." >&2
-        return 1
-    fi
-}
-
 # Get all agent YAML files for a given host (or all hosts).
 # Usage: get_agent_files [host]
 get_agent_files() {
@@ -71,122 +57,12 @@ get_agent_files() {
     local repo_root
     repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-    validate_host "$host" || return 1
-
     if [[ -n "$host" ]]; then
         find "${repo_root}/agents/${host}" -name "*.yaml" \
             ! -path "*/\_templates/*" 2>/dev/null || true
     else
         find "${repo_root}/agents" -name "*.yaml" \
             ! -path "*/\_templates/*" 2>/dev/null || true
-    fi
-}
-
-# Find a fleet YAML file by name.
-# Searches the fleets/ directory for a file where metadata.name matches.
-# Outputs the absolute path or exits with error if not found.
-# Usage: find_fleet_file <fleet-name>
-find_fleet_file() {
-    local fleet_name="$1"
-    local repo_root
-    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-    local fleet_file=""
-    while IFS= read -r -d '' f; do
-        local name
-        name="$(yq eval '.metadata.name // ""' "$f" 2>/dev/null)"
-        if [[ "$name" == "$fleet_name" ]]; then
-            fleet_file="$f"
-            break
-        fi
-    done < <(find "${repo_root}/fleets" -name "*.yaml" -print0 2>/dev/null)
-
-    if [[ -z "$fleet_file" ]]; then
-        echo "ERROR: Fleet '${fleet_name}' not found in fleets/" >&2
-        return 1
-    fi
-    echo "$fleet_file"
-}
-
-# Resolve a fleet YAML into a list of agent YAML file paths.
-# Refs (ref: host/agent-name) are resolved to existing agent files.
-# Inline agents are written to temp files (caller must clean up FLEET_TMPDIR).
-# Sets global FLEET_TMPDIR if inline agents are created.
-# Usage: resolve_fleet_files <fleet-yaml-path>
-# Outputs one file path per line.
-resolve_fleet_files() {
-    local fleet_file="$1"
-    local repo_root
-    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-    local fleet_host
-    fleet_host="$(yq eval '.metadata.host // ""' "$fleet_file")"
-
-    local agent_count
-    agent_count="$(yq eval '.spec.agents | length' "$fleet_file")"
-
-    for (( i=0; i<agent_count; i++ )); do
-        local ref
-        ref="$(yq eval ".spec.agents[${i}].ref // \"\"" "$fleet_file")"
-
-        if [[ -n "$ref" ]]; then
-            # Resolve ref: host/agent-name -> agents/<host>/<name>.yaml
-            local ref_host ref_name
-            ref_host="${ref%%/*}"
-            ref_name="${ref#*/}"
-            local agent_file="${repo_root}/agents/${ref_host}/${ref_name}.yaml"
-            if [[ ! -f "$agent_file" ]]; then
-                echo "ERROR: Fleet ref '${ref}' not found at ${agent_file}" >&2
-                return 1
-            fi
-            echo "$agent_file"
-        else
-            # Inline agent definition — extract and write to a temp file
-            if [[ -z "${FLEET_TMPDIR:-}" ]]; then
-                FLEET_TMPDIR="$(mktemp -d)"
-            fi
-
-            local inline_name
-            inline_name="$(yq eval ".spec.agents[${i}].name // \"\"" "$fleet_file")"
-            if [[ -z "$inline_name" ]]; then
-                echo "ERROR: Inline agent at index ${i} in fleet has no name" >&2
-                return 1
-            fi
-
-            # Use the fleet's host for the inline agent metadata
-            local tmp_file="${FLEET_TMPDIR}/${inline_name}.yaml"
-            yq eval ".spec.agents[${i}] | {
-                \"apiVersion\": \"myrmidons/v1\",
-                \"kind\": \"Agent\",
-                \"metadata\": {
-                    \"name\": .name,
-                    \"host\": \"${fleet_host}\"
-                },
-                \"spec\": {
-                    \"label\": (.label // .name),
-                    \"program\": (.program // \"claude-code\"),
-                    \"model\": (.model // null),
-                    \"workingDirectory\": .workingDirectory,
-                    \"programArgs\": (.programArgs // \"\"),
-                    \"taskDescription\": (.taskDescription // \"\"),
-                    \"tags\": (.tags // []),
-                    \"owner\": (.owner // \"\"),
-                    \"role\": (.role // \"member\"),
-                    \"deployment\": (.deployment // {\"type\": \"local\"}),
-                    \"desiredState\": (.desiredState // \"active\")
-                }
-            }" "$fleet_file" > "$tmp_file"
-            echo "$tmp_file"
-        fi
-    done
-}
-
-# Clean up temp files created by resolve_fleet_files.
-# Usage: cleanup_fleet_tmpdir
-cleanup_fleet_tmpdir() {
-    if [[ -n "${FLEET_TMPDIR:-}" && -d "${FLEET_TMPDIR}" ]]; then
-        rm -rf "${FLEET_TMPDIR}"
-        FLEET_TMPDIR=""
     fi
 }
 
@@ -231,21 +107,7 @@ build_create_json() {
 
 # Compare desired agent state (YAML fields) with actual state (JSON from API).
 # Outputs: "UNCHANGED", "CREATE", "UPDATE:<field1>,<field2>...", "WAKE", "HIBERNATE"
-#
-# Positional parameters:
-#   $1  name              — agent name (for context)
-#   $2  desired_state     — "active" | "hibernated"
-#   $3  actual_json       — full agent JSON from API
-#   $4  desired_label
-#   $5  desired_program
-#   $6  desired_workdir
-#   $7  desired_args
-#   $8  desired_desc
-#   $9  desired_tags_csv
-#   $10 desired_model
-#   $11 desired_owner
-#   $12 desired_role
-#   $13 desired_deploy_type
+# Usage: compute_action <yaml_fields_assoc_array_name> <actual_json>
 compute_drift() {
     local name="$1"
     local desired_state="$2"    # "active" | "hibernated"
@@ -269,7 +131,6 @@ compute_drift() {
     local drifted_fields=()
 
     local actual_label actual_program actual_workdir actual_args actual_desc actual_tags_sorted
-    local actual_model actual_owner actual_role actual_deploy_type
     actual_label="$(echo "$actual_json" | jq -r '.label // ""')"
     actual_program="$(echo "$actual_json" | jq -r '.program // ""')"
     actual_workdir="$(echo "$actual_json" | jq -r '.workingDirectory // ""')"
@@ -277,11 +138,6 @@ compute_drift() {
     actual_desc="$(echo "$actual_json" | jq -r '.taskDescription // ""')"
     # Tags: sorted comma-joined for stable comparison
     actual_tags_sorted="$(echo "$actual_json" | jq -r '.tags // [] | sort | join(",")')"
-    # Normalize null model to empty string to avoid false positives
-    actual_model="$(echo "$actual_json" | jq -r '.model // ""')"
-    actual_owner="$(echo "$actual_json" | jq -r '.owner // ""')"
-    actual_role="$(echo "$actual_json" | jq -r '.role // ""')"
-    actual_deploy_type="$(echo "$actual_json" | jq -r '.deployment.type // "local"')"
 
     # These are passed as positional args from the caller
     local desired_label="$4"
@@ -290,10 +146,6 @@ compute_drift() {
     local desired_args="$7"
     local desired_desc="$8"
     local desired_tags_csv="${9:-}"
-    local desired_model="${10:-}"
-    local desired_owner="${11:-}"
-    local desired_role="${12:-}"
-    local desired_deploy_type="${13:-local}"
 
     # Normalize tilde paths before comparison
     actual_workdir="$(normalize_path "$actual_workdir")"
@@ -311,10 +163,6 @@ compute_drift() {
     [[ "$actual_args" != "$desired_args" ]] && drifted_fields+=("programArgs")
     [[ "$actual_desc" != "$desired_desc" ]] && drifted_fields+=("taskDescription")
     [[ "$actual_tags_sorted" != "$desired_tags_sorted" ]] && drifted_fields+=("tags")
-    [[ "$actual_model" != "$desired_model" ]] && drifted_fields+=("model")
-    [[ "$actual_owner" != "$desired_owner" ]] && drifted_fields+=("owner")
-    [[ "$actual_role" != "$desired_role" ]] && drifted_fields+=("role")
-    [[ "$actual_deploy_type" != "$desired_deploy_type" ]] && drifted_fields+=("deploymentType")
 
     if [[ ${#drifted_fields[@]} -gt 0 ]]; then
         local joined
@@ -332,30 +180,108 @@ normalize_path() {
     echo "${p/#\~/$HOME}"
 }
 
-# Find agent names that exist in Agamemnon but are not managed by any YAML file.
-# Outputs one unmanaged agent name per line.
-# Usage: get_unmanaged_names <agents_json> <yaml_file>...
-get_unmanaged_names() {
-    local agents_json="$1"
-    shift
-    local yaml_files=("$@")
+# Resolve a fleet name to a list of agent YAML file paths.
+#
+# Handles two agent entry types in fleet spec.agents[]:
+#   - ref: host/name  → resolves to agents/<host>/<name>.yaml
+#   - inline object   → writes a temp Agent YAML file, registers it for cleanup
+#
+# Temp files are written to a directory tracked in FLEET_TMPDIR. Callers
+# must call cleanup_fleet_tmpdir() in their EXIT trap.
+#
+# Usage: resolve_fleet <fleet-name>
+# Outputs one file path per line.
+resolve_fleet() {
+    local fleet_name="$1"
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-    # Collect all managed names from YAML files
-    local managed_names=()
-    for yaml_file in "${yaml_files[@]}"; do
-        local n
-        n="$(yq eval '.metadata.name' "$yaml_file")"
-        managed_names+=("$n")
-    done
+    local fleet_file="${repo_root}/fleets/${fleet_name}.yaml"
+    if [[ ! -f "$fleet_file" ]]; then
+        echo "ERROR: Fleet not found: ${fleet_file}" >&2
+        return 1
+    fi
 
-    # Emit names present in Agamemnon but absent from managed list
-    while IFS= read -r actual_name; do
-        local is_managed=0
-        for mn in "${managed_names[@]}"; do
-            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
-        done
-        if [[ $is_managed -eq 0 ]]; then
-            echo "$actual_name"
+    local kind
+    kind="$(yq eval '.kind // ""' "$fleet_file")"
+    if [[ "$kind" != "Fleet" ]]; then
+        echo "ERROR: ${fleet_file} is not a Fleet manifest (kind=${kind})" >&2
+        return 1
+    fi
+
+    # Create temp dir for inline agent YAML files (once per invocation)
+    if [[ -z "${FLEET_TMPDIR:-}" ]]; then
+        FLEET_TMPDIR="$(mktemp -d)"
+        export FLEET_TMPDIR
+    fi
+
+    local fleet_host
+    fleet_host="$(yq eval '.metadata.host // "hermes"' "$fleet_file")"
+
+    local count
+    count="$(yq eval '.spec.agents | length' "$fleet_file")"
+
+    local i
+    for (( i = 0; i < count; i++ )); do
+        local entry_ref
+        entry_ref="$(yq eval ".spec.agents[${i}].ref // \"\"" "$fleet_file")"
+
+        if [[ -n "$entry_ref" ]]; then
+            # ref: host/name  →  agents/<host>/<name>.yaml
+            local ref_host ref_name
+            ref_host="${entry_ref%%/*}"
+            ref_name="${entry_ref#*/}"
+            local ref_file="${repo_root}/agents/${ref_host}/${ref_name}.yaml"
+            if [[ ! -f "$ref_file" ]]; then
+                echo "ERROR: Fleet ref not found: ${ref_file}" >&2
+                return 1
+            fi
+            echo "$ref_file"
+        else
+            # Inline agent — synthesize a full Agent YAML in a temp file
+            local inline_name
+            inline_name="$(yq eval ".spec.agents[${i}].name // \"\"" "$fleet_file")"
+            if [[ -z "$inline_name" ]]; then
+                echo "ERROR: Fleet agent entry [${i}] has neither 'ref' nor 'name'" >&2
+                return 1
+            fi
+
+            local tmp_file="${FLEET_TMPDIR}/${inline_name}.yaml"
+
+            # Extract the inline agent spec fields with defaults
+            yq eval "
+                {
+                    \"apiVersion\": \"myrmidons/v1\",
+                    \"kind\": \"Agent\",
+                    \"metadata\": {
+                        \"name\": .spec.agents[${i}].name,
+                        \"host\": (.spec.agents[${i}].host // \"${fleet_host}\")
+                    },
+                    \"spec\": {
+                        \"label\":            (.spec.agents[${i}].label // .spec.agents[${i}].name),
+                        \"program\":          (.spec.agents[${i}].program // \"claude-code\"),
+                        \"model\":            (.spec.agents[${i}].model // null),
+                        \"workingDirectory\": (.spec.agents[${i}].workingDirectory // \"\"),
+                        \"programArgs\":      (.spec.agents[${i}].programArgs // \"\"),
+                        \"taskDescription\":  (.spec.agents[${i}].taskDescription // \"\"),
+                        \"tags\":             (.spec.agents[${i}].tags // []),
+                        \"owner\":            (.spec.agents[${i}].owner // \"\"),
+                        \"role\":             (.spec.agents[${i}].role // \"member\"),
+                        \"deployment\":       (.spec.agents[${i}].deployment // {\"type\": \"local\"}),
+                        \"desiredState\":     (.spec.agents[${i}].desiredState // \"active\")
+                    }
+                }
+            " "$fleet_file" > "$tmp_file"
+
+            echo "$tmp_file"
         fi
-    done < <(echo "$agents_json" | jq -r '.[].name')
+    done
+}
+
+# Remove the temp directory created by resolve_fleet, if any.
+# Call this in an EXIT trap when using --fleet.
+cleanup_fleet_tmpdir() {
+    if [[ -n "${FLEET_TMPDIR:-}" && -d "$FLEET_TMPDIR" ]]; then
+        rm -rf "$FLEET_TMPDIR"
+    fi
 }
