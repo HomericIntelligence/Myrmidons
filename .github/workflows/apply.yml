@@ -13,6 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AGAMEMNON_URL: ${{ secrets.AGAMEMNON_URL }}
+      # TLS — all optional; only set the secrets that apply to your deployment.
+      # AGAMEMNON_CA_CERT_B64: base64-encoded PEM CA bundle
+      # AGAMEMNON_CLIENT_CERT_B64: base64-encoded PEM client certificate
+      # AGAMEMNON_CLIENT_KEY_B64: base64-encoded PEM client key
+      # AGAMEMNON_TLS_VERIFY: set to "false" only for dev; never in production
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +36,28 @@ jobs:
             apt-get install -y jq
           fi
           jq --version
+
+      - name: Configure TLS certificates
+        run: |
+          # Decode base64-encoded TLS material from secrets into temp files.
+          # Each variable is optional; skip if the secret is not set.
+          if [[ -n "${AGAMEMNON_CA_CERT_B64:-}" ]]; then
+            echo "$AGAMEMNON_CA_CERT_B64" | base64 -d > /tmp/agamemnon-ca.pem
+            echo "AGAMEMNON_CA_CERT=/tmp/agamemnon-ca.pem" >> "$GITHUB_ENV"
+          fi
+          if [[ -n "${AGAMEMNON_CLIENT_CERT_B64:-}" ]]; then
+            echo "$AGAMEMNON_CLIENT_CERT_B64" | base64 -d > /tmp/agamemnon-client.crt
+            echo "AGAMEMNON_CLIENT_CERT=/tmp/agamemnon-client.crt" >> "$GITHUB_ENV"
+          fi
+          if [[ -n "${AGAMEMNON_CLIENT_KEY_B64:-}" ]]; then
+            echo "$AGAMEMNON_CLIENT_KEY_B64" | base64 -d > /tmp/agamemnon-client.key
+            chmod 600 /tmp/agamemnon-client.key
+            echo "AGAMEMNON_CLIENT_KEY=/tmp/agamemnon-client.key" >> "$GITHUB_ENV"
+          fi
+        env:
+          AGAMEMNON_CA_CERT_B64: ${{ secrets.AGAMEMNON_CA_CERT_B64 }}
+          AGAMEMNON_CLIENT_CERT_B64: ${{ secrets.AGAMEMNON_CLIENT_CERT_B64 }}
+          AGAMEMNON_CLIENT_KEY_B64: ${{ secrets.AGAMEMNON_CLIENT_KEY_B64 }}
 
       - name: Plan — show what will change
         run: |

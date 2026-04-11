@@ -113,7 +113,46 @@ hooks/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
+| `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL (supports `https://`) |
+| `AGAMEMNON_CA_CERT` | _(unset)_ | Path to custom CA certificate bundle (PEM) for TLS |
+| `AGAMEMNON_CLIENT_CERT` | _(unset)_ | Path to client certificate for mutual TLS (PEM) |
+| `AGAMEMNON_CLIENT_KEY` | _(unset)_ | Path to client private key for mutual TLS (PEM) |
+| `AGAMEMNON_TLS_VERIFY` | `true` | Set to `false` to disable TLS verification (**insecure — dev only**) |
+
+### TLS configuration examples
+
+```bash
+# HTTPS with default system CA store
+export AGAMEMNON_URL=https://hermes.tailnet:23000
+just plan hermes
+
+# HTTPS with a custom CA bundle (self-signed or internal PKI)
+export AGAMEMNON_URL=https://hermes.tailnet:23000
+export AGAMEMNON_CA_CERT=/etc/ssl/myca/ca-bundle.pem
+just apply hermes
+
+# Mutual TLS (client certificate authentication)
+export AGAMEMNON_URL=https://hermes.tailnet:23000
+export AGAMEMNON_CA_CERT=/etc/ssl/myca/ca-bundle.pem
+export AGAMEMNON_CLIENT_CERT=~/.config/agamemnon/client.crt
+export AGAMEMNON_CLIENT_KEY=~/.config/agamemnon/client.key
+just apply hermes
+
+# Disable TLS verification — development only, never in production
+export AGAMEMNON_URL=https://localhost:23000
+export AGAMEMNON_TLS_VERIFY=false
+just status hermes
+```
+
+For CI/CD, store TLS material as GitHub secrets and expose them as environment variables:
+
+```yaml
+env:
+  AGAMEMNON_URL: ${{ secrets.AGAMEMNON_URL }}
+  AGAMEMNON_CA_CERT_B64: ${{ secrets.AGAMEMNON_CA_CERT_B64 }}
+```
+
+Then decode before use (see `.github/workflows/apply.yml` for the full example).
 
 ## Deployment scope
 
