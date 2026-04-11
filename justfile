@@ -42,6 +42,18 @@ apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
 
 # =============================================================================
+# Rollback
+# =============================================================================
+
+# Restore agents to their state from the most recent pre-apply snapshot
+rollback:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/rollback.sh
+
+# List available snapshots
+snapshots:
+    @bash scripts/rollback.sh --list
+
+# =============================================================================
 # Bootstrap
 # =============================================================================
 
