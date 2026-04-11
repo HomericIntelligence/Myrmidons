@@ -10,7 +10,7 @@ Container images are built separately in [AchaeanFleet](../AchaeanFleet).
 
 ```bash
 # Install dependencies (yq, jq, just)
-pixi install   # or: apt install jq && curl -fsSL .../yq_linux_amd64 -o /usr/local/bin/yq
+pixi install   # or: apt install jq && curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
 # Install pre-commit hook
 just install-hooks
