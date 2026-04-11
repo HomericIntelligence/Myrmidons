@@ -204,9 +204,11 @@ build_create_json() {
         tags_json="$(echo "$tags_csv" | jq -Rc 'split(",")')"
     fi
 
+    # Note: $label is a reserved keyword in jq 1.6 (label-break syntax).
+    # Use $lbl as the variable name to avoid the parser conflict.
     jq -n \
         --arg name "$name" \
-        --arg label "$label" \
+        --arg lbl "$label" \
         --arg program "$program" \
         --arg workingDirectory "$workdir" \
         --arg programArgs "$args" \
@@ -216,7 +218,7 @@ build_create_json() {
         --arg role "$role" \
         '{
             name: $name,
-            label: $label,
+            label: $lbl,
             program: $program,
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,

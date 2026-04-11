@@ -235,7 +235,9 @@ agamemnon_id_by_name() {
 # Helper: get agent status by name. Returns "unknown" if not found.
 agamemnon_status_by_name() {
     local name="$1"
-    agamemnon_list_agents | jq -r --arg name "$name" \
-        '.[] | select(.name == $name) | .status // "unknown"'
+    local status
+    status="$(agamemnon_list_agents | jq -r --arg name "$name" \
+        'map(select(.name == $name)) | if length > 0 then .[0].status // "unknown" else "unknown" end')"
+    echo "$status"
 }
 
