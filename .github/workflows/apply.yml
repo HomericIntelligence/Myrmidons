@@ -16,21 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install yq
+      - name: Install dependencies
         env:
           YQ_VERSION: "v4.40.5"
         run: |
+          sudo apt-get install -y jq shellcheck
           curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
             -o /usr/local/bin/yq
           chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Install jq if needed
-        run: |
-          if ! command -v jq &>/dev/null; then
-            apt-get install -y jq
-          fi
-          jq --version
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh scripts/lib/*.sh
 
       - name: Plan — show what will change
         run: |

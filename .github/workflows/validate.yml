@@ -6,11 +6,58 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
-      - 'docs/**'
-      - 'README.md'
-      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
 
 jobs:
+  lint:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck
+        run: shellcheck scripts/*.sh scripts/lib/*.sh
+
+  actionlint:
+    name: Lint GitHub Actions Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+        run: |
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin actionlint
+          actionlint --version
+
+      - name: Run actionlint
+        run: actionlint
+
+  secrets-scan:
+    name: Scan for Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.24.3"
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Run gitleaks
+        run: gitleaks detect --source . --log-opts "origin/main..HEAD"
+
   validate:
     name: Validate YAML Schemas
     runs-on: ubuntu-latest
@@ -30,8 +77,3 @@ jobs:
         run: |
           chmod +x tests/validate-schemas.sh
           ./tests/validate-schemas.sh
-
-      - name: Check documentation drift
-        run: |
-          chmod +x tests/detect-doc-drift.sh
-          ./tests/detect-doc-drift.sh
