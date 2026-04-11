@@ -37,9 +37,13 @@ plan HOST=host:
 apply HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}}
 
-# Apply with --prune (removes agents in Agamemnon that are not in YAML)
+# Apply with --prune (removes agents in Agamemnon that are not in YAML, with confirmation prompt)
 apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
+
+# Apply with --prune and --yes (for CI pipelines — skips confirmation prompt)
+apply-prune-yes HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune --yes
 
 # =============================================================================
 # Bootstrap

@@ -12,6 +12,8 @@
 # Exit codes:
 #   0 = no changes needed
 #   1 = changes would be made (or error)
+#
+# Output always starts with a DRY RUN banner so it is clear no changes are made.
 
 set -euo pipefail
 
@@ -25,6 +27,10 @@ source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 HOST=""
 FLEET=""
+
+PLAN_CREATES=0
+PLAN_UPDATES=0
+PLAN_PRUNES=0
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -56,13 +62,7 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    if [[ -n "$FLEET" ]]; then
-        local fleet_file
-        fleet_file="$(find_fleet_file "$FLEET")" || exit 1
-        mapfile -t yaml_files < <(resolve_fleet_files "$fleet_file")
-    else
-        mapfile -t yaml_files < <(get_agent_files "$HOST")
-    fi
+    mapfile -t yaml_files < <(get_agent_files "$HOST")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
         echo "No agent YAML files found."
@@ -71,7 +71,11 @@ main() {
 
     local has_changes=0
 
-    echo "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║              DRY RUN — no changes will be made                  ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "Plan for ${AGAMEMNON_URL}"
     echo "================================================================"
     echo ""
 
@@ -82,12 +86,10 @@ main() {
     # Report unmanaged agents (in Agamemnon but not in YAML)
     echo ""
     echo "Checking for unmanaged agents..."
-    while IFS= read -r actual_name; do
-        echo "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
-    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+    report_unmanaged "$agents_json" "${yaml_files[@]}"
 
-    cleanup_fleet_tmpdir
-
+    echo ""
+    echo "Plan summary: ${PLAN_CREATES} create(s), ${PLAN_UPDATES} update(s), ${PLAN_PRUNES} prune(s)"
     echo ""
     if [[ $has_changes -eq 0 ]]; then
         echo "No changes needed. Desired state matches actual state."
@@ -116,10 +118,6 @@ plan_agent() {
     local workdir="${fields[workingDirectory]:-}"
     local args="${fields[programArgs]:-}"
     local desc="${fields[taskDescription]:-}"
-    local model="${fields[model]:-}"
-    local owner="${fields[owner]:-}"
-    local role="${fields[role]:-member}"
-    local deploy_type="${fields[deploymentType]:-local}"
 
     # Look up in actual state
     local actual_json
@@ -131,13 +129,13 @@ plan_agent() {
         if [[ "$desired_state" == "active" ]]; then
             echo "    └─ WAKE after create"
         fi
+        PLAN_CREATES=$((PLAN_CREATES + 1))
         return 1
     fi
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "${fields[tags]:-}" \
-        "$model" "$owner" "$role" "$deploy_type")"
+        "$label" "$program" "$workdir" "$args" "$desc")"
 
     case "$action" in
         UNCHANGED)
@@ -145,20 +143,51 @@ plan_agent() {
             ;;
         WAKE)
             echo "[!] WAKE ${name} (desired=active, actual=$(echo "$actual_json" | jq -r '.status'))"
+            PLAN_UPDATES=$((PLAN_UPDATES + 1))
             return 1
             ;;
         HIBERNATE)
             echo "[z] HIBERNATE ${name} (desired=hibernated, actual=$(echo "$actual_json" | jq -r '.status'))"
+            PLAN_UPDATES=$((PLAN_UPDATES + 1))
             return 1
             ;;
         UPDATE:*)
             local fields_changed="${action#UPDATE:}"
             echo "[~] UPDATE ${name}: ${fields_changed} differ"
+            PLAN_UPDATES=$((PLAN_UPDATES + 1))
             return 1
             ;;
     esac
 
     return 0
+}
+
+report_unmanaged() {
+    local agents_json="$1"
+    shift
+    local yaml_files=("$@")
+
+    # Collect all managed names
+    local managed_names=()
+    for yaml_file in "${yaml_files[@]}"; do
+        local name
+        name="$(yq eval '.metadata.name' "$yaml_file")"
+        managed_names+=("$name")
+    done
+
+    # Find agents not in managed list
+    local actual_names=()
+    mapfile -t actual_names < <(echo "$agents_json" | jq -r '.[].name')
+    for actual_name in "${actual_names[@]}"; do
+        local is_managed=0
+        for mn in "${managed_names[@]}"; do
+            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
+        done
+        if [[ $is_managed -eq 0 ]]; then
+            echo "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
+            PLAN_PRUNES=$((PLAN_PRUNES + 1))
+        fi
+    done
 }
 
 main "$@"
