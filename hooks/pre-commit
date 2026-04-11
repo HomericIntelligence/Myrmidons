@@ -104,4 +104,12 @@ if [[ $ERRORS -gt 0 ]]; then
 fi
 
 echo "All YAML files valid."
+
+# Check for dangerous programArgs flags in staged agent/fleet YAML files
+if ! ./scripts/check-dangerous-flags.sh $STAGED_YAMLS; then
+    echo ""
+    echo "Pre-commit: dangerous flag check failed. See output above."
+    exit 1
+fi
+
 exit 0

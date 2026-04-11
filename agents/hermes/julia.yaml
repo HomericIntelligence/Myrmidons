@@ -8,7 +8,7 @@ spec:
   program: claude-code
   model: null
   workingDirectory: ~/agents/devops
-  programArgs: "--dangerously-skip-permissions --model claude-opus-4-6"
+  programArgs: "--model claude-opus-4-6"
   taskDescription: "Agent for laptop-mnemosyne-devops"
   tags:
     - laptop
