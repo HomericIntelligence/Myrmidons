@@ -35,15 +35,15 @@ while IFS= read -r file; do
 
     echo -n "  ${file}: "
 
-    # Check basic YAML validity (read staged content, not working tree)
-    if ! git show ":${file}" | yq eval '.' - > /dev/null 2>&1; then
+    # Check basic YAML validity
+    if ! yq eval '.' "$file" > /dev/null 2>&1; then
         echo "FAIL (invalid YAML)"
         ERRORS=$((ERRORS + 1))
         continue
     fi
 
     # Check apiVersion
-    api_version="$(git show ":${file}" | yq eval '.apiVersion // ""' -)"
+    api_version="$(yq eval '.apiVersion // ""' "$file")"
     if [[ "$api_version" != "myrmidons/v1" ]]; then
         echo "FAIL (apiVersion must be 'myrmidons/v1', got '${api_version}')"
         ERRORS=$((ERRORS + 1))
@@ -51,7 +51,7 @@ while IFS= read -r file; do
     fi
 
     # Check kind
-    kind="$(git show ":${file}" | yq eval '.kind // ""' -)"
+    kind="$(yq eval '.kind // ""' "$file")"
     if [[ "$kind" != "Agent" && "$kind" != "Fleet" ]]; then
         echo "FAIL (kind must be 'Agent' or 'Fleet', got '${kind}')"
         ERRORS=$((ERRORS + 1))
@@ -65,25 +65,54 @@ while IFS= read -r file; do
     fi
 
     # Agent-specific validation
-    name="$(git show ":${file}" | yq eval '.metadata.name // ""' -)"
-    host="$(git show ":${file}" | yq eval '.metadata.host // ""' -)"
-    program="$(git show ":${file}" | yq eval '.spec.program // ""' -)"
-    desired_state="$(git show ":${file}" | yq eval '.spec.desiredState // ""' -)"
+    name="$(yq eval '.metadata.name // ""' "$file")"
+    host="$(yq eval '.metadata.host // ""' "$file")"
+    program="$(yq eval '.spec.program // ""' "$file")"
+    desired_state="$(yq eval '.spec.desiredState // ""' "$file")"
 
     local_errors=()
+    workdir="$(yq eval '.spec.workingDirectory // ""' "$file")"
+    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$file")"
 
     [[ -z "$name" ]] && local_errors+=("metadata.name is required")
     [[ -z "$host" ]] && local_errors+=("metadata.host is required")
     [[ -z "$program" ]] && local_errors+=("spec.program is required")
+    [[ -z "$workdir" ]] && local_errors+=("spec.workingDirectory is required")
+
+    # Validate spec.program against known enum
+    if [[ -n "$program" ]]; then
+        case "$program" in
+            claude-code|aider|codex|goose|cline|opencode|codebuff|ampcode|none) ;;
+            *) local_errors+=("spec.program must be one of: claude-code aider codex goose cline opencode codebuff ampcode none (got '${program}')") ;;
+        esac
+    fi
 
     if [[ -n "$desired_state" && "$desired_state" != "active" && "$desired_state" != "hibernated" ]]; then
         local_errors+=("spec.desiredState must be 'active' or 'hibernated', got '${desired_state}'")
     fi
 
     # Validate deployment type
-    deploy_type="$(git show ":${file}" | yq eval '.spec.deployment.type // "local"' -)"
     if [[ "$deploy_type" != "local" && "$deploy_type" != "docker" ]]; then
         local_errors+=("spec.deployment.type must be 'local' or 'docker', got '${deploy_type}'")
+    fi
+
+    # Validate docker image is present when deployment.type=docker
+    if [[ "$deploy_type" == "docker" ]]; then
+        docker_image="$(yq eval '.spec.deployment.docker.image // ""' "$file")"
+        [[ -z "$docker_image" ]] && local_errors+=("spec.deployment.docker.image is required when deployment.type is 'docker'")
+    fi
+
+    # Validate metadata.host matches the parent directory name
+    if [[ -n "$host" ]]; then
+        dir_host="$(basename "$(dirname "$file")")"
+        if [[ "$dir_host" != "$host" ]]; then
+            local_errors+=("metadata.host '${host}' does not match directory '${dir_host}'")
+        fi
+    fi
+
+    # Warn if workingDirectory does not exist (pre-commit runs locally)
+    if [[ -n "$workdir" && ! -d "$workdir" ]]; then
+        echo "  WARNING: spec.workingDirectory '${workdir}' does not exist on this host" >&2
     fi
 
     if [[ ${#local_errors[@]} -gt 0 ]]; then
