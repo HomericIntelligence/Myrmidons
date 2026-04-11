@@ -76,7 +76,10 @@ main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        exec "${SCRIPT_DIR}/plan.sh" "$@"
+        local plan_args=()
+        [[ -n "$HOST" ]] && plan_args+=("$HOST")
+        [[ -n "$FLEET" ]] && plan_args+=(--fleet "$FLEET")
+        exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
     fi
 
     check_deps
