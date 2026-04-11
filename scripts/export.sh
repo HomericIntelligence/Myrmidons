@@ -18,12 +18,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
+# shellcheck source=scripts/lib/reconcile.sh
+source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 HOST="${1:-hermes}"
 OUTPUT_DIR="${REPO_ROOT}/agents/${HOST}"
 
 main() {
-    check_jq
+    check_deps
     agamemnon_check_connection
 
     echo "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
@@ -48,13 +50,6 @@ main() {
 
     echo ""
     echo "Exported ${count} agents to ${OUTPUT_DIR}/"
-}
-
-check_jq() {
-    if ! command -v jq &>/dev/null; then
-        echo "ERROR: jq is required. Install: apt install jq" >&2
-        exit 1
-    fi
 }
 
 # Derive a safe filename from agent name (replaces - and _ with -)
