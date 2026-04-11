@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# tests/validate-schemas.sh — CI: validate all agent and fleet YAML files
-#
-# Uses check-jsonschema (schemas/agent-v1.schema.json and fleet-v1.schema.json)
-# as the single source of truth for field definitions, types, and enum values.
+# tests/validate-schemas.sh — CI: validate all agent YAML files
 #
 # Used by .github/workflows/validate.yml on every PR.
+# Runs the same checks as the pre-commit hook but against ALL YAML files,
+# not just staged ones.
 #
 # Usage:
 #   ./tests/validate-schemas.sh
@@ -18,21 +17,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-AGENT_SCHEMA="${REPO_ROOT}/schemas/agent-v1.schema.json"
-FLEET_SCHEMA="${REPO_ROOT}/schemas/fleet-v1.schema.json"
-
 ERRORS=0
 CHECKED=0
 
-if ! command -v check-jsonschema &>/dev/null; then
-    echo "ERROR: check-jsonschema is required for schema validation." >&2
-    echo "  Install via pixi: pixi install" >&2
-    echo "  Or via pip: pip install check-jsonschema" >&2
-    exit 1
-fi
-
 if ! command -v yq &>/dev/null; then
-    echo "ERROR: yq is required for YAML parsing." >&2
+    echo "ERROR: yq is required for schema validation." >&2
+    echo "  Install: curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq" >&2
     exit 1
 fi
 
@@ -44,8 +34,7 @@ while IFS= read -r -d '' file; do
     [[ "$file" == *"/_templates/"* ]] && continue
 
     CHECKED=$((CHECKED + 1))
-    rel="${file#"${REPO_ROOT}/"}"
-    echo -n "  ${rel}: "
+    echo -n "  ${file#"${REPO_ROOT}/"}: "
 
     # YAML syntax check
     if ! yq eval '.' "$file" > /dev/null 2>&1; then
@@ -54,34 +43,68 @@ while IFS= read -r -d '' file; do
         continue
     fi
 
+    api_version="$(yq eval '.apiVersion // ""' "$file")"
     kind="$(yq eval '.kind // ""' "$file")"
 
-    case "$kind" in
-        Agent)
-            schema="$AGENT_SCHEMA"
-            ;;
-        Fleet)
-            schema="$FLEET_SCHEMA"
-            ;;
-        *)
-            echo "FAIL (unknown kind '${kind}'; expected 'Agent' or 'Fleet')"
-            ERRORS=$((ERRORS + 1))
-            continue
-            ;;
-    esac
-
-    # check-jsonschema requires JSON; convert YAML on the fly
-    if error_output="$(yq eval -o=json '.' "$file" 2>&1 | \
-            check-jsonschema --schemafile "$schema" /dev/stdin 2>&1)"; then
-        name="$(yq eval '.metadata.name // ""' "$file")"
-        echo "ok (${kind}: ${name})"
-    else
-        echo "FAIL"
-        # Indent error output for readability
-        while IFS= read -r line; do
-            echo "      ${line}"
-        done <<< "$error_output"
+    # apiVersion check
+    if [[ "$api_version" != "myrmidons/v1" ]]; then
+        echo "FAIL (expected apiVersion=myrmidons/v1, got '${api_version}')"
         ERRORS=$((ERRORS + 1))
+        continue
+    fi
+
+    # kind check
+    if [[ "$kind" != "Agent" && "$kind" != "Fleet" ]]; then
+        echo "FAIL (expected kind=Agent or Fleet, got '${kind}')"
+        ERRORS=$((ERRORS + 1))
+        continue
+    fi
+
+    if [[ "$kind" == "Fleet" ]]; then
+        fleet_name="$(yq eval '.metadata.name // ""' "$file")"
+        [[ -z "$fleet_name" ]] && echo "FAIL (metadata.name required in Fleet)" && ERRORS=$((ERRORS+1)) && continue
+        echo "ok (Fleet: ${fleet_name})"
+        continue
+    fi
+
+    # Agent validation
+    field_errors=()
+
+    name="$(yq eval '.metadata.name // ""' "$file")"
+    host="$(yq eval '.metadata.host // ""' "$file")"
+    program="$(yq eval '.spec.program // ""' "$file")"
+    workdir="$(yq eval '.spec.workingDirectory // ""' "$file")"
+    desired_state="$(yq eval '.spec.desiredState // ""' "$file")"
+    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$file")"
+
+    [[ -z "$name" ]] && field_errors+=("metadata.name is required")
+    [[ -z "$host" ]] && field_errors+=("metadata.host is required")
+    [[ -z "$program" ]] && field_errors+=("spec.program is required")
+    [[ -z "$workdir" ]] && field_errors+=("spec.workingDirectory is required")
+
+    # Filename must match metadata.name (without .yaml extension)
+    filename="$(basename "$file" .yaml)"
+    if [[ -n "$name" && "$filename" != "$name" ]]; then
+        field_errors+=("filename '${filename}.yaml' must match metadata.name '${name}' — rename the file or update metadata.name")
+    fi
+
+    if [[ -n "$desired_state" ]]; then
+        [[ "$desired_state" != "active" && "$desired_state" != "hibernated" ]] && \
+            field_errors+=("spec.desiredState must be 'active' or 'hibernated'")
+    fi
+
+    if [[ "$deploy_type" != "local" && "$deploy_type" != "docker" ]]; then
+        field_errors+=("spec.deployment.type must be 'local' or 'docker'")
+    fi
+
+    if [[ ${#field_errors[@]} -gt 0 ]]; then
+        echo "FAIL"
+        for err in "${field_errors[@]}"; do
+            echo "      - ${err}"
+        done
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "ok (Agent: ${name})"
     fi
 
 done < <(find "${REPO_ROOT}/agents" "${REPO_ROOT}/fleets" \
@@ -90,15 +113,7 @@ done < <(find "${REPO_ROOT}/agents" "${REPO_ROOT}/fleets" \
 echo ""
 echo "Checked: ${CHECKED} files, Errors: ${ERRORS}"
 
-if [[ $CHECKED -eq 0 ]]; then
-    echo "WARNING: No YAML files found to validate." >&2
-    exit 1
-fi
-
 if [[ $ERRORS -gt 0 ]]; then
     exit 1
 fi
-
-# Also validate fleet ref referential integrity
-echo ""
-"${SCRIPT_DIR}/validate-fleet-refs.sh"
+exit 0

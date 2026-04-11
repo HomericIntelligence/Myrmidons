@@ -32,16 +32,16 @@ Myrmidons is the source of truth for *desired* agent state. Agent definitions li
 
 ## Agent definition format
 
-Every agent is a YAML file in `agents/<host>/<label>.yaml` where `<label>` is the lowercased `spec.label`:
+Every agent is a YAML file in `agents/<host>/<name>.yaml`:
 
 ```yaml
 apiVersion: myrmidons/v1
 kind: Agent
 metadata:
-  name: my-agent-name   # Agamemnon API name / tmux session name — NOT the filename
+  name: my-agent-name
   host: hermes
 spec:
-  label: DisplayName    # Human-readable name; filename = lowercase(label) + ".yaml"
+  label: DisplayName
   program: claude-code
   model: null
   workingDirectory: /home/mvillmow/MyProject
@@ -54,20 +54,6 @@ spec:
     type: local
   desiredState: active
 ```
-
-### Naming convention
-
-| Field | Example | Purpose |
-|-------|---------|---------|
-| **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
-| **`metadata.name`** | `odyssey-mainline-analysis` | Agamemnon API identifier / tmux session name. Used by scripts and the REST API. |
-| **`spec.label`** | `Aindrea` | Display name shown in the Agamemnon UI. |
-
-**Fleet `ref:` entries resolve by filename stem**, not by `metadata.name`:
-- `ref: hermes/aindrea` → `agents/hermes/aindrea.yaml` ✓
-- `ref: hermes/odyssey-mainline-analysis` → `agents/hermes/odyssey-mainline-analysis.yaml` ✗ (file does not exist)
-
-This design is intentional: filenames are label-derived for human readability; `metadata.name` carries the Agamemnon backend identity.
 
 ## Scripts
 
@@ -84,14 +70,24 @@ This design is intentional: filenames are label-derived for human readability; `
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
 
+## Naming convention
+
+**The filename (without `.yaml`) must exactly match `metadata.name`.**
+
+For example, an agent with `metadata.name: my-agent` must be saved as `agents/hermes/my-agent.yaml`. Mismatches cause ambiguous fleet `ref:` lookups and can result in duplicate agent creation.
+
+This is enforced by:
+- `hooks/pre-commit` — blocks commits with mismatched files
+- `tests/validate-schemas.sh` — fails CI on any mismatch
+- `just lint-names` — standalone check you can run locally
+
 ## Adding a new agent
 
-1. Choose a label (e.g. `MyAgent`) — the filename will be `agents/hermes/myagent.yaml` (lowercase label)
-2. Copy a template: `cp agents/_templates/claude-default.yaml agents/hermes/myagent.yaml`
-3. Fill in all required fields; set `spec.label: MyAgent` and `metadata.name` to the Agamemnon agent name
-4. Run `./scripts/plan.sh` to preview the change
-5. Run `./scripts/apply.sh` to create + start the agent
-6. Commit the YAML file
+1. Copy a template: `cp agents/_templates/claude-default.yaml agents/hermes/my-agent.yaml`
+2. Fill in all required fields — set `metadata.name` to `my-agent` (matching the filename)
+3. Run `./scripts/plan.sh` to preview the change
+4. Run `./scripts/apply.sh` to create + start the agent
+5. Commit the YAML file
 
 ## Dependencies
 
@@ -102,30 +98,7 @@ This design is intentional: filenames are label-derived for human readability; `
 
 ## CI/CD
 
-- **On PR:** `.github/workflows/validate.yml` validates all YAML schemas and checks for dangerous flags
+- **On PR:** `.github/workflows/validate.yml` validates all YAML schemas
 - **On merge to main:** `.github/workflows/apply.yml` auto-applies to target host
 
 Requires GitHub secret: `AGAMEMNON_URL`
-
-## Security
-
-### `--dangerously-skip-permissions` policy
-
-The `--dangerously-skip-permissions` flag disables all permission prompts for Claude Code agents. An agent running with this flag can execute arbitrary file modifications, network requests, and system commands without user approval.
-
-**Policy:** This flag is **prohibited** in agent/fleet YAML files unless a suppression annotation is present on the same line documenting the security justification.
-
-**Suppression format:**
-```yaml
-programArgs: "--dangerously-skip-permissions" # skip-permissions-lint: <justification>
-```
-
-The justification must describe:
-- Why the flag is required in this context
-- What compensating controls exist (e.g., ephemeral container, read-only mount, job timeout)
-
-**Lint guard:** `scripts/check-dangerous-flags.sh` enforces this policy. It runs:
-- As a pre-commit hook (staged files only)
-- In CI on every PR (all agent/fleet YAMLs)
-
-To run manually: `./scripts/check-dangerous-flags.sh`
