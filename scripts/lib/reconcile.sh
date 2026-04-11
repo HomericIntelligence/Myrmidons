@@ -18,9 +18,9 @@ check_deps() {
         fi
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "ERROR: Missing required tools: ${missing[*]}" >&2
-        echo "  Install yq: https://github.com/mikefarah/yq" >&2
-        echo "  Install jq: apt install jq / brew install jq" >&2
+        log_error "Missing required tools: ${missing[*]}"
+        log_error "  Install yq: https://github.com/mikefarah/yq"
+        log_error "  Install jq: apt install jq / brew install jq"
         return 1
     fi
 }

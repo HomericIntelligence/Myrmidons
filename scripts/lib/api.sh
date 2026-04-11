@@ -34,8 +34,8 @@ agamemnon_check_connection() {
     echo "Connecting to Agamemnon at: ${AGAMEMNON_URL}"
 
     if ! curl -sf --max-time 5 "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
-        echo "ERROR: Cannot reach Agamemnon at ${AGAMEMNON_URL}" >&2
-        echo "  Is Agamemnon running? Check your ProjectAgamemnon deployment." >&2
+        log_error "Cannot reach Agamemnon at ${AGAMEMNON_URL}"
+        log_error "  Is Agamemnon running? Check your ProjectAgamemnon deployment."
         return 1
     fi
 }
@@ -60,15 +60,15 @@ _agamemnon_curl() {
     # tmpdir cleaned up by trap on RETURN
 
     if [[ $curl_exit -ne 0 ]]; then
-        echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
+        log_error "curl failed (exit ${curl_exit}) for: $*"
         return 1
     fi
 
     if [[ "${http_code:0:1}" != "2" ]]; then
-        echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
-        echo "  URL: $*" >&2
+        log_error "HTTP ${http_code} from Agamemnon"
+        log_error "  URL: $*"
         if [[ -n "$response" ]]; then
-            echo "  Body: ${response}" >&2
+            log_error "  Body: ${response}"
         fi
         return 1
     fi

@@ -16,20 +16,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/lib/log.sh
+source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
-# shellcheck source=scripts/lib/reconcile.sh
-source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 HOST="${1:-hermes}"
 OUTPUT_DIR="${REPO_ROOT}/agents/${HOST}"
 
 main() {
-    check_deps
+    check_jq
     agamemnon_check_connection
 
-    echo "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
-    echo ""
+    log_info "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
+    log_info ""
 
     mkdir -p "${OUTPUT_DIR}"
 
@@ -40,7 +40,7 @@ main() {
     count="$(echo "$agents_json" | jq 'length')"
 
     if [[ "$count" -eq 0 ]]; then
-        echo "No agents found in Agamemnon."
+        log_info "No agents found in Agamemnon."
         exit 0
     fi
 
@@ -48,8 +48,15 @@ main() {
         export_agent "$agent"
     done
 
-    echo ""
-    echo "Exported ${count} agents to ${OUTPUT_DIR}/"
+    log_info ""
+    log_info "Exported ${count} agents to ${OUTPUT_DIR}/"
+}
+
+check_jq() {
+    if ! command -v jq &>/dev/null; then
+        log_error "jq is required. Install: apt install jq"
+        exit 1
+    fi
 }
 
 # Derive a safe filename from agent name (replaces - and _ with -)
@@ -160,7 +167,7 @@ ${tags_yaml}
   desiredState: ${desired_state}
 YAML
 
-    echo "  ${outfile}"
+    log_info "  ${outfile}"
 }
 
 main "$@"
