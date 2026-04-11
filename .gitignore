@@ -20,6 +20,9 @@ tests/*.log
 # Local state (not config)
 *.bak
 
+# Rollback snapshots (machine-local, not versioned)
+.myrmidons/
+
 # Cloned repos from /advise skill
 ProjectMnemosyne/
 build/

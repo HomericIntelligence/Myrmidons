@@ -30,6 +30,8 @@ HOST=""
 FLEET=""
 PRUNE=0
 DRY_RUN=0
+SNAPSHOT_DIR="${REPO_ROOT}/.myrmidons/snapshots"
+SNAPSHOT_KEEP=10
 
 CREATED=0
 UPDATED=0
@@ -45,10 +47,11 @@ _LAST_CREATED_AGENT_JSON=""
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --prune)   PRUNE=1; shift ;;
-            --dry-run) DRY_RUN=1; shift ;;
-            --fleet)   FLEET="$2"; shift 2 ;;
-            -h|--help) usage; exit 0 ;;
+            --prune)         PRUNE=1; shift ;;
+            --dry-run)       DRY_RUN=1; shift ;;
+            --fleet)         FLEET="$2"; shift 2 ;;
+            --snapshot-dir)  SNAPSHOT_DIR="$2"; shift 2 ;;
+            -h|--help)       usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
     done
@@ -56,17 +59,18 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--snapshot-dir DIR]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
-  host           Only apply agents for this host (default: all)
-  --fleet NAME   Only apply agents in this fleet
-  --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
-                 but not in YAML). DEFAULT: warn only.
-  --dry-run      Show what would happen, make no changes (same as plan.sh)
-  -h, --help     Show this help
+  host               Only apply agents for this host (default: all)
+  --fleet NAME       Only apply agents in this fleet
+  --prune            Hibernate and delete unmanaged agents (agents in Agamemnon
+                     but not in YAML). DEFAULT: warn only.
+  --dry-run          Show what would happen, make no changes (same as plan.sh)
+  --snapshot-dir DIR Override snapshot directory (default: .myrmidons/snapshots)
+  -h, --help         Show this help
 
 Examples:
   $0                         # Reconcile everything
@@ -74,6 +78,30 @@ Examples:
   $0 --fleet dev-mesh        # Reconcile dev-mesh fleet
   $0 --prune                 # Reconcile + remove unmanaged agents
 EOF
+}
+
+# Save a snapshot of the current Agamemnon state before applying changes.
+# Snapshots are stored as TIMESTAMP.json in SNAPSHOT_DIR.
+# Old snapshots beyond SNAPSHOT_KEEP are pruned automatically.
+save_snapshot() {
+    local agents_json="$1"
+    local timestamp
+    timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    mkdir -p "$SNAPSHOT_DIR"
+
+    local snapshot_file="${SNAPSHOT_DIR}/${timestamp}.json"
+    echo "$agents_json" > "$snapshot_file"
+    echo "Snapshot saved: ${snapshot_file}"
+
+    # Prune old snapshots — keep only the most recent SNAPSHOT_KEEP files
+    local count
+    count="$(find "$SNAPSHOT_DIR" -name "*.json" | wc -l)"
+    if [[ $count -gt $SNAPSHOT_KEEP ]]; then
+        local excess=$(( count - SNAPSHOT_KEEP ))
+        find "$SNAPSHOT_DIR" -name "*.json" | sort | head -n "$excess" | xargs rm -f
+        echo "Pruned ${excess} old snapshot(s) (keeping last ${SNAPSHOT_KEEP})."
+    fi
 }
 
 main() {
@@ -91,6 +119,10 @@ main() {
 
     local agents_json
     agents_json="$(agamemnon_list_agents)"
+
+    # Save pre-apply snapshot before making any changes
+    save_snapshot "$agents_json"
+    echo ""
 
     local yaml_files
     if [[ -n "$FLEET" ]]; then
