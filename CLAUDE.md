@@ -83,6 +83,28 @@ This design is intentional: filenames are label-derived for human readability; `
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
+| `AGAMEMNON_API_KEY` | _(unset)_ | Bearer token / API key for authenticating requests |
+
+## Authentication
+
+When `AGAMEMNON_API_KEY` is set, all API calls include:
+
+```
+Authorization: Bearer <token>
+X-API-Key: <token>
+```
+
+When unset, requests are unauthenticated (backward compatible).
+
+**Never** put the token value in scripts or commit it to the repository. Use environment variables or GitHub secrets:
+
+```bash
+# Local usage
+export AGAMEMNON_API_KEY=your-token-here
+./scripts/status.sh
+```
+
+In CI, add `AGAMEMNON_API_KEY` as a GitHub Actions secret (see `.github/workflows/apply.yml`).
 
 ## Adding a new agent
 

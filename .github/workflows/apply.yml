@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AGAMEMNON_URL: ${{ secrets.AGAMEMNON_URL }}
+      AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
