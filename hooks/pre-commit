@@ -4,13 +4,17 @@
 # Installs to: .git/hooks/pre-commit
 # Setup: cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 #
-# Checks:
-#   1. All staged agent/*.yaml files are valid YAML
-#   2. Required fields (apiVersion, kind, metadata.name, metadata.host, spec.program)
-#   3. desiredState is "active" or "hibernated"
-#   4. apiVersion is "myrmidons/v1"
+# Uses check-jsonschema with schemas/agent-v1.schema.json and fleet-v1.schema.json
+# as the single source of truth for field definitions, types, and enum values.
 
 set -euo pipefail
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Support both .git/hooks/ (installed) and hooks/ (source)
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+AGENT_SCHEMA="${REPO_ROOT}/schemas/agent-v1.schema.json"
+FLEET_SCHEMA="${REPO_ROOT}/schemas/fleet-v1.schema.json"
 
 ERRORS=0
 
@@ -21,10 +25,16 @@ if [[ -z "$STAGED_YAMLS" ]]; then
     exit 0
 fi
 
+if ! command -v check-jsonschema &>/dev/null; then
+    echo "ERROR: check-jsonschema not found — cannot validate YAML before commit" >&2
+    echo "  Install via pixi: pixi install" >&2
+    echo "  Or via pip: pip install check-jsonschema" >&2
+    exit 1
+fi
+
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq not found — cannot validate YAML before commit" >&2
     echo "  Install: https://github.com/mikefarah/yq" >&2
-    echo "  Or run: just install-hooks  (after installing yq)" >&2
     exit 1
 fi
 
@@ -32,68 +42,42 @@ echo "Validating staged YAML files..."
 
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
+    [[ "$file" == *"/_templates/"* ]] && continue
 
     echo -n "  ${file}: "
 
     # Check basic YAML validity
-    if ! yq eval '.' "$file" > /dev/null 2>&1; then
+    if ! yq eval '.' "${REPO_ROOT}/${file}" > /dev/null 2>&1; then
         echo "FAIL (invalid YAML)"
         ERRORS=$((ERRORS + 1))
         continue
     fi
 
-    # Check apiVersion
-    api_version="$(yq eval '.apiVersion // ""' "$file")"
-    if [[ "$api_version" != "myrmidons/v1" ]]; then
-        echo "FAIL (apiVersion must be 'myrmidons/v1', got '${api_version}')"
-        ERRORS=$((ERRORS + 1))
-        continue
-    fi
+    kind="$(yq eval '.kind // ""' "${REPO_ROOT}/${file}")"
 
-    # Check kind
-    kind="$(yq eval '.kind // ""' "$file")"
-    if [[ "$kind" != "Agent" && "$kind" != "Fleet" ]]; then
-        echo "FAIL (kind must be 'Agent' or 'Fleet', got '${kind}')"
-        ERRORS=$((ERRORS + 1))
-        continue
-    fi
+    case "$kind" in
+        Agent)
+            schema="$AGENT_SCHEMA"
+            ;;
+        Fleet)
+            schema="$FLEET_SCHEMA"
+            ;;
+        *)
+            echo "FAIL (unknown kind '${kind}'; expected 'Agent' or 'Fleet')"
+            ERRORS=$((ERRORS + 1))
+            continue
+            ;;
+    esac
 
-    # Skip further validation for Fleet kind
-    if [[ "$kind" == "Fleet" ]]; then
-        echo "ok (Fleet)"
-        continue
-    fi
-
-    # Agent-specific validation
-    name="$(yq eval '.metadata.name // ""' "$file")"
-    host="$(yq eval '.metadata.host // ""' "$file")"
-    program="$(yq eval '.spec.program // ""' "$file")"
-    desired_state="$(yq eval '.spec.desiredState // ""' "$file")"
-
-    local_errors=()
-
-    [[ -z "$name" ]] && local_errors+=("metadata.name is required")
-    [[ -z "$host" ]] && local_errors+=("metadata.host is required")
-    [[ -z "$program" ]] && local_errors+=("spec.program is required")
-
-    if [[ -n "$desired_state" && "$desired_state" != "active" && "$desired_state" != "hibernated" ]]; then
-        local_errors+=("spec.desiredState must be 'active' or 'hibernated', got '${desired_state}'")
-    fi
-
-    # Validate deployment type
-    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$file")"
-    if [[ "$deploy_type" != "local" && "$deploy_type" != "docker" ]]; then
-        local_errors+=("spec.deployment.type must be 'local' or 'docker', got '${deploy_type}'")
-    fi
-
-    if [[ ${#local_errors[@]} -gt 0 ]]; then
-        echo "FAIL"
-        for err in "${local_errors[@]}"; do
-            echo "    - ${err}"
-        done
-        ERRORS=$((ERRORS + 1))
-    else
+    if error_output="$(yq eval -o=json '.' "${REPO_ROOT}/${file}" 2>&1 | \
+            check-jsonschema --schemafile "$schema" /dev/stdin 2>&1)"; then
         echo "ok"
+    else
+        echo "FAIL"
+        while IFS= read -r line; do
+            echo "    ${line}"
+        done <<< "$error_output"
+        ERRORS=$((ERRORS + 1))
     fi
 done <<< "$STAGED_YAMLS"
 

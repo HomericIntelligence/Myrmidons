@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HomericIntelligence/Myrmidons/schemas/fleet-v1.schema.json",
+  "title": "Myrmidons Fleet v1",
+  "description": "Schema for fleet YAML definitions in the Myrmidons GitOps system",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "myrmidons/v1",
+      "description": "Must be 'myrmidons/v1'"
+    },
+    "kind": {
+      "type": "string",
+      "const": "Fleet",
+      "description": "Must be 'Fleet'"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique fleet identifier"
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Default host for agents in this fleet"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the fleet's purpose"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["agents"],
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "type": "array",
+          "minItems": 1,
+          "description": "List of agents in this fleet; each may be a ref or an inline definition",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["ref"],
+                "additionalProperties": false,
+                "description": "Reference to an existing agent YAML file",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_-]+/[a-z0-9_-]+$",
+                    "description": "Agent reference in the form 'host/name', e.g. 'hermes/aindrea'"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["name", "program", "workingDirectory"],
+                "additionalProperties": false,
+                "description": "Inline agent definition embedded directly in the fleet",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Agent name; must be unique within the fleet"
+                  },
+                  "program": {
+                    "type": "string",
+                    "enum": ["claude-code", "aider", "none"],
+                    "description": "The AI tool (or 'none' for shell workers) to run"
+                  },
+                  "model": {
+                    "type": ["string", "null"],
+                    "description": "Override model; null means use the Agamemnon default"
+                  },
+                  "workingDirectory": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Absolute path to the working directory for the agent process"
+                  },
+                  "programArgs": {
+                    "type": "string",
+                    "description": "Extra CLI flags passed to the program"
+                  },
+                  "taskDescription": {
+                    "type": "string",
+                    "description": "Human-readable description of what this agent does"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Free-form labels for grouping and filtering"
+                  },
+                  "deployment": {
+                    "type": "object",
+                    "required": ["type"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": ["local", "docker"],
+                        "description": "'local' runs in tmux; 'docker' runs in a container"
+                      },
+                      "docker": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "image": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Container image name"
+                          },
+                          "cpus": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "CPU cores allocated to the container"
+                          },
+                          "memory": {
+                            "type": "string",
+                            "pattern": "^[0-9]+(\\.[0-9]+)?[gGmM]$",
+                            "description": "Memory limit, e.g. '4g', '512m'"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "desiredState": {
+                    "type": "string",
+                    "enum": ["active", "hibernated"],
+                    "description": "'active' wakes the agent; 'hibernated' suspends it"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

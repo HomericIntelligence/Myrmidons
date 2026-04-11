@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HomericIntelligence/Myrmidons/schemas/agent-v1.schema.json",
+  "title": "Myrmidons Agent v1",
+  "description": "Schema for agent YAML definitions in the Myrmidons GitOps system",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "myrmidons/v1",
+      "description": "Must be 'myrmidons/v1'"
+    },
+    "kind": {
+      "type": "string",
+      "const": "Agent",
+      "description": "Must be 'Agent'"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "host"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique per host; used as the tmux session name in Agamemnon"
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Must match the hostId registered in Agamemnon"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["program", "workingDirectory"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Display name shown in the Agamemnon UI"
+        },
+        "program": {
+          "type": "string",
+          "enum": ["claude-code", "aider", "none"],
+          "description": "The AI tool (or 'none' for shell workers) to run in the agent"
+        },
+        "model": {
+          "type": ["string", "null"],
+          "description": "Override model; null means use the Agamemnon default"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Absolute path to the working directory for the agent process"
+        },
+        "programArgs": {
+          "type": "string",
+          "description": "Extra CLI flags passed to the program, e.g. '--model claude-opus-4-6'"
+        },
+        "taskDescription": {
+          "type": "string",
+          "description": "Human-readable description of what this agent does"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Free-form labels for grouping and filtering agents"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Username of the agent owner"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["member", "admin"],
+          "description": "Agent role in Agamemnon: 'member' or 'admin'"
+        },
+        "deployment": {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["local", "docker"],
+              "description": "'local' runs in a tmux session on the host; 'docker' runs in a container"
+            },
+            "docker": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Container image name from the AchaeanFleet repo"
+                },
+                "cpus": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "CPU cores allocated to the container"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?[gGmM]$",
+                  "description": "Memory limit, e.g. '4g', '512m'"
+                }
+              },
+              "description": "Docker-specific settings; required when deployment.type is 'docker'"
+            }
+          }
+        },
+        "desiredState": {
+          "type": "string",
+          "enum": ["active", "hibernated"],
+          "description": "'active' wakes the agent; 'hibernated' suspends it"
+        }
+      }
+    }
+  }
+}

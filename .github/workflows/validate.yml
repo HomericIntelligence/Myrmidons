@@ -23,6 +23,9 @@ jobs:
           chmod +x /usr/local/bin/yq
           yq --version
 
+      - name: Install check-jsonschema
+        run: pip install check-jsonschema
+
       - name: Validate all YAML files
         run: |
           chmod +x tests/validate-schemas.sh
