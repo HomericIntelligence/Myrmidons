@@ -25,6 +25,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
 source "${SCRIPT_DIR}/lib/reconcile.sh"
+# shellcheck source=scripts/lib/sanitize.sh
+source "${SCRIPT_DIR}/lib/sanitize.sh"
 
 HOST=""
 FLEET=""
@@ -76,10 +78,7 @@ main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        local plan_args=()
-        [[ -n "$HOST" ]]  && plan_args+=("$HOST")
-        [[ -n "$FLEET" ]] && plan_args+=("--fleet" "$FLEET")
-        exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
+        exec "${SCRIPT_DIR}/plan.sh" "$@"
     fi
 
     check_deps
@@ -139,6 +138,14 @@ apply_agent() {
     role="$(yq eval '.spec.role // "member"' "$yaml_file")"
     deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
+
+    # Validate fields before any API calls (rejects null bytes / control chars)
+    if ! validate_agent_fields "$name" "$label" "$program" "$workdir" \
+                               "$args" "$desc" "$tags" "$owner" "$role"; then
+        echo "ERROR: ${yaml_file} contains invalid field values — skipping." >&2
+        ERRORS=$((ERRORS + 1))
+        return 1
+    fi
 
     # Look up actual agent
     local actual_json
@@ -203,12 +210,12 @@ apply_agent() {
 
             local patch_body
             patch_body="$(jq -n \
-                --arg label "$label" \
+                --arg lbl "$label" \
                 --arg program "$program" \
                 --arg workingDirectory "$workdir" \
                 --arg programArgs "$args" \
                 --arg taskDescription "$desc" \
-                '{label: $label, program: $program, workingDirectory: $workingDirectory,
+                '{"label": $lbl, program: $program, workingDirectory: $workingDirectory,
                   programArgs: $programArgs, taskDescription: $taskDescription}')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then

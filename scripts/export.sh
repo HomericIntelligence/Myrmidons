@@ -18,14 +18,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
-# shellcheck source=scripts/lib/reconcile.sh
-source "${SCRIPT_DIR}/lib/reconcile.sh"
+# shellcheck source=scripts/lib/sanitize.sh
+source "${SCRIPT_DIR}/lib/sanitize.sh"
 
 HOST="${1:-hermes}"
 OUTPUT_DIR="${REPO_ROOT}/agents/${HOST}"
 
 main() {
-    check_deps
+    check_jq
     agamemnon_check_connection
 
     echo "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
@@ -50,6 +50,13 @@ main() {
 
     echo ""
     echo "Exported ${count} agents to ${OUTPUT_DIR}/"
+}
+
+check_jq() {
+    if ! command -v jq &>/dev/null; then
+        echo "ERROR: jq is required. Install: apt install jq" >&2
+        exit 1
+    fi
 }
 
 # Derive a safe filename from agent name (replaces - and _ with -)
@@ -91,6 +98,16 @@ export_agent() {
     role="$(echo "$agent_json" | jq -r '.role // "member"')"
     status="$(echo "$agent_json" | jq -r '.status // "offline"')"
     deployment_type="$(echo "$agent_json" | jq -r '.deployment.type // "local"')"
+
+    # Validate fields before writing YAML (rejects null bytes / control chars)
+    validate_field "name"             "$name"    > /dev/null || return 1
+    validate_field "label"            "$label"   > /dev/null || return 1
+    validate_field "program"          "$program" > /dev/null || return 1
+    validate_field "workingDirectory" "$workdir" > /dev/null || return 1
+    validate_field "programArgs"      "$args"    > /dev/null || return 1
+    validate_field "taskDescription"  "$desc"    > /dev/null || return 1
+    validate_field "owner"            "$owner"   > /dev/null || return 1
+    validate_field "role"             "$role"    > /dev/null || return 1
 
     # Map current status to desiredState
     local desired_state="hibernated"

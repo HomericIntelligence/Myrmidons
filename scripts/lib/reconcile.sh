@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# shellcheck source=scripts/lib/sanitize.sh
+_RECONCILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_RECONCILE_DIR}/sanitize.sh"
+
 # Check required tools
 check_deps() {
     local missing=()
@@ -206,7 +210,7 @@ build_create_json() {
 
     jq -n \
         --arg name "$name" \
-        --arg label "$label" \
+        --arg lbl "$label" \
         --arg program "$program" \
         --arg workingDirectory "$workdir" \
         --arg programArgs "$args" \
@@ -216,7 +220,7 @@ build_create_json() {
         --arg role "$role" \
         '{
             name: $name,
-            label: $label,
+            "label": $lbl,
             program: $program,
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,
