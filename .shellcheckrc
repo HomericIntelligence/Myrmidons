@@ -1,0 +1,19 @@
+# .shellcheckrc — shellcheck configuration for Myrmidons
+#
+# Applied automatically when shellcheck runs from the repo root.
+# See: https://www.shellcheck.net/wiki/Directive
+
+# Minimum severity to report (style < info < warning < error)
+# Set to "warning" so style nits don't block CI, but real bugs do.
+severity=warning
+
+# All scripts in this repo target bash explicitly.
+shell=bash
+
+# SC2034: variable appears unused — suppress for lib files that are sourced.
+# Enable per-file with: # shellcheck disable=SC2034
+# (not disabled globally; callers should declare variables they actually use)
+
+# SC1091: Not following sourced file — suppressed because lib files are sourced
+# with shellcheck source= directives already present on each source line.
+disable=SC1091

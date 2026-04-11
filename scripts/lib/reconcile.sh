@@ -75,10 +75,10 @@ get_agent_files() {
 
     if [[ -n "$host" ]]; then
         find "${repo_root}/agents/${host}" -name "*.yaml" \
-            ! -path "*/\_templates/*" 2>/dev/null || true
+            ! -path "*/_templates/*" 2>/dev/null || true
     else
         find "${repo_root}/agents" -name "*.yaml" \
-            ! -path "*/\_templates/*" 2>/dev/null || true
+            ! -path "*/_templates/*" 2>/dev/null || true
     fi
 }
 

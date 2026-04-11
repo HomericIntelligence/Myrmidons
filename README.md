@@ -1,5 +1,8 @@
 # Myrmidons
 
+[![Lint and Test](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/lint.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/lint.yml)
+[![Validate YAML](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/validate.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/validate.yml)
+
 GitOps agent provisioning for the HomericIntelligence mesh.
 Agent YAML files are the source of truth for **desired** state.
 Scripts reconcile against [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon) via its REST API.

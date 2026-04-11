@@ -1,0 +1,62 @@
+name: Lint and Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        env:
+          SHELLCHECK_VERSION: "v0.10.0"
+        run: |
+          curl -fsSL \
+            "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ --strip-components=1 -C /usr/local/bin \
+                "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+          shellcheck --version
+
+      - name: Run shellcheck on all shell scripts
+        run: |
+          find scripts tests hooks -name '*.sh' -o -name 'pre-commit' \
+            | sort \
+            | xargs shellcheck --severity=warning
+
+  test:
+    name: Schema Validation Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        env:
+          YQ_VERSION: "v4.40.5"
+        run: |
+          curl -fsSL \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Run schema validation tests
+        run: |
+          chmod +x tests/validate-schemas.sh
+          ./tests/validate-schemas.sh
+
+      - name: Run any additional tests
+        run: |
+          # Run all test scripts discovered under tests/
+          find tests -name '*.sh' ! -name 'validate-schemas.sh' \
+            | sort \
+            | while IFS= read -r test_script; do
+                echo "Running ${test_script}..."
+                chmod +x "${test_script}"
+                "${test_script}"
+              done
