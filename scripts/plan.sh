@@ -106,6 +106,10 @@ plan_agent() {
     local workdir="${fields[workingDirectory]:-}"
     local args="${fields[programArgs]:-}"
     local desc="${fields[taskDescription]:-}"
+    local model="${fields[model]:-}"
+    local owner="${fields[owner]:-}"
+    local role="${fields[role]:-member}"
+    local deploy_type="${fields[deploymentType]:-local}"
 
     # Look up in actual state
     local actual_json
@@ -122,7 +126,8 @@ plan_agent() {
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc")"
+        "$label" "$program" "$workdir" "$args" "$desc" "${fields[tags]:-}" \
+        "$model" "$owner" "$role" "$deploy_type")"
 
     case "$action" in
         UNCHANGED)
