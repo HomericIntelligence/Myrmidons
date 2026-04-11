@@ -26,3 +26,6 @@ build/
 
 # Old/unused implementations
 hello-world/main.py
+
+# Pixi
+.pixi/
