@@ -66,6 +66,114 @@ get_agent_files() {
     fi
 }
 
+# Find a fleet YAML file by name.
+# Searches the fleets/ directory for a file where metadata.name matches.
+# Outputs the absolute path or exits with error if not found.
+# Usage: find_fleet_file <fleet-name>
+find_fleet_file() {
+    local fleet_name="$1"
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+    local fleet_file=""
+    while IFS= read -r -d '' f; do
+        local name
+        name="$(yq eval '.metadata.name // ""' "$f" 2>/dev/null)"
+        if [[ "$name" == "$fleet_name" ]]; then
+            fleet_file="$f"
+            break
+        fi
+    done < <(find "${repo_root}/fleets" -name "*.yaml" -print0 2>/dev/null)
+
+    if [[ -z "$fleet_file" ]]; then
+        echo "ERROR: Fleet '${fleet_name}' not found in fleets/" >&2
+        return 1
+    fi
+    echo "$fleet_file"
+}
+
+# Resolve a fleet YAML into a list of agent YAML file paths.
+# Refs (ref: host/agent-name) are resolved to existing agent files.
+# Inline agents are written to temp files (caller must clean up FLEET_TMPDIR).
+# Sets global FLEET_TMPDIR if inline agents are created.
+# Usage: resolve_fleet_files <fleet-yaml-path>
+# Outputs one file path per line.
+resolve_fleet_files() {
+    local fleet_file="$1"
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+    local fleet_host
+    fleet_host="$(yq eval '.metadata.host // ""' "$fleet_file")"
+
+    local agent_count
+    agent_count="$(yq eval '.spec.agents | length' "$fleet_file")"
+
+    for (( i=0; i<agent_count; i++ )); do
+        local ref
+        ref="$(yq eval ".spec.agents[${i}].ref // \"\"" "$fleet_file")"
+
+        if [[ -n "$ref" ]]; then
+            # Resolve ref: host/agent-name -> agents/<host>/<name>.yaml
+            local ref_host ref_name
+            ref_host="${ref%%/*}"
+            ref_name="${ref#*/}"
+            local agent_file="${repo_root}/agents/${ref_host}/${ref_name}.yaml"
+            if [[ ! -f "$agent_file" ]]; then
+                echo "ERROR: Fleet ref '${ref}' not found at ${agent_file}" >&2
+                return 1
+            fi
+            echo "$agent_file"
+        else
+            # Inline agent definition — extract and write to a temp file
+            if [[ -z "${FLEET_TMPDIR:-}" ]]; then
+                FLEET_TMPDIR="$(mktemp -d)"
+            fi
+
+            local inline_name
+            inline_name="$(yq eval ".spec.agents[${i}].name // \"\"" "$fleet_file")"
+            if [[ -z "$inline_name" ]]; then
+                echo "ERROR: Inline agent at index ${i} in fleet has no name" >&2
+                return 1
+            fi
+
+            # Use the fleet's host for the inline agent metadata
+            local tmp_file="${FLEET_TMPDIR}/${inline_name}.yaml"
+            yq eval ".spec.agents[${i}] | {
+                \"apiVersion\": \"myrmidons/v1\",
+                \"kind\": \"Agent\",
+                \"metadata\": {
+                    \"name\": .name,
+                    \"host\": \"${fleet_host}\"
+                },
+                \"spec\": {
+                    \"label\": (.label // .name),
+                    \"program\": (.program // \"claude-code\"),
+                    \"model\": (.model // null),
+                    \"workingDirectory\": .workingDirectory,
+                    \"programArgs\": (.programArgs // \"\"),
+                    \"taskDescription\": (.taskDescription // \"\"),
+                    \"tags\": (.tags // []),
+                    \"owner\": (.owner // \"\"),
+                    \"role\": (.role // \"member\"),
+                    \"deployment\": (.deployment // {\"type\": \"local\"}),
+                    \"desiredState\": (.desiredState // \"active\")
+                }
+            }" "$fleet_file" > "$tmp_file"
+            echo "$tmp_file"
+        fi
+    done
+}
+
+# Clean up temp files created by resolve_fleet_files.
+# Usage: cleanup_fleet_tmpdir
+cleanup_fleet_tmpdir() {
+    if [[ -n "${FLEET_TMPDIR:-}" && -d "${FLEET_TMPDIR}" ]]; then
+        rm -rf "${FLEET_TMPDIR}"
+        FLEET_TMPDIR=""
+    fi
+}
+
 # Build a JSON create body from parsed YAML fields.
 # Usage: build_create_json name label program workingDirectory programArgs taskDescription tags owner role
 build_create_json() {
