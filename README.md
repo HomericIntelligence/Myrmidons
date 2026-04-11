@@ -50,10 +50,10 @@ just validate
 apiVersion: myrmidons/v1
 kind: Agent
 metadata:
-  name: my-agent           # Unique per host — matches tmux session name
+  name: my-agent           # Agamemnon API name / tmux session name — NOT the filename
   host: hermes
 spec:
-  label: My Agent          # Display name in Agamemnon UI
+  label: My Agent          # Display name; filename = lowercase(label) + ".yaml"
   program: claude-code     # claude-code | aider | codex | goose | cline | opencode | none
   model: null              # null = Agamemnon default; or "claude-sonnet-4-6"
   workingDirectory: /home/mvillmow/MyProject
@@ -71,11 +71,25 @@ spec:
   desiredState: active     # active | hibernated
 ```
 
+### Naming convention
+
+| Field | Example | Purpose |
+|-------|---------|---------|
+| **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
+| **`metadata.name`** | `odyssey-mainline-analysis` | Agamemnon API identifier / tmux session name. Used by scripts and the REST API. |
+| **`spec.label`** | `Aindrea` | Display name shown in the Agamemnon UI. |
+
+**Fleet `ref:` entries resolve by filename stem**, not by `metadata.name`:
+```
+ref: hermes/aindrea   →   agents/hermes/aindrea.yaml   ✓
+```
+
 ## Adding an agent
 
 ```bash
+# Filename = lowercase(spec.label); e.g. label "MyAgent" → my-agent.yaml
 cp agents/_templates/claude-default.yaml agents/hermes/my-agent.yaml
-# Edit: name, label, workingDirectory, taskDescription, tags
+# Edit: metadata.name (Agamemnon name), spec.label, workingDirectory, taskDescription, tags
 just plan hermes     # preview
 just apply hermes    # create + wake
 git add agents/hermes/my-agent.yaml && git commit -m "add my-agent"

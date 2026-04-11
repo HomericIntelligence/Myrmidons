@@ -32,16 +32,16 @@ Myrmidons is the source of truth for *desired* agent state. Agent definitions li
 
 ## Agent definition format
 
-Every agent is a YAML file in `agents/<host>/<name>.yaml`:
+Every agent is a YAML file in `agents/<host>/<label>.yaml` where `<label>` is the lowercased `spec.label`:
 
 ```yaml
 apiVersion: myrmidons/v1
 kind: Agent
 metadata:
-  name: my-agent-name
+  name: my-agent-name   # Agamemnon API name / tmux session name — NOT the filename
   host: hermes
 spec:
-  label: DisplayName
+  label: DisplayName    # Human-readable name; filename = lowercase(label) + ".yaml"
   program: claude-code
   model: null
   workingDirectory: /home/mvillmow/MyProject
@@ -54,6 +54,20 @@ spec:
     type: local
   desiredState: active
 ```
+
+### Naming convention
+
+| Field | Example | Purpose |
+|-------|---------|---------|
+| **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
+| **`metadata.name`** | `odyssey-mainline-analysis` | Agamemnon API identifier / tmux session name. Used by scripts and the REST API. |
+| **`spec.label`** | `Aindrea` | Display name shown in the Agamemnon UI. |
+
+**Fleet `ref:` entries resolve by filename stem**, not by `metadata.name`:
+- `ref: hermes/aindrea` → `agents/hermes/aindrea.yaml` ✓
+- `ref: hermes/odyssey-mainline-analysis` → `agents/hermes/odyssey-mainline-analysis.yaml` ✗ (file does not exist)
+
+This design is intentional: filenames are label-derived for human readability; `metadata.name` carries the Agamemnon backend identity.
 
 ## Scripts
 
@@ -72,11 +86,12 @@ spec:
 
 ## Adding a new agent
 
-1. Copy a template: `cp agents/_templates/claude-default.yaml agents/hermes/myagent.yaml`
-2. Fill in all required fields
-3. Run `./scripts/plan.sh` to preview the change
-4. Run `./scripts/apply.sh` to create + start the agent
-5. Commit the YAML file
+1. Choose a label (e.g. `MyAgent`) — the filename will be `agents/hermes/myagent.yaml` (lowercase label)
+2. Copy a template: `cp agents/_templates/claude-default.yaml agents/hermes/myagent.yaml`
+3. Fill in all required fields; set `spec.label: MyAgent` and `metadata.name` to the Agamemnon agent name
+4. Run `./scripts/plan.sh` to preview the change
+5. Run `./scripts/apply.sh` to create + start the agent
+6. Commit the YAML file
 
 ## Dependencies
 
