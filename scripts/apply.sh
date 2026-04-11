@@ -21,6 +21,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/lib/log.sh
+source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
@@ -76,10 +78,7 @@ main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        local plan_args=()
-        [[ -n "$HOST" ]]  && plan_args+=("$HOST")
-        [[ -n "$FLEET" ]] && plan_args+=("--fleet" "$FLEET")
-        exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
+        exec "${SCRIPT_DIR}/plan.sh" "$@"
     fi
 
     check_deps
@@ -92,17 +91,17 @@ main() {
     mapfile -t yaml_files < <(get_agent_files "$HOST")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
-        echo "No agent YAML files found."
+        log_info "No agent YAML files found."
         exit 0
     fi
 
-    echo "Applying desired state to ${AGAMEMNON_URL}"
-    echo "================================================"
-    echo ""
+    log_info "Applying desired state to ${AGAMEMNON_URL}"
+    log_info "================================================"
+    log_info ""
 
     for yaml_file in "${yaml_files[@]}"; do
         if ! apply_agent "$yaml_file" "$agents_json"; then
-            echo "ERROR: apply_agent failed for ${yaml_file}" >&2
+            log_error "apply_agent failed for ${yaml_file}"
             ERRORS=$((ERRORS + 1))
         fi
         # Refresh actual state after each change
@@ -112,9 +111,9 @@ main() {
     # Handle unmanaged agents
     handle_unmanaged "$agents_json" "${yaml_files[@]}"
 
-    echo ""
-    echo "================================================"
-    echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS}"
+    log_info ""
+    log_info "================================================"
+    log_info "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS}"
 
     if [[ $ERRORS -gt 0 ]]; then
         exit 1
@@ -146,7 +145,7 @@ apply_agent() {
 
     if [[ -z "$actual_json" ]]; then
         # CREATE
-        echo "[+] Creating ${name}..."
+        log_info "[+] Creating ${name}..."
         local create_body
         create_body="$(build_create_json "$name" "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role")"
 
@@ -154,18 +153,18 @@ apply_agent() {
         if result="$(agamemnon_create_agent "$create_body" 2>&1)"; then
             local new_id
             new_id="$(echo "$result" | jq -r '.id // empty')"
-            echo "    Created: id=${new_id}"
+            log_info "    Created: id=${new_id}"
             CREATED=$((CREATED + 1))
 
             # Wake if desired
             if [[ "$desired_state" == "active" && -n "$new_id" ]]; then
-                echo "    Starting ${name}..."
+                log_info "    Starting ${name}..."
                 agamemnon_wake_agent "$new_id" > /dev/null
-                echo "    Started."
+                log_info "    Started."
                 WOKEN=$((WOKEN + 1))
             fi
         else
-            echo "    ERROR creating ${name}: ${result}" >&2
+            log_error "    Creating ${name}: ${result}"
             ERRORS=$((ERRORS + 1))
         fi
         return
@@ -182,24 +181,24 @@ apply_agent() {
 
     case "$action" in
         UNCHANGED)
-            echo "[=] Unchanged: ${name}"
+            log_info "[=] Unchanged: ${name}"
             UNCHANGED=$((UNCHANGED + 1))
             ;;
         WAKE)
-            echo "[!] Starting ${name} (status=${actual_status}, desired=active)..."
+            log_info "[!] Starting ${name} (status=${actual_status}, desired=active)..."
             agamemnon_wake_agent "$actual_id" > /dev/null
-            echo "    Started."
+            log_info "    Started."
             WOKEN=$((WOKEN + 1))
             ;;
         HIBERNATE)
-            echo "[z] Stopping ${name} (status=${actual_status}, desired=hibernated)..."
+            log_info "[z] Stopping ${name} (status=${actual_status}, desired=hibernated)..."
             agamemnon_hibernate_agent "$actual_id" > /dev/null
-            echo "    Hibernated."
+            log_info "    Hibernated."
             HIBERNATED=$((HIBERNATED + 1))
             ;;
         UPDATE:*)
             local changed_fields="${action#UPDATE:}"
-            echo "[~] Updating ${name} (fields: ${changed_fields})..."
+            log_info "[~] Updating ${name} (fields: ${changed_fields})..."
 
             local patch_body
             patch_body="$(jq -n \
@@ -212,10 +211,10 @@ apply_agent() {
                   programArgs: $programArgs, taskDescription: $taskDescription}')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
-                echo "    Updated."
+                log_info "    Updated."
                 UPDATED=$((UPDATED + 1))
             else
-                echo "    ERROR updating ${name}" >&2
+                log_error "    Updating ${name}"
                 ERRORS=$((ERRORS + 1))
             fi
 
@@ -257,15 +256,15 @@ handle_unmanaged() {
                 local agent_id
                 agent_id="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
                     '.[] | select(.name == $n) | .id')"
-                echo "[-] Pruning unmanaged: ${actual_name}"
-                echo "    Hibernating first..."
+                log_warn "[-] Pruning unmanaged: ${actual_name}"
+                log_info "    Hibernating first..."
                 agamemnon_hibernate_agent "$agent_id" > /dev/null || true
                 sleep 2
-                echo "    Deleting..."
+                log_info "    Deleting..."
                 agamemnon_delete_agent "$agent_id" > /dev/null
-                echo "    Deleted (backup created)."
+                log_info "    Deleted (backup created)."
             else
-                echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
+                log_warn "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
             fi
         fi
     done < <(echo "$agents_json" | jq -r '.[].name')

@@ -18,6 +18,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/lib/log.sh
+source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
@@ -56,44 +58,34 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    if [[ -n "$FLEET" ]]; then
-        local fleet_file
-        fleet_file="$(find_fleet_file "$FLEET")" || exit 1
-        mapfile -t yaml_files < <(resolve_fleet_files "$fleet_file")
-    else
-        mapfile -t yaml_files < <(get_agent_files "$HOST")
-    fi
+    mapfile -t yaml_files < <(get_agent_files "$HOST")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
-        echo "No agent YAML files found."
+        log_info "No agent YAML files found."
         exit 0
     fi
 
     local has_changes=0
 
-    echo "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
-    echo "================================================================"
-    echo ""
+    log_info "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
+    log_info "================================================================"
+    log_info ""
 
     for yaml_file in "${yaml_files[@]}"; do
         plan_agent "$yaml_file" "$agents_json" || has_changes=1
     done
 
     # Report unmanaged agents (in Agamemnon but not in YAML)
-    echo ""
-    echo "Checking for unmanaged agents..."
-    while IFS= read -r actual_name; do
-        echo "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
-    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+    log_info ""
+    log_info "Checking for unmanaged agents..."
+    report_unmanaged "$agents_json" "${yaml_files[@]}"
 
-    cleanup_fleet_tmpdir
-
-    echo ""
+    log_info ""
     if [[ $has_changes -eq 0 ]]; then
-        echo "No changes needed. Desired state matches actual state."
+        log_info "No changes needed. Desired state matches actual state."
         exit 0
     else
-        echo "Changes would be made. Run ./scripts/apply.sh to apply."
+        log_warn "Changes would be made. Run ./scripts/apply.sh to apply."
         exit 1
     fi
 }
@@ -116,10 +108,6 @@ plan_agent() {
     local workdir="${fields[workingDirectory]:-}"
     local args="${fields[programArgs]:-}"
     local desc="${fields[taskDescription]:-}"
-    local model="${fields[model]:-}"
-    local owner="${fields[owner]:-}"
-    local role="${fields[role]:-member}"
-    local deploy_type="${fields[deploymentType]:-local}"
 
     # Look up in actual state
     local actual_json
@@ -127,38 +115,62 @@ plan_agent() {
         '.[] | select(.name == $name)')"
 
     if [[ -z "$actual_json" ]]; then
-        echo "[+] CREATE ${name} (program=${program}, deploy=${fields[deploymentType]:-local})"
+        log_info "[+] CREATE ${name} (program=${program}, deploy=${fields[deploymentType]:-local})"
         if [[ "$desired_state" == "active" ]]; then
-            echo "    └─ WAKE after create"
+            log_info "    └─ WAKE after create"
         fi
         return 1
     fi
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "${fields[tags]:-}" \
-        "$model" "$owner" "$role" "$deploy_type")"
+        "$label" "$program" "$workdir" "$args" "$desc")"
 
     case "$action" in
         UNCHANGED)
-            echo "[=] UNCHANGED ${name}"
+            log_info "[=] UNCHANGED ${name}"
             ;;
         WAKE)
-            echo "[!] WAKE ${name} (desired=active, actual=$(echo "$actual_json" | jq -r '.status'))"
+            log_warn "[!] WAKE ${name} (desired=active, actual=$(echo "$actual_json" | jq -r '.status'))"
             return 1
             ;;
         HIBERNATE)
-            echo "[z] HIBERNATE ${name} (desired=hibernated, actual=$(echo "$actual_json" | jq -r '.status'))"
+            log_warn "[z] HIBERNATE ${name} (desired=hibernated, actual=$(echo "$actual_json" | jq -r '.status'))"
             return 1
             ;;
         UPDATE:*)
             local fields_changed="${action#UPDATE:}"
-            echo "[~] UPDATE ${name}: ${fields_changed} differ"
+            log_warn "[~] UPDATE ${name}: ${fields_changed} differ"
             return 1
             ;;
     esac
 
     return 0
+}
+
+report_unmanaged() {
+    local agents_json="$1"
+    shift
+    local yaml_files=("$@")
+
+    # Collect all managed names
+    local managed_names=()
+    for yaml_file in "${yaml_files[@]}"; do
+        local name
+        name="$(yq eval '.metadata.name' "$yaml_file")"
+        managed_names+=("$name")
+    done
+
+    # Find agents not in managed list
+    echo "$agents_json" | jq -r '.[].name' | while IFS= read -r actual_name; do
+        local is_managed=0
+        for mn in "${managed_names[@]}"; do
+            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
+        done
+        if [[ $is_managed -eq 0 ]]; then
+            log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
+        fi
+    done
 }
 
 main "$@"
