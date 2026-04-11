@@ -30,8 +30,6 @@ HOST=""
 FLEET=""
 PRUNE=0
 DRY_RUN=0
-SNAPSHOT_DIR="${REPO_ROOT}/.myrmidons/snapshots"
-SNAPSHOT_KEEP=10
 
 CREATED=0
 UPDATED=0
@@ -40,18 +38,13 @@ HIBERNATED=0
 UNCHANGED=0
 ERRORS=0
 
-# Set by apply_agent on successful CREATE; empty otherwise.
-# Allows main() to update the local agents_json cache without re-fetching.
-_LAST_CREATED_AGENT_JSON=""
-
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --prune)         PRUNE=1; shift ;;
-            --dry-run)       DRY_RUN=1; shift ;;
-            --fleet)         FLEET="$2"; shift 2 ;;
-            --snapshot-dir)  SNAPSHOT_DIR="$2"; shift 2 ;;
-            -h|--help)       usage; exit 0 ;;
+            --prune)   PRUNE=1; shift ;;
+            --dry-run) DRY_RUN=1; shift ;;
+            --fleet)   FLEET="$2"; shift 2 ;;
+            -h|--help) usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
     done
@@ -59,18 +52,17 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--snapshot-dir DIR]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
-  host               Only apply agents for this host (default: all)
-  --fleet NAME       Only apply agents in this fleet
-  --prune            Hibernate and delete unmanaged agents (agents in Agamemnon
-                     but not in YAML). DEFAULT: warn only.
-  --dry-run          Show what would happen, make no changes (same as plan.sh)
-  --snapshot-dir DIR Override snapshot directory (default: .myrmidons/snapshots)
-  -h, --help         Show this help
+  host           Only apply agents for this host (default: all)
+  --fleet NAME   Only apply agents in this fleet
+  --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
+                 but not in YAML). DEFAULT: warn only.
+  --dry-run      Show what would happen, make no changes (same as plan.sh)
+  -h, --help     Show this help
 
 Examples:
   $0                         # Reconcile everything
@@ -80,37 +72,13 @@ Examples:
 EOF
 }
 
-# Save a snapshot of the current Agamemnon state before applying changes.
-# Snapshots are stored as TIMESTAMP.json in SNAPSHOT_DIR.
-# Old snapshots beyond SNAPSHOT_KEEP are pruned automatically.
-save_snapshot() {
-    local agents_json="$1"
-    local timestamp
-    timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-    mkdir -p "$SNAPSHOT_DIR"
-
-    local snapshot_file="${SNAPSHOT_DIR}/${timestamp}.json"
-    echo "$agents_json" > "$snapshot_file"
-    echo "Snapshot saved: ${snapshot_file}"
-
-    # Prune old snapshots — keep only the most recent SNAPSHOT_KEEP files
-    local count
-    count="$(find "$SNAPSHOT_DIR" -name "*.json" | wc -l)"
-    if [[ $count -gt $SNAPSHOT_KEEP ]]; then
-        local excess=$(( count - SNAPSHOT_KEEP ))
-        find "$SNAPSHOT_DIR" -name "*.json" | sort | head -n "$excess" | xargs rm -f
-        echo "Pruned ${excess} old snapshot(s) (keeping last ${SNAPSHOT_KEEP})."
-    fi
-}
-
 main() {
     parse_args "$@"
 
     if [[ $DRY_RUN -eq 1 ]]; then
         local plan_args=()
-        [[ -n "$HOST" ]] && plan_args+=("$HOST")
-        [[ -n "$FLEET" ]] && plan_args+=(--fleet "$FLEET")
+        [[ -n "$HOST" ]]  && plan_args+=("$HOST")
+        [[ -n "$FLEET" ]] && plan_args+=("--fleet" "$FLEET")
         exec "${SCRIPT_DIR}/plan.sh" "${plan_args[@]}"
     fi
 
@@ -120,18 +88,8 @@ main() {
     local agents_json
     agents_json="$(agamemnon_list_agents)"
 
-    # Save pre-apply snapshot before making any changes
-    save_snapshot "$agents_json"
-    echo ""
-
     local yaml_files
-    if [[ -n "$FLEET" ]]; then
-        local fleet_file
-        fleet_file="$(find_fleet_file "$FLEET")" || exit 1
-        mapfile -t yaml_files < <(resolve_fleet_files "$fleet_file")
-    else
-        mapfile -t yaml_files < <(get_agent_files "$HOST")
-    fi
+    mapfile -t yaml_files < <(get_agent_files "$HOST")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
         echo "No agent YAML files found."
@@ -143,22 +101,16 @@ main() {
     echo ""
 
     for yaml_file in "${yaml_files[@]}"; do
-        _LAST_CREATED_AGENT_JSON=""
         if ! apply_agent "$yaml_file" "$agents_json"; then
             echo "ERROR: apply_agent failed for ${yaml_file}" >&2
             ERRORS=$((ERRORS + 1))
         fi
-        # Only refresh cache when a new agent was created (new ID needed).
-        # For updates, wakes, and hibernates the existing cache is still valid.
-        if [[ -n "$_LAST_CREATED_AGENT_JSON" ]]; then
-            agents_json="$(echo "$agents_json" | jq --argjson new "$_LAST_CREATED_AGENT_JSON" '. + [$new]')"
-        fi
+        # Refresh actual state after each change
+        agents_json="$(agamemnon_list_agents)"
     done
 
     # Handle unmanaged agents
     handle_unmanaged "$agents_json" "${yaml_files[@]}"
-
-    cleanup_fleet_tmpdir
 
     echo ""
     echo "================================================"
@@ -204,8 +156,6 @@ apply_agent() {
             new_id="$(echo "$result" | jq -r '.id // empty')"
             echo "    Created: id=${new_id}"
             CREATED=$((CREATED + 1))
-            # Signal to main() that the cache needs a new entry appended.
-            _LAST_CREATED_AGENT_JSON="$result"
 
             # Wake if desired
             if [[ "$desired_state" == "active" && -n "$new_id" ]]; then
@@ -228,8 +178,7 @@ apply_agent() {
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "$tags" \
-        "$model" "$owner" "$role" "$deploy_type")"
+        "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
 
     case "$action" in
         UNCHANGED)
@@ -259,15 +208,8 @@ apply_agent() {
                 --arg workingDirectory "$workdir" \
                 --arg programArgs "$args" \
                 --arg taskDescription "$desc" \
-                --arg model "$model" \
-                --arg owner "$owner" \
-                --arg role "$role" \
-                --arg deploymentType "$deploy_type" \
                 '{label: $label, program: $program, workingDirectory: $workingDirectory,
-                  programArgs: $programArgs, taskDescription: $taskDescription,
-                  model: $model, owner: $owner, role: $role, deploymentType: $deploymentType}')"
-            # Convert empty model string to JSON null (API expects null, not "")
-            patch_body="$(echo "$patch_body" | jq 'if .model == "" then .model = null else . end')"
+                  programArgs: $programArgs, taskDescription: $taskDescription}')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
                 echo "    Updated."
@@ -295,22 +237,38 @@ handle_unmanaged() {
     shift
     local yaml_files=("$@")
 
+    # Collect managed names
+    local managed_names=()
+    for yaml_file in "${yaml_files[@]}"; do
+        local n
+        n="$(yq eval '.metadata.name' "$yaml_file")"
+        managed_names+=("$n")
+    done
+
+    # Find unmanaged
     while IFS= read -r actual_name; do
-        if [[ $PRUNE -eq 1 ]]; then
-            local agent_id
-            agent_id="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-                '.[] | select(.name == $n) | .id')"
-            echo "[-] Pruning unmanaged: ${actual_name}"
-            echo "    Hibernating first..."
-            agamemnon_hibernate_agent "$agent_id" > /dev/null || true
-            sleep 2
-            echo "    Deleting..."
-            agamemnon_delete_agent "$agent_id" > /dev/null
-            echo "    Deleted (backup created)."
-        else
-            echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
+        local is_managed=0
+        for mn in "${managed_names[@]}"; do
+            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
+        done
+
+        if [[ $is_managed -eq 0 ]]; then
+            if [[ $PRUNE -eq 1 ]]; then
+                local agent_id
+                agent_id="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
+                    '.[] | select(.name == $n) | .id')"
+                echo "[-] Pruning unmanaged: ${actual_name}"
+                echo "    Hibernating first..."
+                agamemnon_hibernate_agent "$agent_id" > /dev/null || true
+                sleep 2
+                echo "    Deleting..."
+                agamemnon_delete_agent "$agent_id" > /dev/null
+                echo "    Deleted (backup created)."
+            else
+                echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
+            fi
         fi
-    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+    done < <(echo "$agents_json" | jq -r '.[].name')
 }
 
 main "$@"
