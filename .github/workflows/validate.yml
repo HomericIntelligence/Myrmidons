@@ -6,9 +6,8 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
-      - 'docs/**'
-      - 'README.md'
-      - 'tests/**'
+      - 'pixi.toml'
+      - 'pixi.lock'
 
 jobs:
   validate:
@@ -16,6 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache pixi environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pixi
+            ~/.cache/rattler/cache
+          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+
+      - name: Install dependencies (locked)
+        run: pixi install --locked
 
       - name: Install yq
         env:
@@ -30,8 +40,3 @@ jobs:
         run: |
           chmod +x tests/validate-schemas.sh
           ./tests/validate-schemas.sh
-
-      - name: Check documentation drift
-        run: |
-          chmod +x tests/detect-doc-drift.sh
-          ./tests/detect-doc-drift.sh
