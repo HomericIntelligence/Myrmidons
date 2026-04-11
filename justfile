@@ -41,6 +41,14 @@ apply HOST=host:
 apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
 
+# Apply with --fail-fast (stop on first error)
+apply-fail-fast HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --fail-fast
+
+# Re-apply only the agents that failed in the previous apply run
+retry:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh --retry
+
 # =============================================================================
 # Bootstrap
 # =============================================================================

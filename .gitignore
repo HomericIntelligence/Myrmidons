@@ -22,6 +22,7 @@ tests/*.log
 
 # Local state (not config)
 *.bak
+.myrmidons/
 
 # Rollback snapshots (machine-local, not versioned)
 .myrmidons/
