@@ -10,6 +10,8 @@ on:
       - '.github/workflows/**'
       - 'pixi.toml'
       - 'pixi.lock'
+      - 'hooks/**'
+      - 'tests/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
