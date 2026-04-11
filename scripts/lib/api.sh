@@ -124,6 +124,10 @@ agamemnon_docker_create() {
         -d "${body}"
 }
 
+# NOTE: The helpers below each call agamemnon_list_agents internally.
+# They are not used by apply.sh (which manages its own cached list).
+# Use only in scripts where a one-off lookup is acceptable.
+
 # Helper: get agent ID by name. Returns empty string if not found.
 agamemnon_id_by_name() {
     local name="$1"

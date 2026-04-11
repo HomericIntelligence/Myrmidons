@@ -38,6 +38,10 @@ HIBERNATED=0
 UNCHANGED=0
 ERRORS=0
 
+# Set by apply_agent on successful CREATE; empty otherwise.
+# Allows main() to update the local agents_json cache without re-fetching.
+_LAST_CREATED_AGENT_JSON=""
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -98,12 +102,16 @@ main() {
     echo ""
 
     for yaml_file in "${yaml_files[@]}"; do
+        _LAST_CREATED_AGENT_JSON=""
         if ! apply_agent "$yaml_file" "$agents_json"; then
             echo "ERROR: apply_agent failed for ${yaml_file}" >&2
             ERRORS=$((ERRORS + 1))
         fi
-        # Refresh actual state after each change
-        agents_json="$(agamemnon_list_agents)"
+        # Only refresh cache when a new agent was created (new ID needed).
+        # For updates, wakes, and hibernates the existing cache is still valid.
+        if [[ -n "$_LAST_CREATED_AGENT_JSON" ]]; then
+            agents_json="$(echo "$agents_json" | jq --argjson new "$_LAST_CREATED_AGENT_JSON" '. + [$new]')"
+        fi
     done
 
     # Handle unmanaged agents
@@ -153,6 +161,8 @@ apply_agent() {
             new_id="$(echo "$result" | jq -r '.id // empty')"
             echo "    Created: id=${new_id}"
             CREATED=$((CREATED + 1))
+            # Signal to main() that the cache needs a new entry appended.
+            _LAST_CREATED_AGENT_JSON="$result"
 
             # Wake if desired
             if [[ "$desired_state" == "active" && -n "$new_id" ]]; then
