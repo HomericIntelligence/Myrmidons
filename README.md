@@ -123,6 +123,14 @@ hooks/
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
 
+## Deployment scope
+
+Current supported deployment types: `local` (tmux on host) and `docker` (container on host).
+
+**Multi-host scheduling (Nomad)** — Not yet implemented. Myrmidons currently drives a single
+host via the ProjectAgamemnon REST API. Nomad-based multi-host scheduling is planned for a
+future phase. See [ADR-007](docs/adr/ADR-007-nomad-integration-strategy.md).
+
 ## Dependencies
 
 - `yq` ≥ 4.0 — YAML parser

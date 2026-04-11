@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# tests/detect-doc-drift.sh — CI: detect documentation overclaims
+#
+# Scans documentation files for phrases that imply an active Nomad integration
+# when none exists. Fails if any forbidden pattern is found.
+#
+# Used by .github/workflows/validate.yml on every PR.
+# Also runnable locally via: just test-drift
+#
+# Exit codes:
+#   0 = no drift detected
+#   1 = overclaiming documentation found
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+ERRORS=0
+CHECKED=0
+
+# Forbidden phrases: patterns that imply Nomad is currently integrated.
+# Extend this list as new overclaims are identified.
+#
+# Format: "PATTERN|Human-readable description of what this catches"
+FORBIDDEN_PHRASES=(
+    "Myrmidons.*Nomad.*cluster|implies Myrmidons actively drives a Nomad cluster"
+    "apply\.sh.*Nomad|implies apply.sh submits Nomad jobs"
+    "deployment\.type.*nomad|implies nomad is a valid deployment type (not yet implemented)"
+    "Nomad integration.*implemented|implies Nomad integration is complete"
+    "Nomad.*currently supported|implies Nomad is currently supported"
+)
+
+# Files and directories to scan (relative to repo root).
+# ADR files (docs/adr/) are excluded: they document architecture decisions and
+# intentionally discuss unimplemented features in context.
+DOC_FILES=()
+while IFS= read -r -d '' f; do
+    DOC_FILES+=("$f")
+done < <(find "${REPO_ROOT}" \
+    \( -name "Architecture.md" -o -name "README.md" -o -name "CLAUDE.md" \) \
+    -print0 2>/dev/null)
+
+while IFS= read -r -d '' f; do
+    DOC_FILES+=("$f")
+done < <(find "${REPO_ROOT}/docs" -name "*.md" \
+    -not -path "*/adr/*" \
+    -print0 2>/dev/null)
+
+if [[ ${#DOC_FILES[@]} -eq 0 ]]; then
+    echo "No documentation files found to check."
+    exit 0
+fi
+
+echo "Checking documentation for overclaims..."
+echo ""
+
+for file in "${DOC_FILES[@]}"; do
+    rel="${file#"${REPO_ROOT}/"}"
+    file_errors=0
+
+    for entry in "${FORBIDDEN_PHRASES[@]}"; do
+        pattern="${entry%%|*}"
+        description="${entry#*|}"
+
+        if grep -Piq "${pattern}" "${file}" 2>/dev/null; then
+            if [[ $file_errors -eq 0 ]]; then
+                echo "  FAIL: ${rel}"
+            fi
+            echo "        - Pattern '${pattern}' matched: ${description}"
+            file_errors=$((file_errors + 1))
+            ERRORS=$((ERRORS + 1))
+        fi
+    done
+
+    if [[ $file_errors -eq 0 ]]; then
+        echo "  ok:   ${rel}"
+    fi
+
+    CHECKED=$((CHECKED + 1))
+done
+
+echo ""
+echo "Checked: ${CHECKED} files, Errors: ${ERRORS}"
+
+if [[ $ERRORS -gt 0 ]]; then
+    echo "" >&2
+    echo "Documentation drift detected. If Nomad integration has been implemented," >&2
+    echo "update this test to reflect the new reality. If not, remove the overclaiming" >&2
+    echo "language from the documentation files listed above." >&2
+    echo "See docs/adr/ADR-007-nomad-integration-strategy.md for context." >&2
+    exit 1
+fi
+
+exit 0

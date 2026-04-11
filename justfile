@@ -80,8 +80,11 @@ export HOST=host:
 # Validation
 # =============================================================================
 
+# Run all validation checks (YAML schemas + documentation drift)
+validate: validate-schemas test-drift
+
 # Validate all agent YAML files (schema check without committing)
-validate:
+validate-schemas:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v yq &>/dev/null; then
@@ -110,6 +113,13 @@ validate:
         exit 1
     fi
     echo "All YAML files valid."
+
+# Check documentation files for overclaims about unimplemented features
+test-drift:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    chmod +x tests/detect-doc-drift.sh
+    ./tests/detect-doc-drift.sh
 
 # =============================================================================
 # Scaffolding
