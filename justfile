@@ -25,6 +25,10 @@ status HOST=host:
 # Planning
 # =============================================================================
 
+# Show field-level diff between desired YAML state and actual Agamemnon state
+diff HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/diff.sh {{HOST}}
+
 # Dry-run: show what apply would do (no changes made)
 plan HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --dry-run
