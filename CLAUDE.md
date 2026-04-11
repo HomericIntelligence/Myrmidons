@@ -87,7 +87,30 @@ spec:
 
 ## CI/CD
 
-- **On PR:** `.github/workflows/validate.yml` validates all YAML schemas
+- **On PR:** `.github/workflows/validate.yml` validates all YAML schemas and checks for dangerous flags
 - **On merge to main:** `.github/workflows/apply.yml` auto-applies to target host
 
 Requires GitHub secret: `AGAMEMNON_URL`
+
+## Security
+
+### `--dangerously-skip-permissions` policy
+
+The `--dangerously-skip-permissions` flag disables all permission prompts for Claude Code agents. An agent running with this flag can execute arbitrary file modifications, network requests, and system commands without user approval.
+
+**Policy:** This flag is **prohibited** in agent/fleet YAML files unless a suppression annotation is present on the same line documenting the security justification.
+
+**Suppression format:**
+```yaml
+programArgs: "--dangerously-skip-permissions" # skip-permissions-lint: <justification>
+```
+
+The justification must describe:
+- Why the flag is required in this context
+- What compensating controls exist (e.g., ephemeral container, read-only mount, job timeout)
+
+**Lint guard:** `scripts/check-dangerous-flags.sh` enforces this policy. It runs:
+- As a pre-commit hook (staged files only)
+- In CI on every PR (all agent/fleet YAMLs)
+
+To run manually: `./scripts/check-dangerous-flags.sh`

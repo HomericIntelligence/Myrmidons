@@ -13,6 +13,9 @@ spec:
   model: null              # null = use Agamemnon default; or "claude-sonnet-4-6"
   workingDirectory: /home/mvillmow/CHANGE_ME
   programArgs: ""          # Extra flags, e.g. "--model claude-opus-4-6"
+                           # WARNING: Do not use --dangerously-skip-permissions without a
+                           # "# skip-permissions-lint: <justification>" annotation on the same line.
+                           # See scripts/check-dangerous-flags.sh and CLAUDE.md Security section.
   taskDescription: "Describe what this agent does"
   tags: []
   owner: mvillmow

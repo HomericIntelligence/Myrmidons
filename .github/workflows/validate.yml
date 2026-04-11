@@ -30,3 +30,8 @@ jobs:
         run: |
           chmod +x tests/validate-schemas.sh
           ./tests/validate-schemas.sh
+
+      - name: Check for dangerous programArgs flags
+        run: |
+          chmod +x scripts/check-dangerous-flags.sh
+          ./scripts/check-dangerous-flags.sh
