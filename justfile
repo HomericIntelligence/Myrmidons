@@ -14,6 +14,17 @@ host := env_var_or_default("HOST", "hermes")
 agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 
 # =============================================================================
+# Configuration
+# =============================================================================
+
+# Show effective configuration (merged from defaults, .myrmidons.yaml, .myrmidons.local.yaml, env)
+config:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/lib/config.sh
+    show_config
+
+# =============================================================================
 # Observability
 # =============================================================================
 
