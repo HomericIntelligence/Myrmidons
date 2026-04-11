@@ -6,9 +6,10 @@ channels = ["conda-forge"]
 platforms = ["linux-64"]
 
 [dependencies]
-just = ">=1.13"
-yq   = ">=4.0"
-jq   = ">=1.6"
+just             = ">=1.13"
+yq               = ">=4.0"
+jq               = ">=1.6"
+check-jsonschema = ">=0.28"
 
 [tasks]
 status   = "just status"
