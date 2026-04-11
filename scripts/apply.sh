@@ -5,11 +5,13 @@
 # Agamemnon matches the desired state. All changes go through the REST API.
 #
 # Usage:
-#   ./scripts/apply.sh                 # Apply all agents on all hosts
-#   ./scripts/apply.sh hermes          # Apply agents for a specific host
+#   ./scripts/apply.sh                         # Apply all agents on all hosts
+#   ./scripts/apply.sh hermes                  # Apply agents for a specific host
 #   ./scripts/apply.sh --fleet dev-mesh
-#   ./scripts/apply.sh --prune         # Also hibernate+delete unmanaged agents
-#   ./scripts/apply.sh --dry-run       # Same as plan.sh
+#   ./scripts/apply.sh --prune                 # Also hibernate+delete unmanaged agents
+#   ./scripts/apply.sh --dry-run               # Same as plan.sh
+#   ./scripts/apply.sh --output json           # Emit JSON reconciliation report to stdout
+#   ./scripts/apply.sh --webhook <url>         # POST report to webhook URL after apply
 #
 # Safety:
 #   - Never auto-deletes agents without --prune flag
@@ -25,26 +27,33 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
 source "${SCRIPT_DIR}/lib/reconcile.sh"
+# shellcheck source=scripts/lib/report.sh
+source "${SCRIPT_DIR}/lib/report.sh"
 
 HOST=""
 FLEET=""
 PRUNE=0
 DRY_RUN=0
+OUTPUT_FORMAT="text"   # "text" | "json"
+WEBHOOK_URL=""
 
 CREATED=0
 UPDATED=0
 WOKEN=0
 HIBERNATED=0
 UNCHANGED=0
+PRUNED=0
 ERRORS=0
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --prune)   PRUNE=1; shift ;;
-            --dry-run) DRY_RUN=1; shift ;;
-            --fleet)   FLEET="$2"; shift 2 ;;
-            -h|--help) usage; exit 0 ;;
+            --prune)       PRUNE=1; shift ;;
+            --dry-run)     DRY_RUN=1; shift ;;
+            --fleet)       FLEET="$2"; shift 2 ;;
+            --output)      OUTPUT_FORMAT="$2"; shift 2 ;;
+            --webhook)     WEBHOOK_URL="$2"; shift 2 ;;
+            -h|--help)     usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
     done
@@ -52,23 +61,28 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--output json] [--webhook <url>]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
-  host           Only apply agents for this host (default: all)
-  --fleet NAME   Only apply agents in this fleet
-  --prune        Hibernate and delete unmanaged agents (agents in Agamemnon
-                 but not in YAML). DEFAULT: warn only.
-  --dry-run      Show what would happen, make no changes (same as plan.sh)
-  -h, --help     Show this help
+  host               Only apply agents for this host (default: all)
+  --fleet NAME       Only apply agents in this fleet
+  --prune            Hibernate and delete unmanaged agents (agents in Agamemnon
+                     but not in YAML). DEFAULT: warn only.
+  --dry-run          Show what would happen, make no changes (same as plan.sh)
+  --output json      Emit a JSON reconciliation report to stdout instead of
+                     human-readable text. Also saves to reports/last-reconciliation.json.
+  --webhook URL      POST the JSON report to URL after reconciliation completes.
+  -h, --help         Show this help
 
 Examples:
-  $0                         # Reconcile everything
-  $0 hermes                  # Reconcile hermes only
-  $0 --fleet dev-mesh        # Reconcile dev-mesh fleet
-  $0 --prune                 # Reconcile + remove unmanaged agents
+  $0                              # Reconcile everything
+  $0 hermes                       # Reconcile hermes only
+  $0 --fleet dev-mesh             # Reconcile dev-mesh fleet
+  $0 --prune                      # Reconcile + remove unmanaged agents
+  $0 --output json | jq .         # Machine-readable report
+  $0 --webhook http://host/hook   # Post report to webhook
 EOF
 }
 
@@ -82,6 +96,10 @@ main() {
     check_deps
     agamemnon_check_connection
 
+    # Initialise report accumulator
+    report_init "${HOST:-all}"
+    trap report_cleanup EXIT
+
     local agents_json
     agents_json="$(agamemnon_list_agents)"
 
@@ -89,13 +107,19 @@ main() {
     mapfile -t yaml_files < <(get_agent_files "$HOST")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
-        echo "No agent YAML files found."
+        if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+            report_emit 0 0 0 0 0 0 0
+        else
+            echo "No agent YAML files found."
+        fi
         exit 0
     fi
 
-    echo "Applying desired state to ${AGAMEMNON_URL}"
-    echo "================================================"
-    echo ""
+    if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+        echo "Applying desired state to ${AGAMEMNON_URL}"
+        echo "================================================"
+        echo ""
+    fi
 
     for yaml_file in "${yaml_files[@]}"; do
         if ! apply_agent "$yaml_file" "$agents_json"; then
@@ -109,9 +133,30 @@ main() {
     # Handle unmanaged agents
     handle_unmanaged "$agents_json" "${yaml_files[@]}"
 
-    echo ""
-    echo "================================================"
-    echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS}"
+    # Emit output
+    if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+        local report_json
+        report_json="$(report_emit "$CREATED" "$UPDATED" "$WOKEN" "$HIBERNATED" \
+                                   "$UNCHANGED" "$PRUNED" "$ERRORS")"
+        report_save "$report_json"
+        if [[ -n "$WEBHOOK_URL" ]]; then
+            report_webhook "$report_json" "$WEBHOOK_URL"
+        fi
+        echo "$report_json"
+    else
+        echo ""
+        echo "================================================"
+        echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS}"
+
+        # Always save a report file (silently) so report_save is useful even in text mode
+        local report_json
+        report_json="$(report_emit "$CREATED" "$UPDATED" "$WOKEN" "$HIBERNATED" \
+                                   "$UNCHANGED" "$PRUNED" "$ERRORS")"
+        report_save "$report_json"
+        if [[ -n "$WEBHOOK_URL" ]]; then
+            report_webhook "$report_json" "$WEBHOOK_URL"
+        fi
+    fi
 
     if [[ $ERRORS -gt 0 ]]; then
         exit 1
@@ -125,6 +170,8 @@ apply_agent() {
     # Parse YAML fields into local variables
     local name label program model workdir args desc tags owner role deploy_type desired_state
     name="$(yq eval '.metadata.name' "$yaml_file")"
+    local agent_host
+    agent_host="$(yq eval '.metadata.host // "hermes"' "$yaml_file")"
     label="$(yq eval '.spec.label // ""' "$yaml_file")"
     program="$(yq eval '.spec.program // "claude-code"' "$yaml_file")"
     model="$(yq eval '.spec.model // ""' "$yaml_file")"
@@ -143,7 +190,9 @@ apply_agent() {
 
     if [[ -z "$actual_json" ]]; then
         # CREATE
-        echo "[+] Creating ${name}..."
+        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+            echo "[+] Creating ${name}..."
+        fi
         local create_body
         create_body="$(build_create_json "$name" "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role")"
 
@@ -151,19 +200,32 @@ apply_agent() {
         if result="$(agamemnon_create_agent "$create_body" 2>&1)"; then
             local new_id
             new_id="$(echo "$result" | jq -r '.id // empty')"
-            echo "    Created: id=${new_id}"
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "    Created: id=${new_id}"
+            fi
             CREATED=$((CREATED + 1))
 
+            local woke_status="created"
             # Wake if desired
             if [[ "$desired_state" == "active" && -n "$new_id" ]]; then
-                echo "    Starting ${name}..."
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "    Starting ${name}..."
+                fi
                 agamemnon_wake_agent "$new_id" > /dev/null
-                echo "    Started."
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "    Started."
+                fi
                 WOKEN=$((WOKEN + 1))
+                woke_status="active"
             fi
+
+            report_add_agent "$name" "$agent_host" "CREATE" "$desired_state" "$woke_status" "[]" ""
         else
-            echo "    ERROR creating ${name}: ${result}" >&2
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "    ERROR creating ${name}: ${result}" >&2
+            fi
             ERRORS=$((ERRORS + 1))
+            report_add_agent "$name" "$agent_host" "ERROR" "$desired_state" "unknown" "[]" "create failed: ${result}"
         fi
         return
     fi
@@ -179,24 +241,43 @@ apply_agent() {
 
     case "$action" in
         UNCHANGED)
-            echo "[=] Unchanged: ${name}"
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "[=] Unchanged: ${name}"
+            fi
             UNCHANGED=$((UNCHANGED + 1))
+            report_add_agent "$name" "$agent_host" "UNCHANGED" "$desired_state" "$actual_status" "[]" ""
             ;;
         WAKE)
-            echo "[!] Starting ${name} (status=${actual_status}, desired=active)..."
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "[!] Starting ${name} (status=${actual_status}, desired=active)..."
+            fi
             agamemnon_wake_agent "$actual_id" > /dev/null
-            echo "    Started."
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "    Started."
+            fi
             WOKEN=$((WOKEN + 1))
+            report_add_agent "$name" "$agent_host" "WAKE" "$desired_state" "$actual_status" "[]" ""
             ;;
         HIBERNATE)
-            echo "[z] Stopping ${name} (status=${actual_status}, desired=hibernated)..."
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "[z] Stopping ${name} (status=${actual_status}, desired=hibernated)..."
+            fi
             agamemnon_hibernate_agent "$actual_id" > /dev/null
-            echo "    Hibernated."
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "    Hibernated."
+            fi
             HIBERNATED=$((HIBERNATED + 1))
+            report_add_agent "$name" "$agent_host" "HIBERNATE" "$desired_state" "$actual_status" "[]" ""
             ;;
         UPDATE:*)
             local changed_fields="${action#UPDATE:}"
-            echo "[~] Updating ${name} (fields: ${changed_fields})..."
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "[~] Updating ${name} (fields: ${changed_fields})..."
+            fi
+
+            local drift_json
+            drift_json="$(build_drift_json "$action" "$actual_json" \
+                "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
 
             local tags_json
             if [[ -z "$tags" ]]; then
@@ -220,11 +301,17 @@ apply_agent() {
                   tags: $tags, owner: $owner, role: $role}')"
 
             if agamemnon_update_agent "$actual_id" "$patch_body" > /dev/null 2>&1; then
-                echo "    Updated."
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "    Updated."
+                fi
                 UPDATED=$((UPDATED + 1))
+                report_add_agent "$name" "$agent_host" "UPDATE" "$desired_state" "$actual_status" "$drift_json" ""
             else
-                echo "    ERROR updating ${name}" >&2
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "    ERROR updating ${name}" >&2
+                fi
                 ERRORS=$((ERRORS + 1))
+                report_add_agent "$name" "$agent_host" "ERROR" "$desired_state" "$actual_status" "$drift_json" "update failed"
             fi
 
             # Also start/stop if state needs to change
@@ -265,15 +352,26 @@ handle_unmanaged() {
                 local agent_id
                 agent_id="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
                     '.[] | select(.name == $n) | .id')"
-                echo "[-] Pruning unmanaged: ${actual_name}"
-                echo "    Hibernating first..."
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "[-] Pruning unmanaged: ${actual_name}"
+                    echo "    Hibernating first..."
+                fi
                 agamemnon_hibernate_agent "$agent_id" > /dev/null || true
                 sleep 2
-                echo "    Deleting..."
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "    Deleting..."
+                fi
                 agamemnon_delete_agent "$agent_id" > /dev/null
-                echo "    Deleted (backup created)."
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "    Deleted (backup created)."
+                fi
+                PRUNED=$((PRUNED + 1))
+                report_add_agent "$actual_name" "-" "PRUNE" "-" "pruned" "[]" ""
             else
-                echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "[-] UNMANAGED: ${actual_name} (in Agamemnon but not in YAML — use --prune to remove)"
+                fi
+                report_add_unmanaged "$actual_name"
             fi
         fi
     done < <(echo "$agents_json" | jq -r '.[].name')

@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# scripts/lib/report.sh — JSON reconciliation report builder
+#
+# Provides functions to build, accumulate, and emit a structured JSON report
+# of a reconciliation run. Used by apply.sh and status.sh.
+#
+# Report schema:
+# {
+#   "timestamp":      "<ISO-8601>",
+#   "host":           "<hostname or 'all'>",
+#   "agamemnon_url":  "<url>",
+#   "summary": {
+#     "created":    N,
+#     "updated":    N,
+#     "woken":      N,
+#     "hibernated": N,
+#     "unchanged":  N,
+#     "pruned":     N,
+#     "errors":     N
+#   },
+#   "agents": [
+#     {
+#       "name":    "<agent>",
+#       "host":    "<host>",
+#       "action":  "UNCHANGED|CREATE|UPDATE|WAKE|HIBERNATE|PRUNE|ERROR",
+#       "status":  { "desired": "...", "actual": "..." },
+#       "drift":   [ { "field": "...", "old": "...", "new": "..." }, ... ],
+#       "error":   "<message or null>"
+#     }
+#   ],
+#   "unmanaged": [ "<name>", ... ]
+# }
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Internal state — accumulated as the reconciliation run proceeds.
+# ---------------------------------------------------------------------------
+
+# Temporary file that accumulates per-agent JSON objects (one per line, NDJSON).
+_REPORT_AGENTS_TMP=""
+_REPORT_UNMANAGED_TMP=""
+
+# Initialise the report state.  Call once at the start of a reconciliation run.
+# Usage: report_init [host]
+report_init() {
+    local host="${1:-all}"
+    _REPORT_HOST="$host"
+    _REPORT_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    _REPORT_AGENTS_TMP="$(mktemp)"
+    _REPORT_UNMANAGED_TMP="$(mktemp)"
+}
+
+# Append one agent entry to the in-progress report.
+# Usage: report_add_agent <name> <host> <action> <desired_state> <actual_state> \
+#                         <drift_json_array> <error_or_empty>
+#
+# drift_json_array  — a JSON array string: '[{"field":"label","old":"A","new":"B"}]'
+#                     Pass '[]' when there is no drift.
+report_add_agent() {
+    local name="$1"
+    local host="$2"
+    local action="$3"
+    local desired_state="$4"
+    local actual_state="$5"
+    local drift_json="${6:-[]}"
+    local error_msg="${7:-}"
+
+    # Validate drift_json is at least a valid JSON array; fall back to [] on failure.
+    if ! echo "$drift_json" | jq -e . > /dev/null 2>&1; then
+        drift_json="[]"
+    fi
+
+    local error_val
+    if [[ -n "$error_msg" ]]; then
+        error_val="$(jq -n --arg e "$error_msg" '$e')"
+    else
+        error_val="null"
+    fi
+
+    jq -n \
+        --arg name "$name" \
+        --arg host "$host" \
+        --arg action "$action" \
+        --arg desired "$desired_state" \
+        --arg actual "$actual_state" \
+        --argjson drift "$drift_json" \
+        --argjson error "$error_val" \
+        '{name: $name, host: $host, action: $action,
+          status: {desired: $desired, actual: $actual},
+          drift: $drift, error: $error}' >> "$_REPORT_AGENTS_TMP"
+}
+
+# Record an unmanaged agent (present in Agamemnon but not in YAML).
+# Usage: report_add_unmanaged <name>
+report_add_unmanaged() {
+    local name="$1"
+    echo "$name" >> "$_REPORT_UNMANAGED_TMP"
+}
+
+# Assemble and print the final JSON report to stdout.
+# Usage: report_emit <created> <updated> <woken> <hibernated> <unchanged> <pruned> <errors>
+report_emit() {
+    local created="${1:-0}"
+    local updated="${2:-0}"
+    local woken="${3:-0}"
+    local hibernated="${4:-0}"
+    local unchanged="${5:-0}"
+    local pruned="${6:-0}"
+    local errors="${7:-0}"
+
+    # Build agents JSON array from NDJSON temp file.
+    local agents_json="[]"
+    if [[ -s "$_REPORT_AGENTS_TMP" ]]; then
+        agents_json="$(jq -s '.' "$_REPORT_AGENTS_TMP")"
+    fi
+
+    # Build unmanaged JSON array from temp file.
+    local unmanaged_json="[]"
+    if [[ -s "$_REPORT_UNMANAGED_TMP" ]]; then
+        unmanaged_json="$(jq -Rn '[inputs]' < "$_REPORT_UNMANAGED_TMP")"
+    fi
+
+    jq -n \
+        --arg timestamp "$_REPORT_TIMESTAMP" \
+        --arg host "${_REPORT_HOST:-all}" \
+        --arg url "${AGAMEMNON_URL:-http://localhost:8080}" \
+        --argjson created "$created" \
+        --argjson updated "$updated" \
+        --argjson woken "$woken" \
+        --argjson hibernated "$hibernated" \
+        --argjson unchanged "$unchanged" \
+        --argjson pruned "$pruned" \
+        --argjson errors "$errors" \
+        --argjson agents "$agents_json" \
+        --argjson unmanaged "$unmanaged_json" \
+        '{
+            timestamp:     $timestamp,
+            host:          $host,
+            agamemnon_url: $url,
+            summary: {
+                created:    $created,
+                updated:    $updated,
+                woken:      $woken,
+                hibernated: $hibernated,
+                unchanged:  $unchanged,
+                pruned:     $pruned,
+                errors:     $errors
+            },
+            agents:    $agents,
+            unmanaged: $unmanaged
+        }'
+}
+
+# Write the report to the canonical last-reconciliation file.
+# Usage: report_save <json_string> [report_dir]
+report_save() {
+    local json="$1"
+    local report_dir="${2:-}"
+
+    if [[ -z "$report_dir" ]]; then
+        local repo_root
+        repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+        report_dir="${repo_root}/reports"
+    fi
+
+    mkdir -p "$report_dir"
+    echo "$json" > "${report_dir}/last-reconciliation.json"
+}
+
+# POST the report JSON to the Agamemnon webhook endpoint.
+# Usage: report_webhook <json_string> <webhook_url>
+report_webhook() {
+    local json="$1"
+    local webhook_url="$2"
+
+    if curl -sf --max-time 10 \
+        -X POST "$webhook_url" \
+        -H 'Content-Type: application/json' \
+        -d "$json" > /dev/null 2>&1; then
+        echo "Webhook delivered to ${webhook_url}" >&2
+    else
+        echo "WARNING: Webhook delivery failed to ${webhook_url}" >&2
+    fi
+}
+
+# Clean up temp files.  Call after report_emit (or on EXIT).
+report_cleanup() {
+    [[ -n "${_REPORT_AGENTS_TMP:-}" && -f "$_REPORT_AGENTS_TMP" ]] && rm -f "$_REPORT_AGENTS_TMP"
+    [[ -n "${_REPORT_UNMANAGED_TMP:-}" && -f "$_REPORT_UNMANAGED_TMP" ]] && rm -f "$_REPORT_UNMANAGED_TMP"
+}
+
+# Build a drift JSON array from an UPDATE:<fields> action string and the actual/desired values.
+# Usage: build_drift_json <action_string> <actual_json> \
+#                         <desired_label> <desired_program> <desired_workdir> \
+#                         <desired_args> <desired_desc> <desired_tags_csv>
+# Outputs a JSON array like: [{"field":"label","old":"X","new":"Y"}, ...]
+build_drift_json() {
+    local action="$1"
+    local actual_json="$2"
+    local desired_label="$3"
+    local desired_program="$4"
+    local desired_workdir="$5"
+    local desired_args="$6"
+    local desired_desc="$7"
+    local desired_tags_csv="${8:-}"
+
+    if [[ "$action" != UPDATE:* ]]; then
+        echo "[]"
+        return
+    fi
+
+    local changed_fields="${action#UPDATE:}"
+    IFS=',' read -ra fields <<< "$changed_fields"
+
+    # Map desired values by field name
+    declare -A desired_vals
+    desired_vals["label"]="$desired_label"
+    desired_vals["program"]="$desired_program"
+    desired_vals["workingDirectory"]="$(normalize_path "$desired_workdir")"
+    desired_vals["programArgs"]="$desired_args"
+    desired_vals["taskDescription"]="$desired_desc"
+    desired_vals["tags"]="$desired_tags_csv"
+
+    # Build JSON array using jq
+    local entries="[]"
+    for field in "${fields[@]}"; do
+        local old_val new_val
+
+        case "$field" in
+            label)            old_val="$(echo "$actual_json" | jq -r '.label // ""')" ;;
+            program)          old_val="$(echo "$actual_json" | jq -r '.program // ""')" ;;
+            workingDirectory) old_val="$(normalize_path "$(echo "$actual_json" | jq -r '.workingDirectory // ""')")" ;;
+            programArgs)      old_val="$(echo "$actual_json" | jq -r '.programArgs // ""')" ;;
+            taskDescription)  old_val="$(echo "$actual_json" | jq -r '.taskDescription // ""')" ;;
+            tags)             old_val="$(echo "$actual_json" | jq -r '.tags // [] | sort | join(",")')" ;;
+            *)                old_val="" ;;
+        esac
+
+        new_val="${desired_vals[$field]:-}"
+
+        entries="$(jq -n \
+            --argjson arr "$entries" \
+            --arg field "$field" \
+            --arg old "$old_val" \
+            --arg new "$new_val" \
+            '$arr + [{"field": $field, "old": $old, "new": $new}]')"
+    done
+
+    echo "$entries"
+}

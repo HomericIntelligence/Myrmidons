@@ -3,9 +3,6 @@
 *.env
 .env.local
 
-# Local Myrmidons config overrides (developer-specific, not for git)
-.myrmidons.local.yaml
-
 # OS
 .DS_Store
 Thumbs.db
@@ -23,9 +20,6 @@ tests/*.log
 # Local state (not config)
 *.bak
 
-# Rollback snapshots (machine-local, not versioned)
-.myrmidons/
-
 # Cloned repos from /advise skill
 ProjectMnemosyne/
 build/
@@ -33,5 +27,5 @@ build/
 # Old/unused implementations
 hello-world/main.py
 
-# Pixi
-.pixi/
+# Reconciliation reports (runtime state, not config)
+reports/last-reconciliation.json
