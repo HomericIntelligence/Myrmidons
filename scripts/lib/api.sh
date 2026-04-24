@@ -111,10 +111,14 @@ _agamemnon_curl_retry() {
             if [[ $curl_exit -ne 0 ]]; then
                 echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
             else
-                echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
-                echo "  URL: $*" >&2
-                if [[ -n "$response" ]]; then
-                    echo "  Body: ${response}" >&2
+                if [[ "$http_code" == "401" || "$http_code" == "403" ]]; then
+                    echo "ERROR: Authentication failed (HTTP ${http_code}) — check AGAMEMNON_API_KEY" >&2
+                else
+                    echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
+                    echo "  URL: $*" >&2
+                    if [[ -n "$response" ]]; then
+                        echo "  Body: ${response}" >&2
+                    fi
                 fi
             fi
             return 1
