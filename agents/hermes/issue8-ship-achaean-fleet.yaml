@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../schemas/agent-v1.schema.json
 apiVersion: myrmidons/v1
 kind: Agent
 metadata:
