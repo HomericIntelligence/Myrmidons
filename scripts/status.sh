@@ -168,34 +168,19 @@ status_agent() {
 report_unmanaged() {
     local agents_json="$1"
     shift
-    local yaml_files=("$@")
-
-    local managed_names=()
-    for yaml_file in "${yaml_files[@]}"; do
-        local n
-        n="$(yq eval '.metadata.name' "$yaml_file")"
-        managed_names+=("$n")
-    done
 
     while IFS= read -r actual_name; do
-        local is_managed=0
-        for mn in "${managed_names[@]}"; do
-            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
-        done
+        local actual_status
+        actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
+            '.[] | select(.name == $n) | .status // "unknown"')"
 
-        if [[ $is_managed -eq 0 ]]; then
-            local actual_status
-            actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-                '.[] | select(.name == $n) | .status // "unknown"')"
+        report_add_unmanaged "$actual_name"
 
-            report_add_unmanaged "$actual_name"
-
-            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-                printf "%-22s %-10s %-12s %-12s %s\n" \
-                    "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
-            fi
+        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+            printf "%-22s %-10s %-12s %-12s %s\n" \
+                "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
         fi
-    done < <(echo "$agents_json" | jq -r '.[].name')
+    done < <(get_unmanaged_names "$agents_json" "$@")
 }
 
 main "$@"

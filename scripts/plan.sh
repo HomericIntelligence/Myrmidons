@@ -148,29 +148,4 @@ plan_agent() {
     return 0
 }
 
-report_unmanaged() {
-    local agents_json="$1"
-    shift
-    local yaml_files=("$@")
-
-    # Collect all managed names
-    local managed_names=()
-    for yaml_file in "${yaml_files[@]}"; do
-        local name
-        name="$(yq eval '.metadata.name' "$yaml_file")"
-        managed_names+=("$name")
-    done
-
-    # Find agents not in managed list
-    echo "$agents_json" | jq -r '.[].name' | while IFS= read -r actual_name; do
-        local is_managed=0
-        for mn in "${managed_names[@]}"; do
-            [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
-        done
-        if [[ $is_managed -eq 0 ]]; then
-            log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
-        fi
-    done
-}
-
 main "$@"
