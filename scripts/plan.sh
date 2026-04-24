@@ -34,6 +34,7 @@ parse_args() {
             --fleet)    FLEET_NAME="$2"; shift 2 ;;
             --output)   shift 2 ;;  # Accepted but ignored in plan (no JSON report)
             --webhook)  shift 2 ;;  # Accepted but ignored in plan
+            -*) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
             *) HOST="$1"; shift ;;
         esac
     done
@@ -48,6 +49,13 @@ usage() {
     echo "  $0                        # Plan all agents"
     echo "  $0 hermes                 # Plan agents on hermes"
     echo "  $0 --fleet dev-mesh       # Plan agents in the dev-mesh fleet"
+}
+
+# plan_report_unmanaged wraps reconcile.sh's report_unmanaged to avoid
+# shadowing if a local function of the same name were ever defined here.
+# (#273: prevent name collision with reconcile.sh's report_unmanaged)
+plan_report_unmanaged() {
+    report_unmanaged "$@"
 }
 
 main() {
@@ -85,7 +93,7 @@ main() {
     # Report unmanaged agents (in Agamemnon but not in YAML)
     log_info ""
     log_info "Checking for unmanaged agents..."
-    report_unmanaged "$agents_json" "${yaml_files[@]}"
+    plan_report_unmanaged "$agents_json" "${yaml_files[@]}"
 
     log_info ""
     if [[ $has_changes -eq 0 ]]; then
