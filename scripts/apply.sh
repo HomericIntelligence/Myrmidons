@@ -36,6 +36,8 @@ DRY_RUN=0
 OUTPUT_FORMAT="text"   # "text" | "json"
 WEBHOOK_URL=""
 AIM_LOCK_TIMEOUT="${AIM_LOCK_TIMEOUT:-60}"
+SNAPSHOT_DIR=""
+SNAPSHOT_KEEP="${SNAPSHOT_KEEP:-10}"
 
 CREATED=0
 UPDATED=0
@@ -54,6 +56,7 @@ parse_args() {
             --lock-timeout)     AIM_LOCK_TIMEOUT="$2"; shift 2 ;;
             --output)           OUTPUT_FORMAT="$2"; shift 2 ;;
             --webhook)          WEBHOOK_URL="$2"; shift 2 ;;
+            --snapshot-dir)     SNAPSHOT_DIR="$2"; shift 2 ;;
             --force)            shift ;;  # Consume --force (applies during actual apply, not dry-run)
             -h|--help)          usage; exit 0 ;;
             *) HOST="$1"; shift ;;
@@ -79,6 +82,8 @@ Options:
   --output json        Emit a JSON reconciliation report to stdout instead of
                        human-readable text. Also saves to reports/last-reconciliation.json.
   --webhook URL        POST the JSON report to URL after reconciliation completes.
+  --snapshot-dir DIR   Directory for pre-apply snapshots (default: .myrmidons/snapshots).
+                       Also configurable via SNAPSHOT_DIR env var.
   -h, --help           Show this help
 
 Examples:
@@ -116,7 +121,7 @@ main() {
                 --force | --dry-run)
                     continue
                     ;;
-                --lock-timeout)
+                --lock-timeout | --snapshot-dir)
                     skip_next=1
                     continue
                     ;;
@@ -155,6 +160,15 @@ main() {
 
     local agents_json
     agents_json="$(agamemnon_list_agents)"
+
+    # Capture pre-apply snapshot (#228: includes context fields user/branch/host/timestamp)
+    local effective_snapshot_dir="${SNAPSHOT_DIR:-${repo_root}/.myrmidons/snapshots}"
+    local snap_file
+    snap_file="$(snapshot_write "$agents_json" "$effective_snapshot_dir" "${HOST:-all}")"
+    snapshot_prune "$effective_snapshot_dir" "$SNAPSHOT_KEEP"
+    if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+        echo "Snapshot saved: ${snap_file}"
+    fi
 
     local yaml_files
     mapfile -t yaml_files < <(get_agent_files "$HOST" "$FLEET_NAME")

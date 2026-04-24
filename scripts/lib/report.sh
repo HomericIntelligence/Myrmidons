@@ -214,6 +214,94 @@ report_cleanup() {
     [[ -n "${_REPORT_UNMANAGED_TMP:-}" && -f "$_REPORT_UNMANAGED_TMP" ]] && rm -f "$_REPORT_UNMANAGED_TMP"
 }
 
+# ---------------------------------------------------------------------------
+# Snapshot functions — capture agent state before apply or rollback (#228, #225)
+# ---------------------------------------------------------------------------
+
+# Write a snapshot of current agent state to the snapshot directory.
+# Adds context fields: user, git_branch, host, timestamp.
+#
+# Usage: snapshot_write <agents_json> <snapshot_dir> <host> [suffix]
+#   agents_json   — JSON array string of current agent objects from Agamemnon
+#   snapshot_dir  — directory to write snapshot files into
+#   host          — host argument passed to apply/rollback (or "all")
+#   suffix        — optional filename suffix before .json (e.g. "pre-rollback")
+#
+# Outputs the path of the written snapshot file.
+snapshot_write() {
+    local agents_json="$1"
+    local snapshot_dir="$2"
+    local host="${3:-all}"
+    local suffix="${4:-}"
+
+    mkdir -p "$snapshot_dir"
+
+    local timestamp git_branch run_user
+    timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    git_branch="$(git -C "$(dirname "${BASH_SOURCE[0]}")/../.." rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+    run_user="${USER:-unknown}"
+
+    local filename="${timestamp}"
+    [[ -n "$suffix" ]] && filename="${timestamp}.${suffix}"
+    local snapshot_file="${snapshot_dir}/${filename}.json"
+
+    jq -n \
+        --arg timestamp "$timestamp" \
+        --arg git_branch "$git_branch" \
+        --arg host "$host" \
+        --arg user "$run_user" \
+        --argjson agents "$agents_json" \
+        '{
+            context: {
+                timestamp:  $timestamp,
+                user:       $user,
+                git_branch: $git_branch,
+                host:       $host
+            },
+            agents: $agents
+        }' > "$snapshot_file"
+
+    echo "$snapshot_file"
+}
+
+# Prune old snapshots in a directory, keeping at most SNAPSHOT_KEEP files.
+# Skips files that contain a suffix (e.g. pre-rollback) from pruning count
+# to avoid deleting safety nets.
+#
+# Usage: snapshot_prune <snapshot_dir> [keep_count]
+snapshot_prune() {
+    local snapshot_dir="$1"
+    local keep="${2:-${SNAPSHOT_KEEP:-10}}"
+
+    [[ ! -d "$snapshot_dir" ]] && return 0
+
+    # Only count/prune regular (non-suffixed) snapshots:
+    # Suffixed snapshots (*.pre-rollback.json etc.) are retained separately.
+    local regular_snapshots=()
+    mapfile -t regular_snapshots < <(
+        find "$snapshot_dir" -maxdepth 1 -name "*.json" \
+            | grep -v '\.' | sort || true
+        # fallback: match ISO timestamp pattern only (no dots in stem)
+        find "$snapshot_dir" -maxdepth 1 -name "*T*Z.json" \
+            | grep -E '/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\.json$' \
+            | sort
+    )
+
+    # Deduplicate
+    local -A seen=()
+    local deduped=()
+    for f in "${regular_snapshots[@]}"; do
+        [[ -z "${seen[$f]:-}" ]] && deduped+=("$f") && seen["$f"]=1
+    done
+
+    local count=${#deduped[@]}
+    if [[ $count -gt $keep ]]; then
+        local excess=$(( count - keep ))
+        # Remove oldest first (sort ascending, take head)
+        printf '%s\n' "${deduped[@]}" | sort | head -n "$excess" | xargs rm -f
+    fi
+}
+
 # Build a drift JSON array from an UPDATE:<fields> action string and the actual/desired values.
 # Usage: build_drift_json <action_string> <actual_json> \
 #                         <desired_label> <desired_program> <desired_workdir> \
