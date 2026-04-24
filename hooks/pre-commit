@@ -9,8 +9,14 @@
 #   2. Required fields (apiVersion, kind, metadata.name, metadata.host, spec.program)
 #   3. desiredState is "active" or "hibernated"
 #   4. apiVersion is "myrmidons/v1"
+#   5. Fleet ref referential integrity (staged fleet files) — #123
+#   6. metadata.name uniqueness across all agent YAMLs — #200
+#   7. Test suite via just/pixi (skippable with SKIP_TESTS=1) — #146
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ERRORS=0
 
@@ -133,4 +139,77 @@ if [[ $ERRORS -gt 0 ]]; then
 fi
 
 echo "All YAML files valid."
+
+# ── Issue #123: Fleet ref validation ────────────────────────────────────────
+# Run validate-fleet-refs.sh when any staged file is a fleet YAML.
+STAGED_FLEET_YAMLS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^fleets/.*\.yaml$' || true)
+if [[ -n "$STAGED_FLEET_YAMLS" ]]; then
+    FLEET_VALIDATOR="${REPO_ROOT}/tests/validate-fleet-refs.sh"
+    if [[ -x "$FLEET_VALIDATOR" ]]; then
+        echo ""
+        echo "Validating fleet ref referential integrity..."
+        if ! "$FLEET_VALIDATOR"; then
+            echo ""
+            echo "Pre-commit: fleet ref validation failed. Fix dangling refs before committing."
+            exit 1
+        fi
+    else
+        echo "WARNING: ${FLEET_VALIDATOR} not found or not executable — skipping fleet ref check" >&2
+    fi
+fi
+
+# ── Issue #200: metadata.name uniqueness across all agent YAMLs ─────────────
+echo ""
+echo "Checking metadata.name uniqueness across agent YAMLs..."
+if command -v yq &>/dev/null; then
+    # Collect all metadata.name values from every agent YAML (kind: Agent only)
+    # Use printf to build a null-delimited list for safe filename handling
+    NAME_LIST=$(
+        find "${REPO_ROOT}/agents" -name "*.yaml" -not -path "*/_templates/*" -print0 2>/dev/null \
+        | while IFS= read -r -d '' f; do
+            k="$(yq eval '.kind // ""' "$f" 2>/dev/null)"
+            if [[ "$k" == "Agent" ]]; then
+                n="$(yq eval '.metadata.name // ""' "$f" 2>/dev/null)"
+                [[ -n "$n" ]] && printf '%s\n' "$n"
+            fi
+        done
+    )
+    DUPLICATE_NAMES=$(printf '%s\n' "$NAME_LIST" | sort | uniq -d)
+    if [[ -n "$DUPLICATE_NAMES" ]]; then
+        echo "FAIL — duplicate metadata.name values found:"
+        while IFS= read -r dup; do
+            echo "  - ${dup}"
+        done <<< "$DUPLICATE_NAMES"
+        echo ""
+        echo "Pre-commit: metadata.name must be unique across all agent YAMLs."
+        exit 1
+    fi
+    echo "All metadata.name values are unique."
+else
+    echo "WARNING: yq not found — skipping metadata.name uniqueness check" >&2
+fi
+
+# ── Issue #146: Optional test suite ─────────────────────────────────────────
+# Set SKIP_TESTS=1 to bypass this step (e.g. when test environment is unavailable).
+if [[ "${SKIP_TESTS:-0}" != "1" ]]; then
+    echo ""
+    if command -v just &>/dev/null; then
+        echo "Running test suite (just test) — set SKIP_TESTS=1 to skip..."
+        if ! just --justfile "${REPO_ROOT}/Justfile" test; then
+            echo ""
+            echo "Pre-commit: tests failed. Fix failing tests or set SKIP_TESTS=1 to bypass."
+            exit 1
+        fi
+    elif command -v pixi &>/dev/null; then
+        echo "Running test suite (pixi run test) — set SKIP_TESTS=1 to skip..."
+        if ! pixi run --manifest-path "${REPO_ROOT}/pixi.toml" test; then
+            echo ""
+            echo "Pre-commit: tests failed. Fix failing tests or set SKIP_TESTS=1 to bypass."
+            exit 1
+        fi
+    else
+        echo "NOTE: neither 'just' nor 'pixi' found — skipping test suite (set SKIP_TESTS=1 to suppress this note)"
+    fi
+fi
+
 exit 0
