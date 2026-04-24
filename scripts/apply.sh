@@ -202,10 +202,13 @@ main() {
         local report_json
         report_json="$(report_emit "$CREATED" "$UPDATED" "$WOKEN" "$HIBERNATED" \
                                    "$UNCHANGED" "$PRUNED" "$ERRORS")"
-        report_save "$report_json"
         if [[ -n "$WEBHOOK_URL" ]]; then
-            report_webhook "$report_json" "$WEBHOOK_URL"
+            local delivery_json
+            delivery_json="$(report_webhook "$report_json" "$WEBHOOK_URL")"
+            report_json="$(echo "$report_json" | jq --argjson d "$delivery_json" \
+                '. + {webhook_delivery: $d}')"
         fi
+        report_save "$report_json"
         echo "$report_json"
     else
         echo ""
@@ -216,10 +219,13 @@ main() {
         local report_json
         report_json="$(report_emit "$CREATED" "$UPDATED" "$WOKEN" "$HIBERNATED" \
                                    "$UNCHANGED" "$PRUNED" "$ERRORS")"
-        report_save "$report_json"
         if [[ -n "$WEBHOOK_URL" ]]; then
-            report_webhook "$report_json" "$WEBHOOK_URL"
+            local delivery_json
+            delivery_json="$(report_webhook "$report_json" "$WEBHOOK_URL")"
+            report_json="$(echo "$report_json" | jq --argjson d "$delivery_json" \
+                '. + {webhook_delivery: $d}')"
         fi
+        report_save "$report_json"
     fi
 
     if [[ $ERRORS -gt 0 ]]; then
