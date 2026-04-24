@@ -12,8 +12,10 @@ jq   = ">=1.6"
 # Install manually: see scripts/lib/reconcile.sh or CI workflows.
 
 [tasks]
-status   = "just status"
-plan     = "just plan"
-apply    = "just apply"
-validate = "just validate"
-export   = "just export"
+status        = "just status"
+plan          = "just plan"
+apply         = "just apply"
+validate      = "just validate"
+export        = "just export"
+lint-names    = "bash scripts/lint-names.sh"
+lint-shell    = "bash scripts/lint-shell.sh"
