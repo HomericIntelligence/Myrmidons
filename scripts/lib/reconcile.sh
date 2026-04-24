@@ -332,6 +332,17 @@ normalize_path() {
     echo "${p/#\~/$HOME}"
 }
 
+# Report agents that exist in Agamemnon but are not managed by any YAML file.
+# Prints a log_warn line for each unmanaged agent.
+# Usage: report_unmanaged <agents_json> <yaml_file>...
+report_unmanaged() {
+    local agents_json="$1"
+    shift
+    while IFS= read -r actual_name; do
+        log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
+    done < <(get_unmanaged_names "$agents_json" "$@")
+}
+
 # Find agent names that exist in Agamemnon but are not managed by any YAML file.
 # Outputs one unmanaged agent name per line.
 # Usage: get_unmanaged_names <agents_json> <yaml_file>...
