@@ -34,6 +34,7 @@ PRUNE=0
 DRY_RUN=0
 OUTPUT_FORMAT="text"   # "text" | "json"
 WEBHOOK_URL=""
+AIM_LOCK_TIMEOUT="${AIM_LOCK_TIMEOUT:-60}"
 
 CREATED=0
 UPDATED=0
@@ -46,11 +47,13 @@ ERRORS=0
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --prune)       PRUNE=1; shift ;;
-            --dry-run)     DRY_RUN=1; shift ;;
-            --output)      OUTPUT_FORMAT="$2"; shift 2 ;;
-            --webhook)     WEBHOOK_URL="$2"; shift 2 ;;
-            -h|--help)     usage; exit 0 ;;
+            --prune)            PRUNE=1; shift ;;
+            --dry-run)          DRY_RUN=1; shift ;;
+            --lock-timeout)     AIM_LOCK_TIMEOUT="$2"; shift 2 ;;
+            --output)           OUTPUT_FORMAT="$2"; shift 2 ;;
+            --webhook)          WEBHOOK_URL="$2"; shift 2 ;;
+            --force)            shift ;;  # Consume --force (applies during actual apply, not dry-run)
+            -h|--help)          usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
     done
@@ -58,34 +61,68 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--prune] [--dry-run] [--output json] [--webhook <url>]
+Usage: $0 [host] [--prune] [--dry-run] [--force] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
-  host               Only apply agents for this host (default: all)
-  --prune            Hibernate and delete unmanaged agents (agents in Agamemnon
-                     but not in YAML). DEFAULT: warn only.
-  --dry-run          Show what would happen, make no changes (same as plan.sh)
-  --output json      Emit a JSON reconciliation report to stdout instead of
-                     human-readable text. Also saves to reports/last-reconciliation.json.
-  --webhook URL      POST the JSON report to URL after reconciliation completes.
-  -h, --help         Show this help
+  host                 Only apply agents for this host (default: all)
+  --prune              Hibernate and delete unmanaged agents (agents in Agamemnon
+                       but not in YAML). DEFAULT: warn only.
+  --dry-run            Show what would happen, make no changes (same as plan.sh)
+  --force              Force apply even if lock acquisition times out.
+  --lock-timeout SECS  Set lock acquisition timeout in seconds (default: 60).
+                       Also configurable via AIM_LOCK_TIMEOUT env var.
+  --output json        Emit a JSON reconciliation report to stdout instead of
+                       human-readable text. Also saves to reports/last-reconciliation.json.
+  --webhook URL        POST the JSON report to URL after reconciliation completes.
+  -h, --help           Show this help
 
 Examples:
   $0                              # Reconcile everything
   $0 hermes                       # Reconcile hermes only
   $0 --prune                      # Reconcile + remove unmanaged agents
+  $0 --dry-run --force            # Dry-run (force is handled correctly)
+  $0 --lock-timeout 120           # Reconcile with 120s lock timeout
   $0 --output json | jq .         # Machine-readable report
   $0 --webhook http://host/hook   # Post report to webhook
 EOF
 }
 
 main() {
+    # Save original args before parse_args consumes them for dry-run filtering
+    local -a orig_args=("$@")
+
     parse_args "$@"
 
+    # Export AIM_LOCK_TIMEOUT for use by child processes (e.g. api.sh)
+    export AIM_LOCK_TIMEOUT
+
     if [[ $DRY_RUN -eq 1 ]]; then
-        exec "${SCRIPT_DIR}/plan.sh" "$@"
+        # Strip --force, --dry-run, and --lock-timeout before forwarding to plan.sh
+        # plan.sh doesn't understand these flags
+        local -a clean_args=()
+        local skip_next=0
+        for arg in "${orig_args[@]}"; do
+            if [[ $skip_next -eq 1 ]]; then
+                skip_next=0
+                continue
+            fi
+            case "$arg" in
+                --force | --dry-run)
+                    continue
+                    ;;
+                --lock-timeout)
+                    skip_next=1
+                    continue
+                    ;;
+                *)
+                    clean_args+=("$arg")
+                    ;;
+            esac
+        done
+
+        exec "${SCRIPT_DIR}/plan.sh" "${clean_args[@]}"
     fi
 
     check_deps
