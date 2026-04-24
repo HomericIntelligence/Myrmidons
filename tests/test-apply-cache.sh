@@ -11,6 +11,12 @@
 
 set -euo pipefail
 
+# Skip entire file on bash < 4 ([[ ]], arrays with [@], and other features require bash 4+)
+if (( BASH_VERSINFO[0] < 4 )); then
+    echo "SKIP: bash 4+ required (got ${BASH_VERSION})" >&2
+    exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
