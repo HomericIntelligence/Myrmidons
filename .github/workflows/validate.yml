@@ -65,7 +65,7 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
 
       - name: Scan for secrets (gitleaks)
-        run: gitleaks detect --source . --log-opts "origin/main..HEAD"
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
 
   changelog:
     name: CHANGELOG Updated
