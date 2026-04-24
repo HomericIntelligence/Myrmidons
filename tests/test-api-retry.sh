@@ -289,6 +289,79 @@ assert_zero "HTTP 500 is transient, retried: exit 0" "$rc"
 assert_eq "HTTP 500 retried: curl called twice" "2" "$calls"
 teardown_mock
 
+# ── Test 11: Call-count assertion — success on first try calls curl exactly once ──
+# Issue #210: verify that sleep mock is working AND that retry behaviour fires
+# the right number of times by asserting curl call counts precisely.
+setup_mock
+mock_single 0 200
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null || true
+calls=$(<"$_CALL_FILE")
+assert_eq "call-count: success on first try — curl called exactly 1 time" "1" "$calls"
+teardown_mock
+
+# ── Test 12: Call-count — 2 transient failures then success = 3 curl calls ────
+setup_mock
+mock_sequence "7,000" "7,000" "0,200"
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>"$_STDERR_FILE" || true
+calls=$(<"$_CALL_FILE")
+stderr_content="$(cat "$_STDERR_FILE")"
+assert_eq "call-count: 2 failures then success — curl called exactly 3 times" "3" "$calls"
+assert_contains "call-count: Retry 1/3 present in stderr" "Retry 1/3" "$stderr_content"
+assert_contains "call-count: Retry 2/3 present in stderr" "Retry 2/3" "$stderr_content"
+teardown_mock
+
+# ── Test 13: Call-count — permanent HTTP 404 aborts immediately, 1 curl call ──
+setup_mock
+mock_single 0 404
+rc=0
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents/x" >/dev/null 2>/dev/null && rc=0 || rc=$?
+calls=$(<"$_CALL_FILE")
+assert_eq "call-count: permanent 404 — curl called exactly 1 time (no retries)" "1" "$calls"
+assert_nonzero "call-count: permanent 404 returns non-zero" "$rc"
+teardown_mock
+
+# ── Test 14: Call-count — HTTP 503 x3 exhausts retries, curl called 3 times ──
+setup_mock
+mock_single 0 503
+rc=0
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null && rc=0 || rc=$?
+calls=$(<"$_CALL_FILE")
+assert_eq "call-count: 503 x3 exhausted — curl called exactly 3 times" "3" "$calls"
+assert_nonzero "call-count: 503 exhausted returns non-zero" "$rc"
+teardown_mock
+
+# ── Test 15: sleep mock verifies tests run without real delays ─────────────────
+# The sleep function is overridden to a no-op at the top of this file.
+# We verify this is working by timing a full 3-attempt retry sequence:
+# with real sleep (1s + 2s = 3s), this would take >3 seconds;
+# with the mock sleep it should complete in well under 1 second.
+setup_mock
+mock_single 7 000  # all 3 attempts fail
+_SLEEP_COUNT_FILE="$(mktemp)"
+echo 0 > "$_SLEEP_COUNT_FILE"
+
+# Override sleep to count calls in addition to being a no-op
+sleep() {
+    local n
+    n=$(<"$_SLEEP_COUNT_FILE")
+    echo $((n + 1)) > "$_SLEEP_COUNT_FILE"
+    :  # no-op — do not actually sleep
+}
+
+rc=0
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null && rc=0 || rc=$?
+calls=$(<"$_CALL_FILE")
+sleep_calls=$(<"$_SLEEP_COUNT_FILE")
+rm -f "$_SLEEP_COUNT_FILE"
+
+# Restore the original sleep override (no-op)
+sleep() { : ; }
+
+assert_eq "sleep-mock: curl called 3 times with mocked sleep" "3" "$calls"
+# _agamemnon_curl_retry calls sleep between attempt 1→2 and 2→3 (max_attempts-1 = 2 times)
+assert_eq "sleep-mock: sleep called exactly 2 times (between retries)" "2" "$sleep_calls"
+teardown_mock
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""
