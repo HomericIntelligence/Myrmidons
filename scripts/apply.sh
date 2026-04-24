@@ -51,6 +51,7 @@ PRUNE=0
 DRY_RUN=0
 FAIL_FAST=0
 RETRY=0
+RETRY_FILE=""
 YES=0
 OUTPUT_FORMAT="text"   # "text" | "json"
 WEBHOOK_URL=""
@@ -69,6 +70,7 @@ UNCHANGED=0
 PRUNED=0
 ERRORS=0
 FAILED_AGENTS=()   # names of agents that encountered errors
+_PRUNED_NAMES=()   # names of agents pruned during this run (for convergence check)
 
 # Per-agent error tracking: parallel arrays of (agent_name, http_status, error_message)
 FAILED_AGENT_NAMES=()
@@ -93,6 +95,7 @@ parse_args() {
             --dry-run)          DRY_RUN=1; shift ;;
             --fail-fast)        FAIL_FAST=1; shift ;;
             --retry)            RETRY=1; shift ;;
+            --retry-file)       RETRY_FILE="$2"; shift 2 ;;
             --fleet)            FLEET_NAME="$2"; shift 2 ;;
             --failed-agents-file) FAILED_AGENTS_FILE="$2"; shift 2 ;;
             --yes|-y)           YES=1; shift ;;
@@ -109,7 +112,7 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--yes] [--force] [--fail-fast] [--retry] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--yes] [--force] [--fail-fast] [--retry] [--retry-file FILE] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
@@ -123,6 +126,7 @@ Options:
   --retry                    Re-apply only agents listed in .myrmidons/failed-agents.txt.
                              File is self-managing: updated on partial success, cleared on
                              full success. Operators need not manually manage this file.
+  --retry-file FILE          Path to the retry file (default: .myrmidons/failed-agents.txt).
   --failed-agents-file PATH  Path to the failed-agents file (default: .myrmidons/failed-agents.txt).
   --yes, -y                  Skip the interactive confirmation prompt for destructive
                              changes (WAKE, HIBERNATE, DELETE/PRUNE). Required in
@@ -148,9 +152,11 @@ Examples:
   $0 --fleet dev-mesh             # Reconcile agents in the dev-mesh fleet
   $0 --prune                      # Reconcile + remove unmanaged agents
   $0 --yes                        # Skip confirmation prompt (e.g. in CI)
+  $0 --yes --prune                # Reconcile + prune without confirmation prompt
   $0 --dry-run --force            # Dry-run (force is handled correctly)
   $0 --fail-fast                  # Stop on first error
   $0 --retry                      # Re-attempt agents from last failure
+  $0 --retry --retry-file failed-agents.txt  # Retry only previously failed agents
   $0 --lock-timeout 120           # Reconcile with 120s lock timeout
   $0 --output json | jq .         # Machine-readable report
   $0 --webhook http://host/hook   # Post report to webhook
@@ -420,7 +426,7 @@ main() {
 
     if [[ $DRY_RUN -eq 1 ]]; then
         # Strip --force, --dry-run, --lock-timeout, --snapshot-dir, --yes, --fail-fast,
-        # and --retry before forwarding to plan.sh (plan.sh doesn't understand these flags).
+        # --retry, and --retry-file before forwarding to plan.sh (plan.sh doesn't understand these).
         # --prune IS forwarded so plan.sh can show which unmanaged agents would
         # be removed, preserving the prune intent in dry-run output. (#69, #71)
         # --output and --webhook ARE also forwarded so plan.sh can emit JSON.
@@ -435,7 +441,7 @@ main() {
                 --force | --dry-run | --fail-fast | --retry | --yes | -y)
                     continue
                     ;;
-                --lock-timeout | --snapshot-dir)
+                --lock-timeout | --snapshot-dir | --retry-file)
                     skip_next=1
                     continue
                     ;;
@@ -470,6 +476,18 @@ main() {
         log_warn "fleets/ directory not found — reconciling agents only"
     fi
 
+    # Confirmation prompt when --prune is set and stdout is a TTY (unless --yes)
+    if [[ $PRUNE -eq 1 && $YES -eq 0 && -t 0 ]]; then
+        echo "WARNING: --prune will hibernate and delete agents not in YAML."
+        printf 'Continue? [y/N] '
+        local reply
+        read -r reply
+        if [[ "${reply,,}" != "y" && "${reply,,}" != "yes" ]]; then
+            echo "Aborted."
+            exit 0
+        fi
+    fi
+
     # Initialise report accumulator
     report_init "${HOST:-all}"
 
@@ -498,6 +516,28 @@ main() {
         echo ""
     else
         mapfile -t yaml_files < <(get_agent_files "$HOST" "$FLEET_NAME")
+    fi
+
+    # If --retry, filter yaml_files to only the agents listed in RETRY_FILE
+    if [[ $RETRY -eq 1 ]]; then
+        local effective_retry_file="${RETRY_FILE:-failed-agents.txt}"
+        if [[ -f "$effective_retry_file" ]]; then
+            local -a retry_files=()
+            while IFS= read -r agent_name; do
+                [[ -z "$agent_name" ]] && continue
+                for yaml_file in "${yaml_files[@]}"; do
+                    local fname_name
+                    fname_name="$(yq eval '.metadata.name' "$yaml_file")"
+                    if [[ "$fname_name" == "$agent_name" ]]; then
+                        retry_files+=("$yaml_file")
+                        break
+                    fi
+                done
+            done < "$effective_retry_file"
+            yaml_files=("${retry_files[@]}")
+        else
+            log_warn "--retry specified but retry file '${effective_retry_file}' not found; applying all agents"
+        fi
     fi
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
@@ -563,6 +603,16 @@ main() {
         ERRORS=$((ERRORS + 1))
     fi
 
+    # Write failed agents file when there were errors (and not a retry run)
+    if [[ $ERRORS -gt 0 && $RETRY -eq 0 ]]; then
+        _write_failed_agents_file
+    fi
+
+    # Verify convergence: ensure all managed agents match desired state
+    local post_agents_json
+    post_agents_json="$(agamemnon_list_agents)"
+    verify_convergence "$post_agents_json" "${yaml_files[@]}"
+
     # Emit output
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then
         local report_json
@@ -620,6 +670,81 @@ main() {
     # This ensures the file always contains only agents currently failing, with no manual management needed.
     if [[ -f "${FAILED_AGENTS_FILE}" ]]; then
         : > "${FAILED_AGENTS_FILE}"
+    fi
+}
+
+# Write FAILED_AGENTS array to failed-agents.txt (one name per line)
+_write_failed_agents_file() {
+    local failed_file="${RETRY_FILE:-failed-agents.txt}"
+    if [[ ${#FAILED_AGENTS[@]} -gt 0 ]]; then
+        : > "$failed_file"
+        for agent_name in "${FAILED_AGENTS[@]}"; do
+            echo "$agent_name" >> "$failed_file"
+        done
+        log_warn "Wrote ${#FAILED_AGENTS[@]} failed agent(s) to ${failed_file}"
+    fi
+}
+
+# verify_convergence — after apply, confirm each agent reached its desired state.
+# For pruned agents, confirms they are absent from the API.
+# Prints warnings for any divergence; does not fail the apply.
+verify_convergence() {
+    local agents_json="$1"
+    shift
+    local yaml_files=("$@")
+
+    local divergent=0
+
+    for yaml_file in "${yaml_files[@]}"; do
+        local name desired_state
+        name="$(yq eval '.metadata.name' "$yaml_file")"
+        desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
+
+        local actual_json
+        actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
+
+        if [[ -z "$actual_json" ]]; then
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "[WARN] verify_convergence: ${name} not found in API after apply" >&2
+            fi
+            divergent=$((divergent + 1))
+            continue
+        fi
+
+        local actual_status
+        actual_status="$(echo "$actual_json" | jq -r '.status // "unknown"')"
+
+        local ok=1
+        case "$desired_state" in
+            active)
+                [[ "$actual_status" == "active" || "$actual_status" == "online" ]] || ok=0
+                ;;
+            hibernated)
+                [[ "$actual_status" == "hibernated" || "$actual_status" == "offline" ]] || ok=0
+                ;;
+        esac
+
+        if [[ $ok -eq 0 && "$OUTPUT_FORMAT" != "json" ]]; then
+            echo "[WARN] verify_convergence: ${name} desired=${desired_state} actual=${actual_status}" >&2
+            divergent=$((divergent + 1))
+        fi
+    done
+
+    # Verify pruned agents are gone from the API
+    # PRUNED_NAMES is populated by handle_unmanaged when PRUNE=1
+    if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+        for pruned_name in "${_PRUNED_NAMES[@]}"; do
+            local still_exists
+            still_exists="$(echo "$agents_json" | jq -r --arg n "$pruned_name" '.[] | select(.name == $n) | .name')"
+            if [[ -n "$still_exists" && "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "[WARN] verify_convergence: pruned agent ${pruned_name} still present in API" >&2
+                divergent=$((divergent + 1))
+            fi
+        done
+    fi
+
+    if [[ $divergent -eq 0 && "$OUTPUT_FORMAT" != "json" ]]; then
+        echo "[OK] Convergence verified: all ${#yaml_files[@]} agent(s) match desired state."
     fi
 }
 
@@ -871,6 +996,8 @@ handle_unmanaged() {
                     echo "    Deleted (backup created)."
                 fi
                 PRUNED=$((PRUNED + 1))
+                # Track pruned names for convergence verification
+                _PRUNED_NAMES+=("$actual_name")
                 report_add_agent "$actual_name" "-" "PRUNE" "-" "pruned" "[]" ""
             else
                 if [[ "$OUTPUT_FORMAT" != "json" ]]; then

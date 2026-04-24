@@ -44,7 +44,21 @@ jobs:
       - name: Apply — reconcile desired state
         run: |
           chmod +x scripts/apply.sh
-          ./scripts/apply.sh
+          ./scripts/apply.sh --yes
+
+      - name: Convergence — verify all agents reached desired state
+        run: |
+          # Re-run apply in dry-run mode: if everything converged, plan.sh should
+          # report zero changes (no CREATE / UPDATE / WAKE / HIBERNATE actions).
+          chmod +x scripts/plan.sh
+          plan_output="$(./scripts/plan.sh 2>&1)"
+          echo "$plan_output"
+          if echo "$plan_output" | grep -qE '^\[(\+|~|!|z)\]'; then
+            echo "ERROR: Convergence check failed — drift detected after apply." >&2
+            echo "$plan_output" | grep -E '^\[(\+|~|!|z)\]' >&2
+            exit 1
+          fi
+          echo "Convergence verified: no drift detected."
 
       - name: Status — verify no drift remains
         run: |
