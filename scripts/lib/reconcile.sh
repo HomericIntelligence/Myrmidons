@@ -219,7 +219,7 @@ resolve_fleet_files() {
 
             local agent_file="${repo_root}/agents/${ref_host}/${ref_name}.yaml"
             if [[ ! -f "$agent_file" ]]; then
-                echo "ERROR: Fleet ref '${ref}' not found at ${agent_file}" >&2
+                echo "ERROR: Fleet '${fleet_file}': ref '${ref}' does not resolve — expected file at ${agent_file}" >&2
                 return 1
             fi
             echo "$agent_file"
