@@ -6,10 +6,10 @@ on:
     paths:
       - 'agents/**'
       - 'fleets/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
       - 'pixi.toml'
       - 'pixi.lock'
-      - 'scripts/**'
-      - '.github/workflows/validate.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
@@ -19,9 +19,57 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        env:
+          SHELLCHECK_VERSION: "v0.10.0"
+        run: |
+          curl -fsSL \
+            "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ --strip-components=1 -C /usr/local/bin \
+                "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+          shellcheck --version
+
+      - name: Run shellcheck
+        run: |
+          find scripts tests hooks -name '*.sh' -o -name 'pre-commit' 2>/dev/null \
+            | sort \
+            | xargs shellcheck --severity=warning
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+        run: |
+          curl -fsSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin actionlint
+          actionlint --version
+
+      - name: Run actionlint
+        run: actionlint
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   validate:
     name: Validate YAML Schemas
     runs-on: ubuntu-latest
+    needs: [lint]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -32,10 +80,3 @@ jobs:
         env:
           CI: "true"
         run: pixi run test-schema
-
-      - uses: ./.github/actions/setup-pixi
-        with:
-          environment: lint
-
-      - name: Run shellcheck
-        run: pixi run --environment lint lint-shell

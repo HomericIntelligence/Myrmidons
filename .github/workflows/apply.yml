@@ -48,6 +48,11 @@ jobs:
           chmod +x /usr/local/bin/yq
           yq --version
 
+      - name: Install jq
+        run: |
+          sudo apt-get install -y --no-install-recommends jq
+          jq --version
+
       - name: Plan — show what will change
         run: |
           chmod +x scripts/plan.sh scripts/lib/api.sh scripts/lib/reconcile.sh
