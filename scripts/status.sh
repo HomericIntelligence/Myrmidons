@@ -73,6 +73,10 @@ main() {
     local agents_json
     agents_json="$(agamemnon_list_agents)"
 
+    # Precompute a name→status lookup map once (fixes O(N) jq calls for unmanaged agents, #114)
+    local status_map
+    status_map="$(echo "$agents_json" | jq 'map({key: .name, value: (.status // "unknown")}) | from_entries')"
+
     local yaml_files
     mapfile -t yaml_files < <(get_agent_files "$HOST")
 
@@ -87,19 +91,7 @@ main() {
     done
 
     # Unmanaged agents
-    while IFS= read -r actual_name; do
-        local actual_status
-        actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-            '.[] | select(.name == $n) | .status // "unknown"')"
-
-        log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
-        report_add_unmanaged "$actual_name"
-
-        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-            printf "%-22s %-10s %-12s %-12s %s\n" \
-                "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
-        fi
-    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
+    report_unmanaged "$agents_json" "$status_map" "${yaml_files[@]}"
 
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then
         # Produce a drift-focused report (no action counters for status)
@@ -126,7 +118,11 @@ status_agent() {
     actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
 
     if [[ -z "$actual_json" ]]; then
-        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+        if [[ "${LOG_FORMAT:-text}" == "json" ]]; then
+            jq -n --arg name "$name" --arg host "$host" \
+                --arg desired "$desired_state" --arg actual "MISSING" --arg drift "NEEDS CREATE" \
+                '{agent:$name,host:$host,desired:$desired,actual:$actual,drift:$drift}'
+        elif [[ "$OUTPUT_FORMAT" != "json" ]]; then
             printf "%-22s %-10s %-12s %-12s %s\n" \
                 "${name:0:21}" "${host:0:9}" "$desired_state" "MISSING" "NEEDS CREATE"
         fi
@@ -158,7 +154,19 @@ status_agent() {
 
     report_add_agent "$name" "$host" "$action" "$desired_state" "$actual_status" "$drift_json" ""
 
-    if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+    if [[ "${LOG_FORMAT:-text}" == "json" ]]; then
+        local drift_display
+        case "$drift" in
+            UNCHANGED) drift_display="ok" ;;
+            WAKE)      drift_display="NEEDS WAKE" ;;
+            HIBERNATE) drift_display="NEEDS HIBERNATE" ;;
+            UPDATE:*)  drift_display="drifted: ${drift#UPDATE:}" ;;
+            *)         drift_display="$drift" ;;
+        esac
+        jq -n --arg name "$name" --arg host "$host" \
+            --arg desired "$desired_state" --arg actual "$actual_status" --arg drift "$drift_display" \
+            '{agent:$name,host:$host,desired:$desired,actual:$actual,drift:$drift}'
+    elif [[ "$OUTPUT_FORMAT" != "json" ]]; then
         local drift_display
         case "$drift" in
             UNCHANGED)
@@ -181,6 +189,28 @@ status_agent() {
         printf "%-22s %-10s %-12s %-12s %s\n" \
             "${name:0:21}" "${host:0:9}" "$desired_state" "$actual_status" "$drift_display"
     fi
+}
+
+report_unmanaged() {
+    local agents_json="$1"
+    local status_map="$2"
+    shift 2
+
+    while IFS= read -r actual_name; do
+        # Use precomputed map for O(1) status lookup instead of a per-agent jq call (#114)
+        local actual_status
+        actual_status="$(echo "$status_map" | jq -r --arg n "$actual_name" '.[$n] // "unknown"')"
+
+        report_add_unmanaged "$actual_name"
+
+        if [[ "${LOG_FORMAT:-text}" == "json" ]]; then
+            jq -n --arg name "$actual_name" --arg actual "$actual_status" \
+                '{agent:$name,host:"-",desired:"-",actual:$actual,drift:"UNMANAGED"}'
+        elif [[ "$OUTPUT_FORMAT" != "json" ]]; then
+            printf "%-22s %-10s %-12s %-12s %s\n" \
+                "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
+        fi
+    done < <(get_unmanaged_names "$agents_json" "$@")
 }
 
 main "$@"
