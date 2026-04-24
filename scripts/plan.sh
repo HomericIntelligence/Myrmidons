@@ -29,6 +29,7 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -h|--help) usage; exit 0 ;;
+            --dry-run) shift ;;
             *) HOST="$1"; shift ;;
         esac
     done
@@ -61,6 +62,10 @@ main() {
     fi
 
     local has_changes=0
+    local CREATE_COUNT=0
+    local UPDATE_COUNT=0
+    local WAKE_COUNT=0
+    local HIBERNATE_COUNT=0
 
     log_info "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
     log_info "================================================================"
@@ -80,6 +85,7 @@ main() {
         log_info "No changes needed. Desired state matches actual state."
         exit 0
     else
+        log_warn "Summary: created=${CREATE_COUNT} updated=${UPDATE_COUNT} woken=${WAKE_COUNT} hibernated=${HIBERNATE_COUNT}"
         log_warn "Changes would be made. Run ./scripts/apply.sh to apply."
         exit 1
     fi
@@ -114,6 +120,7 @@ plan_agent() {
         if [[ "$desired_state" == "active" ]]; then
             log_info "    └─ WAKE after create"
         fi
+        ((CREATE_COUNT++))
         return 1
     fi
 
@@ -127,15 +134,18 @@ plan_agent() {
             ;;
         WAKE)
             log_warn "[!] WAKE ${name} (desired=active, actual=$(echo "$actual_json" | jq -r '.status'))"
+            ((WAKE_COUNT++))
             return 1
             ;;
         HIBERNATE)
             log_warn "[z] HIBERNATE ${name} (desired=hibernated, actual=$(echo "$actual_json" | jq -r '.status'))"
+            ((HIBERNATE_COUNT++))
             return 1
             ;;
         UPDATE:*)
             local fields_changed="${action#UPDATE:}"
             log_warn "[~] UPDATE ${name}: ${fields_changed} differ"
+            ((UPDATE_COUNT++))
             return 1
             ;;
     esac
