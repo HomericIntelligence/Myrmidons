@@ -14,6 +14,7 @@ on:
       - 'pixi.lock'
       - 'hooks/**'
       - 'tests/**'
+      - 'CHANGELOG.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
@@ -21,6 +22,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   lint:
@@ -29,21 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install shellcheck
-        env:
-          SHELLCHECK_VERSION: "v0.10.0"
-        run: |
-          curl -fsSL \
-            "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
-            | tar -xJ --strip-components=1 -C /usr/local/bin \
-                "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
-          shellcheck --version
+      - uses: ./.github/actions/setup-pixi
+        with:
+          environment: lint
 
       - name: Run shellcheck
-        run: |
-          find scripts tests hooks -name '*.sh' -o -name 'pre-commit' 2>/dev/null \
-            | sort \
-            | xargs shellcheck --severity=warning
+        run: pixi run --environment lint lint-shell
 
       - name: Install actionlint
         env:
@@ -70,6 +63,66 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  changelog:
+    name: CHANGELOG Updated
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check CHANGELOG.md was updated
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Allow skip via [skip changelog] in PR title/body or commit messages
+          if echo "${PR_TITLE}" | grep -qiF '[skip changelog]'; then
+            echo "Skipping CHANGELOG check: [skip changelog] found in PR title."
+            exit 0
+          fi
+          if echo "${PR_BODY}" | grep -qiF '[skip changelog]'; then
+            echo "Skipping CHANGELOG check: [skip changelog] found in PR body."
+            exit 0
+          fi
+
+          # Check labels (requires pull-requests: read permission)
+          labels="$(gh pr view "${PR_NUMBER}" \
+            --repo "${REPO}" \
+            --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")"
+          if echo "$labels" | grep -qi "skip changelog"; then
+            echo "Skipping CHANGELOG check: 'skip changelog' label found."
+            exit 0
+          fi
+
+          # Check if any commit in this PR contains [skip changelog]
+          if git log "origin/${BASE_REF}..HEAD" --format="%s %b" \
+              | grep -qiF '[skip changelog]'; then
+            echo "Skipping CHANGELOG check: [skip changelog] found in a commit message."
+            exit 0
+          fi
+
+          # Check if CHANGELOG.md was changed in this PR
+          changed_files="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          if echo "$changed_files" | grep -qx "CHANGELOG.md"; then
+            echo "CHANGELOG.md was updated. OK."
+            exit 0
+          fi
+
+          echo "ERROR: CHANGELOG.md was not updated in this PR."
+          echo ""
+          echo "Please add an entry under the [Unreleased] section in CHANGELOG.md"
+          echo "describing what changed. Use conventional commit categories:"
+          echo "  ### Added / Changed / Fixed / Removed / Security"
+          echo ""
+          echo "To skip this check, include [skip changelog] in the PR title, body,"
+          echo "any commit message, or add the 'skip changelog' label to the PR."
+          exit 1
+
   validate:
     name: Validate YAML Schemas
     runs-on: ubuntu-latest
@@ -90,3 +143,21 @@ jobs:
         env:
           CI: "true"
         run: pixi run test-schema
+
+  doctor:
+    name: Doctor — Dependency Check
+    runs-on: ubuntu-latest
+    needs: [lint]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pixi
+
+      - name: Run doctor (deps only, skip connectivity)
+        run: |
+          chmod +x scripts/doctor.sh
+          # In CI there is no real Agamemnon endpoint; skip connectivity check.
+          # The doctor still validates that required tools (yq, jq, curl) and
+          # the pixi environment are all present and functional.
+          pixi run bash scripts/doctor.sh --skip-connectivity

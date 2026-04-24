@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- CHANGELOG.md update validation in PR CI workflow — PRs must update CHANGELOG.md or include `[skip changelog]` to bypass (#126, #127)
+- Doctor dependency check (`scripts/doctor.sh --skip-connectivity`) added to validate.yml CI (#244)
+
+### Changed
+- validate.yml lint job now uses pixi's shellcheck (via `pixi run --environment lint lint-shell`) instead of a manual curl install (#102)
+
 ## [0.3.0] - 2026-04-05
 
 ### Added
