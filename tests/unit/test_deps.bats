@@ -50,8 +50,9 @@ teardown() {
     /bin/cp "$jq_path" "$TOOLS_BIN/jq"
     /bin/cp "$curl_path" "$TOOLS_BIN/curl"
 
-    # Set PATH to only have our TOOLS_BIN (which has jq and curl but NOT yq)
-    PATH="$TOOLS_BIN:/bin:/usr/bin"
+    # Set PATH to only have our TOOLS_BIN (which has jq and curl but NOT yq).
+    # Exclude /bin, /usr/bin, and pixi-managed dirs so pixi-installed yq isn't found.
+    PATH="$TOOLS_BIN:/usr/sbin:/sbin"
 
     # check_deps should fail because yq is not in PATH
     ! check_deps
