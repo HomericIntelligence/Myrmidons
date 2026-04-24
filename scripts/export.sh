@@ -16,15 +16,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/lib/config.sh
+source "${SCRIPT_DIR}/lib/config.sh"
 # shellcheck source=scripts/lib/log.sh
 source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
 
+load_config
+
 HOST="${1:-hermes}"
 OUTPUT_DIR="${REPO_ROOT}/agents/${HOST}"
 
 main() {
+    # Validate AGAMEMNON_URL format early (#118)
+    validate_agamemnon_url
+
     check_jq
     agamemnon_check_connection
 

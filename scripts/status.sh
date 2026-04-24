@@ -14,6 +14,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# shellcheck source=scripts/lib/config.sh
+source "${SCRIPT_DIR}/lib/config.sh"
 # shellcheck source=scripts/lib/log.sh
 source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
@@ -22,6 +24,8 @@ source "${SCRIPT_DIR}/lib/api.sh"
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 # shellcheck source=scripts/lib/report.sh
 source "${SCRIPT_DIR}/lib/report.sh"
+
+load_config
 
 HOST=""
 OUTPUT_FORMAT="text"   # "text" | "json"
@@ -56,6 +60,9 @@ EOF
 
 main() {
     parse_args "$@"
+
+    # Validate AGAMEMNON_URL format early (#118)
+    validate_agamemnon_url
 
     check_deps
     agamemnon_check_connection

@@ -21,13 +21,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/lib/config.sh
+source "${SCRIPT_DIR}/lib/config.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 # shellcheck source=scripts/lib/report.sh
 source "${SCRIPT_DIR}/lib/report.sh"
+
+load_config
 
 HOST=""
 PRUNE=0
@@ -95,6 +100,17 @@ main() {
 
     parse_args "$@"
 
+    # Validate AGAMEMNON_URL format early (#118)
+    validate_agamemnon_url
+
+    # Validate HOST argument against known agents/ subdirectories (#149)
+    if [[ -n "$HOST" && ! -d "${REPO_ROOT}/agents/${HOST}" ]]; then
+        echo "ERROR: Host '${HOST}' not found — no agents/${HOST}/ directory exists." >&2
+        echo "  Known hosts: $(find "${REPO_ROOT}/agents" -mindepth 1 -maxdepth 1 -type d \
+            ! -name '_templates' -printf '%f ' 2>/dev/null || echo '(none)')" >&2
+        exit 1
+    fi
+
     # Export AIM_LOCK_TIMEOUT for use by child processes (e.g. api.sh)
     export AIM_LOCK_TIMEOUT
 
@@ -129,12 +145,10 @@ main() {
     agamemnon_check_connection
 
     # Check for agents/ and fleets/ directories
-    local repo_root
-    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     local has_agents=false
     local has_fleets=false
-    [[ -d "${repo_root}/agents/" ]] && has_agents=true
-    [[ -d "${repo_root}/fleets/" ]] && has_fleets=true
+    [[ -d "${REPO_ROOT}/agents/" ]] && has_agents=true
+    [[ -d "${REPO_ROOT}/fleets/" ]] && has_fleets=true
 
     if [[ "$has_agents" == "false" && "$has_fleets" == "false" ]]; then
         log_error "Neither agents/ nor fleets/ directory found — nothing to reconcile"

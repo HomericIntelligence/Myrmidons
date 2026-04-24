@@ -15,13 +15,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/lib/config.sh
+source "${SCRIPT_DIR}/lib/config.sh"
 # shellcheck source=scripts/lib/log.sh
 source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
 # shellcheck source=scripts/lib/reconcile.sh
 source "${SCRIPT_DIR}/lib/reconcile.sh"
+
+load_config
 
 HOST=""
 
@@ -47,6 +52,18 @@ usage() {
 
 main() {
     parse_args "$@"
+
+    # Validate AGAMEMNON_URL format early (#118)
+    validate_agamemnon_url
+
+    # Validate HOST argument against known agents/ subdirectories (#149)
+    if [[ -n "$HOST" && ! -d "${REPO_ROOT}/agents/${HOST}" ]]; then
+        log_error "Host '${HOST}' not found — no agents/${HOST}/ directory exists."
+        log_error "  Known hosts: $(find "${REPO_ROOT}/agents" -mindepth 1 -maxdepth 1 -type d \
+            ! -name '_templates' -printf '%f ' 2>/dev/null || echo '(none)')"
+        exit 1
+    fi
+
     check_deps
     agamemnon_check_connection
 
