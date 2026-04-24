@@ -1,4 +1,5 @@
 # yaml-language-server: $schema=../schemas/fleet-v1.schema.json
+# yaml-language-server: $schema=../schemas/fleet-v1.schema.json
 apiVersion: myrmidons/v1
 kind: Fleet
 metadata:
