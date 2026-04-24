@@ -128,6 +128,23 @@ main() {
     check_deps
     agamemnon_check_connection
 
+    # Check for agents/ and fleets/ directories
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    local has_agents=false
+    local has_fleets=false
+    [[ -d "${repo_root}/agents/" ]] && has_agents=true
+    [[ -d "${repo_root}/fleets/" ]] && has_fleets=true
+
+    if [[ "$has_agents" == "false" && "$has_fleets" == "false" ]]; then
+        log_error "Neither agents/ nor fleets/ directory found — nothing to reconcile"
+        exit 1
+    elif [[ "$has_agents" == "false" ]]; then
+        log_warn "agents/ directory not found — reconciling fleets only"
+    elif [[ "$has_fleets" == "false" ]]; then
+        log_warn "fleets/ directory not found — reconciling agents only"
+    fi
+
     # Initialise report accumulator
     report_init "${HOST:-all}"
     trap report_cleanup EXIT
