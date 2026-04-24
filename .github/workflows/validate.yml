@@ -8,6 +8,8 @@ on:
       - 'fleets/**'
       - 'scripts/**'
       - '.github/workflows/**'
+      - 'schemas/**'
+      - '.myrmidons.yaml'
       - 'pixi.toml'
       - 'pixi.lock'
 

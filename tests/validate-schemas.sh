@@ -186,13 +186,62 @@ done
 echo ""
 echo "Checked: ${CHECKED} files, Errors: ${ERRORS}"
 
-if [[ $ERRORS -gt 0 ]]; then
-    exit 1
-fi
-
 # Also validate fleet ref referential integrity (skip if script is not present,
 # e.g. when running from a temp directory in unit tests)
 if [[ -x "${SCRIPT_DIR}/validate-fleet-refs.sh" ]]; then
     echo ""
-    "${SCRIPT_DIR}/validate-fleet-refs.sh"
+    "${SCRIPT_DIR}/validate-fleet-refs.sh" || ERRORS=$((ERRORS + 1))
+fi
+
+# ─── Validate .myrmidons.yaml project config (issue #235) ─────────────────────
+CONFIG_FILE="${REPO_ROOT}/.myrmidons.yaml"
+if [[ -f "$CONFIG_FILE" ]]; then
+    echo ""
+    echo "Validating .myrmidons.yaml project configuration..."
+    config_errors=()
+
+    cfg_log_level="$(yq eval '.logLevel // ""' "$CONFIG_FILE")"
+    cfg_prune_policy="$(yq eval '.prunePolicy // ""' "$CONFIG_FILE")"
+    cfg_aim_host="$(yq eval '.aimHost // ""' "$CONFIG_FILE")"
+    cfg_snapshot_retention="$(yq eval '.snapshotRetention // ""' "$CONFIG_FILE")"
+
+    if [[ -n "$cfg_log_level" ]]; then
+        case "$cfg_log_level" in
+            debug|info|warn|error) ;;
+            *) config_errors+=("logLevel must be one of: debug info warn error (got '${cfg_log_level}')") ;;
+        esac
+    fi
+
+    if [[ -n "$cfg_prune_policy" ]]; then
+        case "$cfg_prune_policy" in
+            manual|auto) ;;
+            *) config_errors+=("prunePolicy must be one of: manual auto (got '${cfg_prune_policy}')") ;;
+        esac
+    fi
+
+    if [[ -n "$cfg_aim_host" ]]; then
+        if [[ "$cfg_aim_host" != http://* && "$cfg_aim_host" != https://* ]]; then
+            config_errors+=("aimHost must start with http:// or https:// (got '${cfg_aim_host}')")
+        fi
+    fi
+
+    if [[ -n "$cfg_snapshot_retention" ]]; then
+        if ! [[ "$cfg_snapshot_retention" =~ ^[0-9]+$ ]]; then
+            config_errors+=("snapshotRetention must be a non-negative integer (got '${cfg_snapshot_retention}')")
+        fi
+    fi
+
+    if [[ ${#config_errors[@]} -gt 0 ]]; then
+        echo "  .myrmidons.yaml: FAIL"
+        for err in "${config_errors[@]}"; do
+            echo "      - ${err}"
+        done
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "  .myrmidons.yaml: ok"
+    fi
+fi
+
+if [[ $ERRORS -gt 0 ]]; then
+    exit 1
 fi
