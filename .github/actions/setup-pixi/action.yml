@@ -22,3 +22,11 @@ runs:
           ~/.cache/rattler/cache
         key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
         restore-keys: pixi-${{ runner.os }}-
+
+    - name: Add pixi env tools to PATH
+      shell: bash
+      run: |
+        env_bin=".pixi/envs/${{ inputs.environment }}/bin"
+        if [[ -d "$env_bin" ]]; then
+          echo "$(pwd)/${env_bin}" >> "$GITHUB_PATH"
+        fi
