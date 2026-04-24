@@ -176,7 +176,14 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    if [[ -n "$FLEET" ]]; then
+        trap cleanup_fleet_tmpdir EXIT
+        local fleet_file
+        fleet_file="$(find_fleet_file "$FLEET")"
+        mapfile -t yaml_files < <(resolve_fleet_files "$fleet_file")
+    else
+        mapfile -t yaml_files < <(get_agent_files "$HOST")
+    fi
 
     if [[ $RETRY -eq 1 ]]; then
         if [[ ! -f "${FAILED_AGENTS_FILE}" ]] || [[ ! -s "${FAILED_AGENTS_FILE}" ]]; then
@@ -271,6 +278,7 @@ apply_agent() {
     name="$(yq eval '.metadata.name' "$yaml_file")"
     label="$(yq eval '.spec.label // ""' "$yaml_file")"
     program="$(yq eval '.spec.program // "claude-code"' "$yaml_file")"
+    # shellcheck disable=SC2034  # model: parsed for completeness; drift not tracked (see CLAUDE.md)
     model="$(yq eval '.spec.model // ""' "$yaml_file")"
     workdir="$(yq eval '.spec.workingDirectory // ""' "$yaml_file")"
     args="$(yq eval '.spec.programArgs // ""' "$yaml_file")"
@@ -278,6 +286,7 @@ apply_agent() {
     tags="$(yq eval '.spec.tags // [] | join(",")' "$yaml_file")"
     owner="$(yq eval '.spec.owner // ""' "$yaml_file")"
     role="$(yq eval '.spec.role // "member"' "$yaml_file")"
+    # shellcheck disable=SC2034  # deploy_type: parsed for completeness; drift not tracked (see CLAUDE.md)
     deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
 
@@ -344,7 +353,8 @@ apply_agent() {
             else
                 local http_status
                 http_status="$(echo "$wake_out" | grep -oE 'HTTP [0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
-                local err_msg="$(echo "$wake_out" | tail -1)"
+                local err_msg
+                err_msg="$(echo "$wake_out" | tail -1)"
                 echo "    ERROR starting ${name}: ${err_msg}" >&2
                 record_failure "$name" "$http_status" "Failed to wake agent: ${err_msg}"
             fi
@@ -358,7 +368,8 @@ apply_agent() {
             else
                 local http_status
                 http_status="$(echo "$hib_out" | grep -oE 'HTTP [0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
-                local err_msg="$(echo "$hib_out" | tail -1)"
+                local err_msg
+                err_msg="$(echo "$hib_out" | tail -1)"
                 echo "    ERROR stopping ${name}: ${err_msg}" >&2
                 record_failure "$name" "$http_status" "Failed to hibernate agent: ${err_msg}"
             fi
@@ -394,7 +405,8 @@ apply_agent() {
             else
                 local http_status
                 http_status="$(echo "$update_out" | grep -oE 'HTTP [0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
-                local err_msg="$(echo "$update_out" | tail -1)"
+                local err_msg
+                err_msg="$(echo "$update_out" | tail -1)"
                 echo "    ERROR updating ${name}: ${err_msg}" >&2
                 record_failure "$name" "$http_status" "Failed to update fields [${changed_fields}]: ${err_msg}"
             fi
