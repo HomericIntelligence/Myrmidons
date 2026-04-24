@@ -64,9 +64,31 @@ while IFS= read -r -d '' file; do
     fi
 
     if [[ "$kind" == "Fleet" ]]; then
+        field_errors=()
         fleet_name="$(yq eval '.metadata.name // ""' "$file")"
-        [[ -z "$fleet_name" ]] && echo "FAIL (metadata.name required in Fleet)" && ERRORS=$((ERRORS+1)) && continue
-        echo "ok (Fleet: ${fleet_name})"
+        [[ -z "$fleet_name" ]] && field_errors+=("metadata.name is required in Fleet")
+
+        # Validate Fleet filename matches metadata.name (same convention as Agents)
+        if [[ -n "$fleet_name" ]]; then
+            expected_filename="$(echo "$fleet_name" | tr '[:upper:]' '[:lower:]').yaml"
+            actual_filename="$(basename "$file")"
+            if [[ "$actual_filename" != "$expected_filename" ]]; then
+                field_errors+=("filename '$actual_filename' does not match metadata.name '$fleet_name' (expected '$expected_filename')")
+            fi
+        fi
+
+        if [[ ${#field_errors[@]} -gt 0 ]]; then
+            echo "FAIL"
+            for err in "${field_errors[@]}"; do
+                echo "      - ${err}"
+            done
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "ok (Fleet: ${fleet_name})"
+        fi
+
+        # Track names for uniqueness check (only non-empty names to avoid false positives)
+        [[ -n "$fleet_name" ]] && agent_names["$fleet_name"]+=" $file"
         continue
     fi
 
