@@ -34,6 +34,7 @@ load_config
 HOST=""
 FLEET_NAME=""
 OUTPUT_FORMAT="text"   # "text" | "json"
+PRUNE=0
 
 # Counters for JSON output
 CREATE_COUNT=0
@@ -53,6 +54,7 @@ parse_args() {
             --fleet)    FLEET_NAME="$2"; shift 2 ;;
             --output)   OUTPUT_FORMAT="$2"; shift 2 ;;
             --webhook)  shift 2 ;;  # Accepted but ignored in plan
+            --prune)    PRUNE=1; shift ;;
             -*) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
             *) HOST="$1"; shift ;;
         esac
@@ -60,7 +62,7 @@ parse_args() {
 }
 
 usage() {
-    echo "Usage: $0 [host] [--fleet <name>] [--output json]"
+    echo "Usage: $0 [host] [--fleet <name>] [--output json] [--prune]"
     echo ""
     echo "Shows what apply.sh would do without making any changes."
     echo ""
@@ -68,6 +70,7 @@ usage() {
     echo "  host           Only plan agents for this host (default: all)"
     echo "  --fleet <name> Only plan agents in the named fleet"
     echo "  --output json  Emit a machine-readable JSON plan report to stdout"
+    echo "  --prune        Also show which unmanaged agents would be pruned"
     echo "  -h, --help     Show this help"
     echo ""
     echo "Examples:"
@@ -76,6 +79,7 @@ usage() {
     echo "  $0 --fleet dev-mesh       # Plan agents in the dev-mesh fleet"
     echo "  $0 --output json          # Machine-readable JSON summary"
     echo "  $0 hermes --output json | jq .summary"
+    echo "  $0 --prune                # Plan including unmanaged agent removal"
 }
 
 # plan_report_unmanaged wraps reconcile.sh's report_unmanaged to avoid
@@ -119,6 +123,10 @@ main() {
     _PLAN_CHANGES_TMP="$(mktemp)"
     trap 'rm -f "$_PLAN_CHANGES_TMP"; cleanup_fleet_tmpdir' EXIT
 
+    # NOTE: apply.sh fetches agents_json once and refreshes it after each
+    # change (cache optimization). In dry-run / plan mode no changes are made,
+    # so a single fetch is sufficient and the per-agent refresh is intentionally
+    # skipped. (#96)
     local agents_json
     agents_json="$(agamemnon_list_agents)"
 
@@ -137,7 +145,9 @@ main() {
     local has_changes=0
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-        log_info "Plan for ${AGAMEMNON_URL} (dry-run — no changes will be made)"
+        local prune_indicator=""
+        [[ $PRUNE -eq 1 ]] && prune_indicator=" +prune"
+        log_info "Plan for ${AGAMEMNON_URL} (dry-run${prune_indicator} — no changes will be made)"
         log_info "================================================================"
         log_info ""
     fi
@@ -160,14 +170,26 @@ main() {
         fi
         log_info ""
         log_info "Checking for unmanaged agents..."
-        plan_report_unmanaged "$scoped_agents_json" "${yaml_files[@]}"
+        if [[ $PRUNE -eq 1 ]]; then
+            local PRUNE_COUNT=0
+            # Show which unmanaged agents would be pruned
+            while IFS= read -r unmanaged_name; do
+                log_warn "[-] PRUNE ${unmanaged_name} (unmanaged — would be hibernated and deleted)"
+                PRUNE_COUNT=$((PRUNE_COUNT + 1))
+                has_changes=1
+            done < <(get_unmanaged_names "$scoped_agents_json" "${yaml_files[@]}")
+        else
+            plan_report_unmanaged "$scoped_agents_json" "${yaml_files[@]}"
+        fi
 
         log_info ""
         if [[ $has_changes -eq 0 ]]; then
             log_info "No changes needed. Desired state matches actual state."
             exit 0
         else
-            log_warn "Summary: created=${CREATE_COUNT} updated=${UPDATE_COUNT} woken=${WAKE_COUNT} hibernated=${HIBERNATE_COUNT}"
+            local summary="created=${CREATE_COUNT} updated=${UPDATE_COUNT} woken=${WAKE_COUNT} hibernated=${HIBERNATE_COUNT}"
+            [[ $PRUNE -eq 1 ]] && summary="${summary} pruned=${PRUNE_COUNT:-0}"
+            log_warn "Summary: ${summary}"
             log_warn "Changes would be made. Run ./scripts/apply.sh to apply."
             exit 1
         fi
