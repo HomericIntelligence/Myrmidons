@@ -178,10 +178,12 @@ find_fleet_file() {
 # Refs (ref: host/agent-name) are resolved to existing agent files.
 # Inline agents are written to temp files (caller must clean up FLEET_TMPDIR).
 # Sets global FLEET_TMPDIR if inline agents are created.
-# Usage: resolve_fleet_files <fleet-yaml-path>
+# Usage: resolve_fleet_files <fleet-yaml-path> [host-filter]
+# When host-filter is non-empty, only refs whose host portion matches are emitted.
 # Outputs one file path per line.
 resolve_fleet_files() {
     local fleet_file="$1"
+    local host_filter="${2:-}"
     local repo_root
     repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -200,6 +202,12 @@ resolve_fleet_files() {
             local ref_host ref_name
             ref_host="${ref%%/*}"
             ref_name="${ref#*/}"
+
+            # Apply host filter: skip refs that don't match the requested host
+            if [[ -n "$host_filter" && "$ref_host" != "$host_filter" ]]; then
+                continue
+            fi
+
             local agent_file="${repo_root}/agents/${ref_host}/${ref_name}.yaml"
             if [[ ! -f "$agent_file" ]]; then
                 echo "ERROR: Fleet ref '${ref}' not found at ${agent_file}" >&2
@@ -208,6 +216,11 @@ resolve_fleet_files() {
             echo "$agent_file"
         else
             # Inline agent definition — extract and write to a temp file
+            # Apply host filter: inline agents inherit the fleet's host
+            if [[ -n "$host_filter" && "$fleet_host" != "$host_filter" ]]; then
+                continue
+            fi
+
             if [[ -z "${FLEET_TMPDIR:-}" ]]; then
                 FLEET_TMPDIR="$(mktemp -d)"
             fi
