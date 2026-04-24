@@ -10,6 +10,7 @@
 #   ./scripts/apply.sh --fleet dev-mesh
 #   ./scripts/apply.sh --prune                 # Also hibernate+delete unmanaged agents
 #   ./scripts/apply.sh --dry-run               # Same as plan.sh
+#   ./scripts/apply.sh --yes                   # Skip interactive confirmation prompt
 #   ./scripts/apply.sh --output json           # Emit JSON reconciliation report to stdout
 #   ./scripts/apply.sh --webhook <url>         # POST report to webhook URL after apply
 #   ./scripts/apply.sh --fail-fast             # Stop on first error
@@ -19,6 +20,9 @@
 #   - Never auto-deletes agents without --prune flag
 #   - Always hibernates before deleting
 #   - Prints a summary of what was done
+#   - Acquires a lock file to prevent concurrent runs (AIM_LOCK_FILE env var)
+#   - Prompts for confirmation before destructive changes unless --yes is passed
+#   - Verifies convergence after apply and reports any agents that didn't converge
 #
 # Exit codes:
 #   0 = all agents applied successfully
@@ -47,11 +51,15 @@ PRUNE=0
 DRY_RUN=0
 FAIL_FAST=0
 RETRY=0
+YES=0
 OUTPUT_FORMAT="text"   # "text" | "json"
 WEBHOOK_URL=""
+AIM_LOCK_FILE="${AIM_LOCK_FILE:-.myrmidons.lock}"
 AIM_LOCK_TIMEOUT="${AIM_LOCK_TIMEOUT:-60}"
 SNAPSHOT_DIR=""
 SNAPSHOT_KEEP="${SNAPSHOT_KEEP:-10}"
+# File descriptor used for flock (9)
+_LOCK_FD=9
 
 CREATED=0
 UPDATED=0
@@ -71,6 +79,13 @@ FAILED_AGENT_MESSAGES=()
 MYRMIDONS_STATE_DIR="${REPO_ROOT}/.myrmidons"
 FAILED_AGENTS_FILE="${MYRMIDONS_STATE_DIR}/failed-agents.txt"
 
+# Arrays tracking modified agents for convergence verification (#41)
+_MODIFIED_NAMES=()
+_MODIFIED_DESIRED=()
+
+# Counts of destructive operations pending — used by confirmation prompt (#48)
+_DESTRUCTIVE_COUNT=0
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -80,6 +95,7 @@ parse_args() {
             --retry)            RETRY=1; shift ;;
             --fleet)            FLEET_NAME="$2"; shift 2 ;;
             --failed-agents-file) FAILED_AGENTS_FILE="$2"; shift 2 ;;
+            --yes|-y)           YES=1; shift ;;
             --lock-timeout)     AIM_LOCK_TIMEOUT="$2"; shift 2 ;;
             --output)           OUTPUT_FORMAT="$2"; shift 2 ;;
             --webhook)          WEBHOOK_URL="$2"; shift 2 ;;
@@ -93,7 +109,7 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--force] [--fail-fast] [--retry] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--yes] [--force] [--fail-fast] [--retry] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
@@ -108,6 +124,9 @@ Options:
                              File is self-managing: updated on partial success, cleared on
                              full success. Operators need not manually manage this file.
   --failed-agents-file PATH  Path to the failed-agents file (default: .myrmidons/failed-agents.txt).
+  --yes, -y                  Skip the interactive confirmation prompt for destructive
+                             changes (WAKE, HIBERNATE, DELETE/PRUNE). Required in
+                             non-interactive (CI) environments unless already non-tty.
   --force                    Force apply even if lock acquisition times out.
   --lock-timeout SECS        Set lock acquisition timeout in seconds (default: 60).
                              Also configurable via AIM_LOCK_TIMEOUT env var.
@@ -118,11 +137,17 @@ Options:
                              Also configurable via SNAPSHOT_DIR env var.
   -h, --help                 Show this help
 
+Environment variables:
+  AIM_LOCK_FILE        Path to the apply lock file (default: .myrmidons.lock).
+                       Set to a workspace-scoped path in parallel CI environments.
+  AIM_LOCK_TIMEOUT     Lock acquisition timeout in seconds (default: 60).
+
 Examples:
   $0                              # Reconcile everything
   $0 hermes                       # Reconcile hermes only
   $0 --fleet dev-mesh             # Reconcile agents in the dev-mesh fleet
   $0 --prune                      # Reconcile + remove unmanaged agents
+  $0 --yes                        # Skip confirmation prompt (e.g. in CI)
   $0 --dry-run --force            # Dry-run (force is handled correctly)
   $0 --fail-fast                  # Stop on first error
   $0 --retry                      # Re-attempt agents from last failure
@@ -183,6 +208,196 @@ print_error_summary() {
     echo "Run 'just retry' to re-apply only failed agents."
 }
 
+# ---------------------------------------------------------------------------
+# #54 — Lock file: prevent concurrent apply runs
+# ---------------------------------------------------------------------------
+
+# acquire_lock — open AIM_LOCK_FILE on fd 9 and obtain an exclusive flock.
+# Waits up to AIM_LOCK_TIMEOUT seconds. Exits with error if it times out.
+# Release happens automatically when the fd is closed (i.e. process exits).
+acquire_lock() {
+    # Open (or create) the lock file on the dedicated fd.
+    # eval is the portable way to open a file on a dynamic fd number in bash.
+    eval "exec ${_LOCK_FD}>> \"\${AIM_LOCK_FILE}\""
+
+    if ! flock -w "${AIM_LOCK_TIMEOUT}" "${_LOCK_FD}"; then
+        echo "ERROR: Could not acquire apply lock '${AIM_LOCK_FILE}' within ${AIM_LOCK_TIMEOUT}s." >&2
+        echo "  Another apply.sh may be running. If not, remove the lock file and retry." >&2
+        echo "  Lock file: $(pwd)/${AIM_LOCK_FILE}" >&2
+        exit 1
+    fi
+}
+
+# release_lock — explicitly release the flock and close the fd.
+# Called from the EXIT trap so it runs even on error exit.
+release_lock() {
+    # Close the fd — flock is released automatically.
+    eval "exec ${_LOCK_FD}>&-" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
+# #48 — Confirmation prompt: count pending destructive ops and ask user
+# ---------------------------------------------------------------------------
+
+# count_destructive_ops — scan YAML files for agents that will need WAKE,
+# HIBERNATE, DELETE (PRUNE), or CREATE against current Agamemnon state.
+# Sets global _DESTRUCTIVE_COUNT.
+count_destructive_ops() {
+    local agents_json="$1"
+    shift
+    local yaml_files=("$@")
+    _DESTRUCTIVE_COUNT=0
+
+    for yaml_file in "${yaml_files[@]}"; do
+        local name desired_state actual_json actual_status
+        name="$(yq eval '.metadata.name' "$yaml_file")"
+        desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
+        actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
+
+        if [[ -z "$actual_json" ]]; then
+            # CREATE is destructive (new agent + potentially WAKE)
+            _DESTRUCTIVE_COUNT=$((_DESTRUCTIVE_COUNT + 1))
+            continue
+        fi
+
+        actual_status="$(echo "$actual_json" | jq -r '.status // "unknown"')"
+
+        if [[ "$desired_state" == "active" && "$actual_status" == "offline" ]]; then
+            _DESTRUCTIVE_COUNT=$((_DESTRUCTIVE_COUNT + 1))
+        elif [[ "$desired_state" == "hibernated" ]] && \
+             [[ "$actual_status" == "active" || "$actual_status" == "online" ]]; then
+            _DESTRUCTIVE_COUNT=$((_DESTRUCTIVE_COUNT + 1))
+        fi
+    done
+
+    # PRUNE operations are also destructive
+    if [[ $PRUNE -eq 1 ]]; then
+        local managed_names=()
+        for yaml_file in "${yaml_files[@]}"; do
+            managed_names+=("$(yq eval '.metadata.name' "$yaml_file")")
+        done
+        while IFS= read -r actual_name; do
+            local is_managed=0
+            for mn in "${managed_names[@]}"; do
+                [[ "$mn" == "$actual_name" ]] && is_managed=1 && break
+            done
+            [[ $is_managed -eq 0 ]] && _DESTRUCTIVE_COUNT=$((_DESTRUCTIVE_COUNT + 1))
+        done < <(echo "$agents_json" | jq -r '.[].name')
+    fi
+}
+
+# confirm_destructive — prompt the user if there are destructive ops pending
+# and --yes was not passed. Returns 0 if proceed, exits 0 if user declines.
+confirm_destructive() {
+    local total_changes="$1"
+
+    # Non-interactive or --yes: skip prompt
+    if [[ $YES -eq 1 ]] || [[ ! -t 0 ]]; then
+        return 0
+    fi
+
+    if [[ $_DESTRUCTIVE_COUNT -eq 0 ]]; then
+        return 0
+    fi
+
+    echo ""
+    echo "Pending changes: ${total_changes} total, ${_DESTRUCTIVE_COUNT} destructive (WAKE/HIBERNATE/CREATE/PRUNE)"
+    printf "Apply %d change(s) to %s? [y/N] " "${total_changes}" "${AGAMEMNON_URL}"
+    local reply
+    read -r reply
+    case "$reply" in
+        [Yy]|[Yy][Ee][Ss])
+            return 0
+            ;;
+        *)
+            echo "Aborted."
+            exit 0
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# #41 — Convergence verification: re-check state after apply loop
+# ---------------------------------------------------------------------------
+
+# verify_convergence — re-fetch agent states for all modified agents and
+# confirm desired == actual. Reports any that did not converge.
+# Returns 1 if any agent failed to converge (caller should increment ERRORS).
+verify_convergence() {
+    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    local failed=0
+    local verified=0
+
+    if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+        echo ""
+        echo "Verifying convergence for ${#_MODIFIED_NAMES[@]} modified agent(s)..."
+    fi
+
+    # Refresh agent list once for all convergence checks
+    local agents_json_fresh
+    agents_json_fresh="$(agamemnon_list_agents)"
+
+    for i in "${!_MODIFIED_NAMES[@]}"; do
+        local agent_name="${_MODIFIED_NAMES[$i]}"
+        local desired="${_MODIFIED_DESIRED[$i]}"
+
+        local actual_json actual_status
+        actual_json="$(echo "$agents_json_fresh" | jq -r --arg n "$agent_name" '.[] | select(.name == $n)')"
+
+        if [[ -z "$actual_json" ]]; then
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "  [!] ${agent_name}: NOT FOUND in Agamemnon after apply (convergence failed)"
+            fi
+            failed=$((failed + 1))
+            continue
+        fi
+
+        actual_status="$(echo "$actual_json" | jq -r '.status // "unknown"')"
+
+        # Map desired state to expected runtime status
+        local converged=0
+        if [[ "$desired" == "active" ]]; then
+            # After a WAKE/CREATE, status should be active or online (not offline)
+            if [[ "$actual_status" == "active" || "$actual_status" == "online" || \
+                  "$actual_status" == "starting" ]]; then
+                converged=1
+            fi
+        elif [[ "$desired" == "hibernated" ]]; then
+            # After HIBERNATE, status should be offline or hibernated
+            if [[ "$actual_status" == "offline" || "$actual_status" == "hibernated" ]]; then
+                converged=1
+            fi
+        else
+            # For UPDATE actions (field changes only), treat as converged if agent exists
+            converged=1
+        fi
+
+        if [[ $converged -eq 1 ]]; then
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "  [ok] ${agent_name}: converged (status=${actual_status})"
+            fi
+            verified=$((verified + 1))
+        else
+            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                echo "  [!] ${agent_name}: NOT converged (desired=${desired}, actual_status=${actual_status})"
+            fi
+            failed=$((failed + 1))
+        fi
+    done
+
+    if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+        echo "Convergence: ${verified} converged, ${failed} failed."
+    fi
+
+    if [[ $failed -gt 0 ]]; then
+        return 1
+    fi
+    return 0
+}
+
 main() {
     # Save original args before parse_args consumes them for dry-run filtering
     local -a orig_args=("$@")
@@ -204,8 +419,8 @@ main() {
     export AIM_LOCK_TIMEOUT
 
     if [[ $DRY_RUN -eq 1 ]]; then
-        # Strip --force, --dry-run, --lock-timeout, and --snapshot-dir before
-        # forwarding to plan.sh (plan.sh doesn't understand these flags).
+        # Strip --force, --dry-run, --lock-timeout, --snapshot-dir, --yes, --fail-fast,
+        # and --retry before forwarding to plan.sh (plan.sh doesn't understand these flags).
         # --prune IS forwarded so plan.sh can show which unmanaged agents would
         # be removed, preserving the prune intent in dry-run output. (#69, #71)
         # --output and --webhook ARE also forwarded so plan.sh can emit JSON.
@@ -217,7 +432,7 @@ main() {
                 continue
             fi
             case "$arg" in
-                --force | --dry-run | --fail-fast | --retry)
+                --force | --dry-run | --fail-fast | --retry | --yes | -y)
                     continue
                     ;;
                 --lock-timeout | --snapshot-dir)
@@ -236,6 +451,10 @@ main() {
     check_deps
     agamemnon_check_connection
 
+    # #54 — Acquire apply lock to prevent concurrent runs.
+    acquire_lock
+    trap 'release_lock; report_cleanup; cleanup_fleet_tmpdir' EXIT
+
     # Check for agents/ and fleets/ directories
     local has_agents=false
     local has_fleets=false
@@ -253,7 +472,6 @@ main() {
 
     # Initialise report accumulator
     report_init "${HOST:-all}"
-    trap 'report_cleanup; cleanup_fleet_tmpdir' EXIT
 
     local agents_json
     agents_json="$(agamemnon_list_agents)"
@@ -290,6 +508,11 @@ main() {
         fi
         exit 0
     fi
+
+    # #48 — Count destructive ops and prompt for confirmation if needed.
+    count_destructive_ops "$agents_json" "${yaml_files[@]}"
+    local total_changes=${#yaml_files[@]}
+    confirm_destructive "$total_changes"
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo "Applying desired state to ${AGAMEMNON_URL}"
@@ -334,6 +557,11 @@ main() {
         scoped_agents_json="$agents_json"
     fi
     handle_unmanaged "$scoped_agents_json" "${yaml_files[@]}"
+
+    # #41 — Convergence verification: re-check all modified agents.
+    if ! verify_convergence; then
+        ERRORS=$((ERRORS + 1))
+    fi
 
     # Emit output
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then
@@ -451,6 +679,10 @@ apply_agent() {
                 woke_status="active"
             fi
 
+            # Track for convergence verification (#41)
+            _MODIFIED_NAMES+=("$name")
+            _MODIFIED_DESIRED+=("$desired_state")
+
             report_add_agent "$name" "$agent_host" "CREATE" "$desired_state" "$woke_status" "[]" ""
         else
             # Try to extract HTTP status from error output
@@ -495,6 +727,9 @@ apply_agent() {
                     echo "    Started."
                 fi
                 WOKEN=$((WOKEN + 1))
+                # Track for convergence verification (#41)
+                _MODIFIED_NAMES+=("$name")
+                _MODIFIED_DESIRED+=("$desired_state")
                 report_add_agent "$name" "$agent_host" "WAKE" "$desired_state" "$actual_status" "[]" ""
             else
                 local http_status err_msg
@@ -515,6 +750,9 @@ apply_agent() {
                     echo "    Hibernated."
                 fi
                 HIBERNATED=$((HIBERNATED + 1))
+                # Track for convergence verification (#41)
+                _MODIFIED_NAMES+=("$name")
+                _MODIFIED_DESIRED+=("$desired_state")
                 report_add_agent "$name" "$agent_host" "HIBERNATE" "$desired_state" "$actual_status" "[]" ""
             else
                 local http_status err_msg
@@ -564,6 +802,9 @@ apply_agent() {
                     echo "    Updated."
                 fi
                 UPDATED=$((UPDATED + 1))
+                # Track for convergence verification (#41)
+                _MODIFIED_NAMES+=("$name")
+                _MODIFIED_DESIRED+=("$desired_state")
                 report_add_agent "$name" "$agent_host" "UPDATE" "$desired_state" "$actual_status" "$drift_json" ""
 
                 # Also start/stop if state needs to change
