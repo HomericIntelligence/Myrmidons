@@ -8,6 +8,8 @@ on:
       - 'fleets/**'
       - 'pixi.toml'
       - 'pixi.lock'
+      - 'scripts/**'
+      - '.github/workflows/validate.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
@@ -27,4 +29,13 @@ jobs:
       - uses: ./.github/actions/setup-pixi
 
       - name: Validate all YAML files
+        env:
+          CI: "true"
         run: pixi run test-schema
+
+      - uses: ./.github/actions/setup-pixi
+        with:
+          environment: lint
+
+      - name: Run shellcheck
+        run: pixi run --environment lint lint-shell
