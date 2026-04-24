@@ -10,6 +10,7 @@ just      = ">=1.13"
 jq        = ">=1.6"
 go-yq     = ">=4.40,<5"
 bats-core = ">=1.11,<2"
+curl      = ">=8.0"
 
 [feature.lint.dependencies]
 shellcheck = ">=0.10,<1"
