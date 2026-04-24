@@ -59,11 +59,11 @@ check_jq() {
     fi
 }
 
-# Derive a safe filename from agent name (replaces - and _ with -)
-agent_filename() {
-    local name="$1"
-    # Use label (lowercased) if available, else use name
-    echo "${name}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
+# Derive the canonical filename stem from a label (lowercase, spaces→hyphens)
+# Convention: filename = lowercase(spec.label) + ".yaml"
+label_to_stem() {
+    local lbl="$1"
+    echo "${lbl}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
 }
 
 # Map program name → default AchaeanFleet image name
@@ -109,10 +109,18 @@ export_agent() {
     local tags_yaml
     tags_yaml="$(echo "$agent_json" | jq -r '.tags // [] | if length == 0 then "  tags: []" else "  tags:\n" + (map("    - " + .) | join("\n")) end')"
 
-    # Determine filename from label (lowercased, spaces→dashes)
+    # Derive filename from label per convention: filename = lowercase(spec.label) + ".yaml"
     local label_lower
-    label_lower="$(echo "$label" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
+    label_lower="$(label_to_stem "$label")"
     local outfile="${OUTPUT_DIR}/${label_lower}.yaml"
+
+    # Warn if a stale file exists under the old name-derived path that would not be overwritten
+    local name_lower
+    name_lower="$(label_to_stem "$name")"
+    local name_outfile="${OUTPUT_DIR}/${name_lower}.yaml"
+    if [[ "$name_lower" != "$label_lower" && -e "$name_outfile" ]]; then
+        log_warn "  WARN: stale file '${name_outfile}' may exist from a prior name-based export; label-derived path is '${outfile}'"
+    fi
 
     # Handle model: if "null" string, write null (no quotes)
     local model_yaml

@@ -4,7 +4,7 @@ metadata:
   name: test-duplicate-name
   host: hermes
 spec:
-  label: DuplicateB
+  label: Duplicate-Name-B
   program: aider
   model: null
   workingDirectory: /tmp

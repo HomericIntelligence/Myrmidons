@@ -213,6 +213,26 @@ rm -rf "$tree"
 assert_exit "unique names exits 0" 0 "$rc" "$output"
 assert_output_not_contains "no duplicate error when names unique" "duplicate metadata.name" "$output"
 
+# ─── Test 9: valid agent with matching label/filename passes without warning ───
+echo ""
+echo "Test 9: agent with matching filename stem and spec.label passes without naming warning"
+tree=$(make_tree "${FIXTURES_DIR}/agents/hermes/valid-agent.yaml")
+output=$(run_validator "$tree" 2>&1)
+rc=$?
+rm -rf "$tree"
+assert_exit "matching label/filename exits 0" 0 "$rc" "$output"
+assert_output_not_contains "no naming warning when convention followed" "does not match lowercase(spec.label)" "$output"
+
+# ─── Test 10: agent with mismatched label/filename emits naming warning ────────
+echo ""
+echo "Test 10: agent with filename stem not matching lowercase(spec.label) warns"
+tree=$(make_tree "${FIXTURES_DIR}/agents/hermes/invalid-label-mismatch.yaml")
+output=$(run_validator "$tree" 2>&1)
+rc=$?
+rm -rf "$tree"
+assert_exit "mismatched label/filename still exits 0 (warning only)" 0 "$rc" "$output"
+assert_output_contains "naming mismatch warning emitted" "does not match lowercase(spec.label)" "$output"
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"

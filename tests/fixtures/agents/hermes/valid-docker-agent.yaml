@@ -4,7 +4,7 @@ metadata:
   name: test-valid-docker-agent
   host: hermes
 spec:
-  label: ValidDockerAgent
+  label: Valid-Docker-Agent
   program: claude-code
   model: null
   workingDirectory: /tmp

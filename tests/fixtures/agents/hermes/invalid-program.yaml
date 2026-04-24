@@ -4,7 +4,7 @@ metadata:
   name: test-invalid-program
   host: hermes
 spec:
-  label: BadProgram
+  label: Invalid-Program
   program: badvalue
   model: null
   workingDirectory: /tmp

@@ -223,6 +223,17 @@ while IFS= read -r -d '' file; do
         fi
     fi
 
+    # Warn if filename stem does not match lowercase(spec.label) per naming convention
+    # Convention: filename = lowercase(spec.label) + ".yaml"  (see CLAUDE.md)
+    lbl="$(yq eval '.spec.label // ""' "$file")"
+    if [[ -n "$lbl" ]]; then
+        expected_stem="$(echo "$lbl" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
+        actual_stem="$(basename "$file" .yaml)"
+        if [[ "$actual_stem" != "$expected_stem" ]]; then
+            echo "WARNING: ${file#"${REPO_ROOT}/"}: filename stem '${actual_stem}' does not match lowercase(spec.label) '${expected_stem}' (label='${lbl}')" >&2
+        fi
+    fi
+
     # Warn if workingDirectory does not exist (skipped in CI)
     if [[ -n "$workdir" && "${CI:-}" != "true" ]]; then
         if [[ ! -d "$workdir" ]]; then
