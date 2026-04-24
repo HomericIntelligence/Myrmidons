@@ -89,6 +89,86 @@ while IFS= read -r -d '' file; do
 
         # Track names for uniqueness check (only non-empty names to avoid false positives)
         [[ -n "$fleet_name" ]] && agent_names["$fleet_name"]+=" $file"
+
+        # --- #201 / #202 / #205: per-member validation (ref + inline agents) ---
+        member_count="$(yq eval '.spec.agents | length' "$file" 2>/dev/null || echo 0)"
+        member_index=0
+        while [[ $member_index -lt $member_count ]]; do
+            member_ref="$(yq eval ".spec.agents[${member_index}].ref // \"\"" "$file")"
+
+            if [[ -n "$member_ref" ]]; then
+                # #201: ref member — validate ref format (host/name pattern)
+                if [[ ! "$member_ref" =~ ^[a-z0-9_-]+/[a-z0-9_-]+$ ]]; then
+                    echo "      - member[${member_index}]: ref '${member_ref}' must match pattern 'host/name' (lowercase alphanumeric, hyphens, underscores)"
+                    ERRORS=$((ERRORS + 1))
+                fi
+            else
+                # Inline agent — #205: validate required fields against agent schema
+                inline_name="$(yq eval ".spec.agents[${member_index}].name // \"\"" "$file")"
+                inline_program="$(yq eval ".spec.agents[${member_index}].program // \"\"" "$file")"
+                inline_workdir="$(yq eval ".spec.agents[${member_index}].workingDirectory // \"\"" "$file")"
+                inline_desired_state="$(yq eval ".spec.agents[${member_index}].desiredState // \"\"" "$file")"
+                inline_deploy_type="$(yq eval ".spec.agents[${member_index}].deployment.type // \"local\"" "$file")"
+                member_label="member[${member_index}]${inline_name:+ (${inline_name})}"
+
+                inline_errors=()
+
+                # Required fields (#205)
+                [[ -z "$inline_name" ]] && inline_errors+=("${member_label}: name is required for inline agents")
+                [[ -z "$inline_program" ]] && inline_errors+=("${member_label}: program is required for inline agents")
+                [[ -z "$inline_workdir" ]] && inline_errors+=("${member_label}: workingDirectory is required for inline agents")
+
+                # Validate workingDirectory is absolute (#205 / #202)
+                if [[ -n "$inline_workdir" && "$inline_workdir" != /* ]]; then
+                    inline_errors+=("${member_label}: workingDirectory '${inline_workdir}' is not an absolute path (must start with /)")
+                fi
+
+                # Validate program enum (#201)
+                if [[ -n "$inline_program" ]]; then
+                    case "$inline_program" in
+                        claude-code|aider|codex|goose|cline|opencode|codebuff|ampcode|none) ;;
+                        *) inline_errors+=("${member_label}: program must be one of: claude-code aider codex goose cline opencode codebuff ampcode none (got '${inline_program}')") ;;
+                    esac
+                fi
+
+                # Validate desiredState enum (#201)
+                if [[ -n "$inline_desired_state" ]]; then
+                    [[ "$inline_desired_state" != "active" && "$inline_desired_state" != "hibernated" ]] && \
+                        inline_errors+=("${member_label}: desiredState must be 'active' or 'hibernated' (got '${inline_desired_state}')")
+                fi
+
+                # Validate deployment.type enum (#201)
+                if [[ "$inline_deploy_type" != "local" && "$inline_deploy_type" != "docker" ]]; then
+                    inline_errors+=("${member_label}: deployment.type must be 'local' or 'docker' (got '${inline_deploy_type}')")
+                fi
+
+                # Validate docker image present when deployment.type=docker (#201)
+                if [[ "$inline_deploy_type" == "docker" ]]; then
+                    inline_docker_image="$(yq eval ".spec.agents[${member_index}].deployment.docker.image // \"\"" "$file")"
+                    [[ -z "$inline_docker_image" ]] && inline_errors+=("${member_label}: deployment.docker.image is required when deployment.type is 'docker'")
+                fi
+
+                # Warn if workingDirectory does not exist (#202) — skipped in CI
+                if [[ -n "$inline_workdir" && "$inline_workdir" == /* && "${CI:-}" != "true" ]]; then
+                    if [[ ! -d "$inline_workdir" ]]; then
+                        echo "WARNING: ${file#"${REPO_ROOT}/"}: inline agent ${member_label}: workingDirectory '${inline_workdir}' does not exist on this host" >&2
+                    fi
+                fi
+
+                if [[ ${#inline_errors[@]} -gt 0 ]]; then
+                    for err in "${inline_errors[@]}"; do
+                        echo "      - ${err}"
+                    done
+                    ERRORS=$((ERRORS + 1))
+                fi
+
+                # Track inline agent names for uniqueness check (#205)
+                [[ -n "$inline_name" ]] && agent_names["$inline_name"]+=" $file"
+            fi
+
+            member_index=$((member_index + 1))
+        done
+
         continue
     fi
 
