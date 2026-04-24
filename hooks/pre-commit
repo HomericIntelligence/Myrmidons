@@ -139,6 +139,56 @@ while IFS= read -r file; do
     fi
 done <<< "$STAGED_YAMLS"
 
+# ─── Validate .myrmidons.yaml if staged (issue #235) ──────────────────────────
+STAGED_CONFIG=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^\.myrmidons\.yaml$' || true)
+
+if [[ -n "$STAGED_CONFIG" && -f ".myrmidons.yaml" ]]; then
+    echo ""
+    echo "Validating .myrmidons.yaml..."
+    config_errors=()
+
+    cfg_log_level="$(yq eval '.logLevel // ""' ".myrmidons.yaml")"
+    cfg_prune_policy="$(yq eval '.prunePolicy // ""' ".myrmidons.yaml")"
+    cfg_aim_host="$(yq eval '.aimHost // ""' ".myrmidons.yaml")"
+    cfg_snapshot_retention="$(yq eval '.snapshotRetention // ""' ".myrmidons.yaml")"
+
+    if [[ -n "$cfg_log_level" ]]; then
+        case "$cfg_log_level" in
+            debug|info|warn|error) ;;
+            *) config_errors+=("logLevel must be one of: debug info warn error (got '${cfg_log_level}')") ;;
+        esac
+    fi
+
+    if [[ -n "$cfg_prune_policy" ]]; then
+        case "$cfg_prune_policy" in
+            manual|auto) ;;
+            *) config_errors+=("prunePolicy must be one of: manual auto (got '${cfg_prune_policy}')") ;;
+        esac
+    fi
+
+    if [[ -n "$cfg_aim_host" ]]; then
+        if [[ "$cfg_aim_host" != http://* && "$cfg_aim_host" != https://* ]]; then
+            config_errors+=("aimHost must start with http:// or https:// (got '${cfg_aim_host}')")
+        fi
+    fi
+
+    if [[ -n "$cfg_snapshot_retention" ]]; then
+        if ! [[ "$cfg_snapshot_retention" =~ ^[0-9]+$ ]]; then
+            config_errors+=("snapshotRetention must be a non-negative integer (got '${cfg_snapshot_retention}')")
+        fi
+    fi
+
+    if [[ ${#config_errors[@]} -gt 0 ]]; then
+        echo "  .myrmidons.yaml: FAIL"
+        for err in "${config_errors[@]}"; do
+            echo "    - ${err}"
+        done
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "  .myrmidons.yaml: ok"
+    fi
+fi
+
 if [[ $ERRORS -gt 0 ]]; then
     echo ""
     echo "Pre-commit: ${ERRORS} validation error(s). Fix before committing."

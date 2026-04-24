@@ -194,3 +194,105 @@ EOF
     [ "$status" -ne 0 ]
     [[ "$output" == *"filename"* && "$output" == *"does not match metadata.name"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test 9: metadata.host matches directory (issue #150)
+# ---------------------------------------------------------------------------
+@test "metadata.host mismatching directory exits non-zero" {
+    mkdir -p "$TEST_TMPDIR/agents/hermes"
+    cat > "$TEST_TMPDIR/agents/hermes/wronghost.yaml" <<'EOF'
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: wrong-host-agent
+  host: apollo
+spec:
+  program: claude-code
+  workingDirectory: /tmp/test
+  deployment:
+    type: local
+  desiredState: active
+EOF
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"does not match directory"* ]]
+}
+
+@test "metadata.host matching directory exits 0" {
+    mkdir -p "$TEST_TMPDIR/agents/hermes"
+    cat > "$TEST_TMPDIR/agents/hermes/correcthost.yaml" <<'EOF'
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: correct-host-agent
+  host: hermes
+spec:
+  program: claude-code
+  workingDirectory: /tmp/test
+  deployment:
+    type: local
+  desiredState: active
+EOF
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"does not match directory"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Test 11: .myrmidons.yaml validation (issue #235)
+# ---------------------------------------------------------------------------
+@test ".myrmidons.yaml with valid fields passes validation" {
+    cat > "$TEST_TMPDIR/.myrmidons.yaml" <<'EOF'
+defaultHost: hermes
+aimHost: http://localhost:8080
+logLevel: info
+prunePolicy: manual
+snapshotRetention: 7
+EOF
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" == *".myrmidons.yaml: ok"* ]]
+}
+
+@test ".myrmidons.yaml with invalid logLevel fails validation" {
+    cat > "$TEST_TMPDIR/.myrmidons.yaml" <<'EOF'
+logLevel: verbose
+EOF
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"logLevel must be one of:"* ]]
+}
+
+@test ".myrmidons.yaml with invalid prunePolicy fails validation" {
+    cat > "$TEST_TMPDIR/.myrmidons.yaml" <<'EOF'
+prunePolicy: always
+EOF
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"prunePolicy must be one of:"* ]]
+}
+
+@test ".myrmidons.yaml with invalid aimHost (no scheme) fails validation" {
+    cat > "$TEST_TMPDIR/.myrmidons.yaml" <<'EOF'
+aimHost: localhost:8080
+EOF
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"aimHost must start with http://"* ]]
+}
+
+@test ".myrmidons.yaml with invalid snapshotRetention (non-integer) fails validation" {
+    cat > "$TEST_TMPDIR/.myrmidons.yaml" <<'EOF'
+snapshotRetention: two-weeks
+EOF
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"snapshotRetention must be a non-negative integer"* ]]
+}
+
+@test "absent .myrmidons.yaml does not cause validation failure" {
+    # No .myrmidons.yaml in TEST_TMPDIR
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" != *".myrmidons.yaml"* ]]
+}

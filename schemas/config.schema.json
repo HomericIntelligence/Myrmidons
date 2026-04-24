@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HomericIntelligence/Myrmidons/schemas/config.schema.json",
+  "title": "Myrmidons Project Configuration",
+  "description": "Schema for the .myrmidons.yaml project configuration file",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "defaultHost": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Default agent host used by scripts when no --host flag is given (default: hermes)"
+    },
+    "aimHost": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^https?://",
+      "description": "ProjectAgamemnon base URL (alias for AGAMEMNON_URL env var; default: http://localhost:8080)"
+    },
+    "logLevel": {
+      "type": "string",
+      "enum": ["debug", "info", "warn", "error"],
+      "description": "Log verbosity for all scripts (default: info)"
+    },
+    "prunePolicy": {
+      "type": "string",
+      "enum": ["manual", "auto"],
+      "description": "When to remove agents absent from YAML: 'manual' requires --prune flag, 'auto' prunes on every apply (default: manual)"
+    },
+    "snapshotRetention": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of days to keep rollback snapshots (default: 7)"
+    }
+  }
+}
