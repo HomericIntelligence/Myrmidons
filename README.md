@@ -52,6 +52,19 @@ just validate
 just lint
 ```
 
+### Fleet operations
+
+```bash
+# Plan changes for a named fleet
+just plan --fleet dev-mesh
+
+# Apply a named fleet
+just apply --fleet dev-mesh
+
+# Show status of a fleet
+just status --fleet dev-mesh
+```
+
 ## Agent definition format
 
 ```yaml
@@ -78,6 +91,18 @@ spec:
       memory: 4g
   desiredState: active     # active | hibernated
 ```
+
+### Naming convention
+
+| Field | Example | Purpose |
+|-------|---------|---------|
+| **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
+| **`metadata.name`** | `odyssey-mainline-analysis` | Agamemnon API identifier / tmux session name. Used by scripts and the REST API. |
+| **`spec.label`** | `Aindrea` | Display name shown in the Agamemnon UI. |
+
+Fleet `ref:` entries resolve by filename stem, not by `metadata.name`:
+- `ref: hermes/aindrea` → `agents/hermes/aindrea.yaml` ✓
+- `ref: hermes/odyssey-mainline-analysis` → file not found ✗
 
 ## Adding an agent
 
@@ -117,6 +142,32 @@ hooks/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
+
+## Configuration
+
+Myrmidons reads configuration from files in this precedence order (highest wins):
+
+1. Environment variables
+2. `.myrmidons.local.yaml` (local overrides, git-ignored)
+3. `.myrmidons.yaml` (project config, committed)
+4. Built-in defaults
+
+### `.myrmidons.yaml` fields
+
+```yaml
+agamemnon_url: http://localhost:8080  # same as AGAMEMNON_URL
+default_host: hermes                  # default HOST for scripts
+log_level: INFO                       # DEBUG | INFO | WARN | ERROR
+log_format: text                      # text | json
+prune_policy: confirm                 # confirm | auto | never
+snapshot_retention: 10                # number of snapshots to keep
+```
+
+Create `.myrmidons.local.yaml` for machine-specific overrides (add it to `.gitignore`).
+
+## Architecture Decision Records
+
+Architecture decision records are in `docs/adr/` — consult them before making structural changes to scripts or YAML schemas.
 
 ## Deployment scope
 
