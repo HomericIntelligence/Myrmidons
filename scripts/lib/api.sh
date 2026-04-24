@@ -7,11 +7,48 @@
 # Usage:
 #   source scripts/lib/api.sh
 #   agamemnon_list_agents | jq '.[].name'
+#
+# TLS environment variables:
+#   AGAMEMNON_CA_CERT     Path to custom CA certificate bundle (PEM)
+#   AGAMEMNON_CLIENT_CERT Path to client certificate for mutual TLS (PEM)
+#   AGAMEMNON_CLIENT_KEY  Path to client private key for mutual TLS (PEM)
+#   AGAMEMNON_TLS_VERIFY  Set to "false" or "0" to disable TLS verification
+#                         (insecure — only for development; emits a loud warning)
 
 set -euo pipefail
 
 AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
 AGAMEMNON_API_KEY="${AGAMEMNON_API_KEY:-}"
+
+# Build the TLS flags array for curl based on environment variables.
+# Populates the global _AGAMEMNON_TLS_FLAGS array; call once at source time.
+_agamemnon_build_tls_flags() {
+    _AGAMEMNON_TLS_FLAGS=()
+
+    # Disable TLS verification escape hatch — warn loudly.
+    local tls_verify="${AGAMEMNON_TLS_VERIFY:-true}"
+    if [[ "$tls_verify" == "false" || "$tls_verify" == "0" ]]; then
+        echo "WARNING: TLS verification is DISABLED (AGAMEMNON_TLS_VERIFY=${tls_verify})." >&2
+        echo "  This is insecure and must not be used in production." >&2
+        _AGAMEMNON_TLS_FLAGS+=(--insecure)
+    fi
+
+    # Custom CA certificate bundle.
+    if [[ -n "${AGAMEMNON_CA_CERT:-}" ]]; then
+        _AGAMEMNON_TLS_FLAGS+=(--cacert "${AGAMEMNON_CA_CERT}")
+    fi
+
+    # Mutual TLS: client certificate + key.
+    if [[ -n "${AGAMEMNON_CLIENT_CERT:-}" ]]; then
+        _AGAMEMNON_TLS_FLAGS+=(--cert "${AGAMEMNON_CLIENT_CERT}")
+    fi
+    if [[ -n "${AGAMEMNON_CLIENT_KEY:-}" ]]; then
+        _AGAMEMNON_TLS_FLAGS+=(--key "${AGAMEMNON_CLIENT_KEY}")
+    fi
+}
+
+# Initialise TLS flags when this library is sourced.
+_agamemnon_build_tls_flags
 
 # Build auth headers array for curl. Populates _AUTH_HEADERS global array.
 # Prefers Authorization: Bearer when AGAMEMNON_API_KEY is set.
@@ -27,7 +64,8 @@ _agamemnon_auth_headers() {
 # Check that Agamemnon is reachable before making calls.
 agamemnon_check_connection() {
     _agamemnon_auth_headers
-    if ! curl -sf --max-time 5 "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
+    if ! curl -sf --max-time 5 "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
+            "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
         echo "ERROR: Cannot reach Agamemnon at ${AGAMEMNON_URL}" >&2
         echo "  Is Agamemnon running? Check your ProjectAgamemnon deployment." >&2
         return 1
@@ -48,7 +86,7 @@ _agamemnon_curl_retry() {
     while [[ $attempt -le $max_attempts ]]; do
         tmpfile="$(mktemp)"
         http_code="$(curl -s --max-time "${AGAMEMNON_TIMEOUT:-10}" -w "%{http_code}" -o "$tmpfile" \
-            "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "$@" 2>/dev/null)"
+            "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "$@" 2>/dev/null)"
         curl_exit=$?
         response="$(cat "$tmpfile")"
         rm -f "$tmpfile"
@@ -196,4 +234,3 @@ agamemnon_status_by_name() {
         'first(.[] | select(.name == $name) | .status) // "unknown"')"
     echo "${status:-unknown}"
 }
-
