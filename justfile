@@ -21,6 +21,10 @@ agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 status HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh {{HOST}}
 
+# Show desired vs actual state for a named fleet
+status-fleet FLEET:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh --fleet {{FLEET}}
+
 # Display the last reconciliation report (JSON)
 report:
     #!/usr/bin/env bash
@@ -94,6 +98,12 @@ validate:
         exit 1
     fi
     echo "All YAML files valid."
+    echo ""
+    echo "Checking name uniqueness..."
+    pixi run lint-names
+    echo ""
+    echo "Running shellcheck..."
+    pixi run lint-shell
 
 # =============================================================================
 # Testing
