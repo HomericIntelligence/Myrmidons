@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   apply:
@@ -67,3 +68,12 @@ jobs:
         run: |
           chmod +x scripts/status.sh
           ./scripts/status.sh
+
+      - name: Upload snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: myrmidons-snapshots-${{ github.run_id }}
+          path: .myrmidons/snapshots/
+          if-no-files-found: ignore
+          retention-days: 30
