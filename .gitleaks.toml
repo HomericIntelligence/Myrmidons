@@ -1,0 +1,19 @@
+title = "Myrmidons gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[rules.allowlist]]
+description = "Test fixtures and documentation examples"
+regexes = [
+  '''your-token-here''',
+  '''fake-api-key''',
+  '''test-token''',
+  '''AGAMEMNON_API_KEY=.*example''',
+]
+paths = [
+  '''tests/.*''',
+  '''README\.md''',
+  '''CLAUDE\.md''',
+  '''docs/.*''',
+]
