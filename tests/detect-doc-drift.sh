@@ -63,7 +63,7 @@ for file in "${DOC_FILES[@]}"; do
         pattern="${entry%%|*}"
         description="${entry#*|}"
 
-        if grep -Piq "${pattern}" "${file}" 2>/dev/null; then
+        if grep -Eiq "${pattern}" "${file}" 2>/dev/null; then
             if [[ $file_errors -eq 0 ]]; then
                 echo "  FAIL: ${rel}"
             fi
