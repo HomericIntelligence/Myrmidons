@@ -78,6 +78,7 @@ parse_args() {
             --fail-fast)        FAIL_FAST=1; shift ;;
             --retry)            RETRY=1; shift ;;
             --fleet)            FLEET_NAME="$2"; shift 2 ;;
+            --failed-agents-file) FAILED_AGENTS_FILE="$2"; shift 2 ;;
             --lock-timeout)     AIM_LOCK_TIMEOUT="$2"; shift 2 ;;
             --output)           OUTPUT_FORMAT="$2"; shift 2 ;;
             --webhook)          WEBHOOK_URL="$2"; shift 2 ;;
@@ -96,24 +97,25 @@ Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--force] [--fail-fast] 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
-  host                 Only apply agents for this host (default: all)
-  --fleet NAME         Only apply agents belonging to the named fleet
-  --prune              Hibernate and delete unmanaged agents (agents in Agamemnon
-                       but not in YAML). DEFAULT: warn only.
-  --dry-run            Show what would happen, make no changes (same as plan.sh)
-  --fail-fast          Stop on first error (default: continue processing all agents)
-  --retry              Re-apply only agents listed in .myrmidons/failed-agents.txt.
-                       File is self-managing: updated on partial success, cleared on
-                       full success. Operators need not manually manage this file.
-  --force              Force apply even if lock acquisition times out.
-  --lock-timeout SECS  Set lock acquisition timeout in seconds (default: 60).
-                       Also configurable via AIM_LOCK_TIMEOUT env var.
-  --output json        Emit a JSON reconciliation report to stdout instead of
-                       human-readable text. Also saves to reports/last-reconciliation.json.
-  --webhook URL        POST the JSON report to URL after reconciliation completes.
-  --snapshot-dir DIR   Directory for pre-apply snapshots (default: .myrmidons/snapshots).
-                       Also configurable via SNAPSHOT_DIR env var.
-  -h, --help           Show this help
+  host                       Only apply agents for this host (default: all)
+  --fleet NAME               Only apply agents belonging to the named fleet
+  --prune                    Hibernate and delete unmanaged agents (agents in Agamemnon
+                             but not in YAML). DEFAULT: warn only.
+  --dry-run                  Show what would happen, make no changes (same as plan.sh)
+  --fail-fast                Stop on first error (default: continue processing all agents)
+  --retry                    Re-apply only agents listed in .myrmidons/failed-agents.txt.
+                             File is self-managing: updated on partial success, cleared on
+                             full success. Operators need not manually manage this file.
+  --failed-agents-file PATH  Path to the failed-agents file (default: .myrmidons/failed-agents.txt).
+  --force                    Force apply even if lock acquisition times out.
+  --lock-timeout SECS        Set lock acquisition timeout in seconds (default: 60).
+                             Also configurable via AIM_LOCK_TIMEOUT env var.
+  --output json              Emit a JSON reconciliation report to stdout instead of
+                             human-readable text. Also saves to reports/last-reconciliation.json.
+  --webhook URL              POST the JSON report to URL after reconciliation completes.
+  --snapshot-dir DIR         Directory for pre-apply snapshots (default: .myrmidons/snapshots).
+                             Also configurable via SNAPSHOT_DIR env var.
+  -h, --help                 Show this help
 
 Examples:
   $0                              # Reconcile everything
@@ -265,36 +267,18 @@ main() {
     fi
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST" "$FLEET_NAME")
-
     if [[ $RETRY -eq 1 ]]; then
+        # Retry mode: read yaml_file paths directly from failed-agents.txt
         if [[ ! -f "${FAILED_AGENTS_FILE}" ]] || [[ ! -s "${FAILED_AGENTS_FILE}" ]]; then
             echo "No failed agents to retry (${FAILED_AGENTS_FILE} is empty or missing)."
             exit 0
         fi
-        local failed_names=()
-        mapfile -t failed_names < "${FAILED_AGENTS_FILE}"
-        echo "Retrying ${#failed_names[@]} previously failed agent(s):"
-        for fn in "${failed_names[@]}"; do echo "  - ${fn}"; done
+        mapfile -t yaml_files < "$FAILED_AGENTS_FILE"
+        echo "Retrying ${#yaml_files[@]} previously failed agent(s):"
+        for fn in "${yaml_files[@]}"; do echo "  - ${fn}"; done
         echo ""
-
-        local filtered_files=()
-        for yaml_file in "${yaml_files[@]}"; do
-            local yname
-            yname="$(yq eval '.metadata.name' "$yaml_file")"
-            for fn in "${failed_names[@]}"; do
-                if [[ "$yname" == "$fn" ]]; then
-                    filtered_files+=("$yaml_file")
-                    break
-                fi
-            done
-        done
-        yaml_files=("${filtered_files[@]}")
-
-        if [[ ${#yaml_files[@]} -eq 0 ]]; then
-            echo "WARNING: None of the failed agents were found in agents/. They may have been removed."
-            exit 1
-        fi
+    else
+        mapfile -t yaml_files < <(get_agent_files "$HOST" "$FLEET_NAME")
     fi
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
@@ -312,8 +296,19 @@ main() {
         echo ""
     fi
 
+    # Truncate failed-agents file before this run (stores yaml_file paths for --retry)
+    mkdir -p "${MYRMIDONS_STATE_DIR}"
+    : > "$FAILED_AGENTS_FILE"
+
     for yaml_file in "${yaml_files[@]}"; do
+        local errors_before=$ERRORS
         apply_agent "$yaml_file" "$agents_json"
+
+        # If apply_agent recorded a new failure, store the yaml_file path for --retry
+        if [[ $ERRORS -gt $errors_before ]]; then
+            # Store the yaml_file path (not the agent name) so --retry can find it
+            echo "$yaml_file" >> "$FAILED_AGENTS_FILE"
+        fi
 
         if [[ $FAIL_FAST -eq 1 && $ERRORS -gt 0 ]]; then
             echo ""
@@ -372,7 +367,6 @@ main() {
 
     if [[ $ERRORS -gt 0 ]]; then
         print_error_summary
-        write_failed_agents_file
 
         local total_processed=$(( CREATED + UPDATED + WOKEN + HIBERNATED + UNCHANGED + ERRORS ))
         # Total failure: every processed agent either failed or none succeeded
@@ -384,8 +378,7 @@ main() {
 
     # Clear failed-agents file on full success (issue #269).
     # This completes the self-managing lifecycle:
-    # - Created on any failure via write_failed_agents_file() (called if $ERRORS > 0)
-    # - Updated on partial retry success via write_failed_agents_file() (only failing agents written)
+    # - Populated during the apply loop with yaml_file paths of failed agents
     # - Cleared here on full success (all agents passed in this run, $ERRORS == 0)
     # This ensures the file always contains only agents currently failing, with no manual management needed.
     if [[ -f "${FAILED_AGENTS_FILE}" ]]; then
