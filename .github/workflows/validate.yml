@@ -71,6 +71,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint]
     timeout-minutes: 10
+    # AGAMEMNON_API_KEY: if scripts exercised during validation make authenticated
+    # API calls, set this as a GitHub Actions secret and pass it here:
+    #   env:
+    #     AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
+    # The validate job currently runs schema checks only and does not call the
+    # Agamemnon API, so the secret is not wired in by default. (#223)
     steps:
       - uses: actions/checkout@v4
 
