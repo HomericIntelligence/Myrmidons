@@ -183,8 +183,19 @@ main() {
         agents_json="$(agamemnon_list_agents)"
     done
 
-    # Handle unmanaged agents
-    handle_unmanaged "$agents_json" "${yaml_files[@]}"
+    # Handle unmanaged agents.
+    # When --fleet is active, scope the check to only agents that belong to the
+    # fleet (i.e. agents whose names are in yaml_files), so agents managed by
+    # other fleets or outside this fleet are not flagged as unmanaged.
+    local scoped_agents_json
+    if [[ -n "$FLEET_NAME" ]]; then
+        local fleet_names_json
+        fleet_names_json="$(for f in "${yaml_files[@]}"; do yq eval '.metadata.name' "$f"; done | jq -Rsc 'split("\n") | map(select(length > 0))')"
+        scoped_agents_json="$(echo "$agents_json" | jq --argjson names "$fleet_names_json" '[.[] | select(.name as $n | $names | index($n) != null)]')"
+    else
+        scoped_agents_json="$agents_json"
+    fi
+    handle_unmanaged "$scoped_agents_json" "${yaml_files[@]}"
 
     # Emit output
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then

@@ -90,10 +90,20 @@ main() {
         plan_agent "$yaml_file" "$agents_json" || has_changes=1
     done
 
-    # Report unmanaged agents (in Agamemnon but not in YAML)
+    # Report unmanaged agents (in Agamemnon but not in YAML).
+    # When --fleet is active, scope the check to only agents that belong to the
+    # fleet so agents managed by other fleets are not flagged as unmanaged.
+    local scoped_agents_json
+    if [[ -n "$FLEET_NAME" ]]; then
+        local fleet_names_json
+        fleet_names_json="$(for f in "${yaml_files[@]}"; do yq eval '.metadata.name' "$f"; done | jq -Rsc 'split("\n") | map(select(length > 0))')"
+        scoped_agents_json="$(echo "$agents_json" | jq --argjson names "$fleet_names_json" '[.[] | select(.name as $n | $names | index($n) != null)]')"
+    else
+        scoped_agents_json="$agents_json"
+    fi
     log_info ""
     log_info "Checking for unmanaged agents..."
-    plan_report_unmanaged "$agents_json" "${yaml_files[@]}"
+    plan_report_unmanaged "$scoped_agents_json" "${yaml_files[@]}"
 
     log_info ""
     if [[ $has_changes -eq 0 ]]; then

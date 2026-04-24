@@ -57,8 +57,8 @@
                 "properties": {
                   "ref": {
                     "type": "string",
-                    "pattern": "^[a-z0-9_-]+/[a-z0-9_-]+$",
-                    "description": "Agent reference in the form 'host/name', e.g. 'hermes/aindrea'"
+                    "pattern": "^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9_-]*$",
+                    "description": "Agent reference in the form 'host/name', e.g. 'hermes/aindrea' or 'hermes/issue8-loop-achaean-fleet'"
                   }
                 }
               },
