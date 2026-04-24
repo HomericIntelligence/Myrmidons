@@ -80,7 +80,19 @@ main() {
     done
 
     # Unmanaged agents
-    report_unmanaged "$agents_json" "${yaml_files[@]}"
+    while IFS= read -r actual_name; do
+        local actual_status
+        actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
+            '.[] | select(.name == $n) | .status // "unknown"')"
+
+        log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
+        report_add_unmanaged "$actual_name"
+
+        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+            printf "%-22s %-10s %-12s %-12s %s\n" \
+                "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
+        fi
+    done < <(get_unmanaged_names "$agents_json" "${yaml_files[@]}")
 
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then
         # Produce a drift-focused report (no action counters for status)
@@ -162,24 +174,6 @@ status_agent() {
         printf "%-22s %-10s %-12s %-12s %s\n" \
             "${name:0:21}" "${host:0:9}" "$desired_state" "$actual_status" "$drift_display"
     fi
-}
-
-report_unmanaged() {
-    local agents_json="$1"
-    shift
-
-    while IFS= read -r actual_name; do
-        local actual_status
-        actual_status="$(echo "$agents_json" | jq -r --arg n "$actual_name" \
-            '.[] | select(.name == $n) | .status // "unknown"')"
-
-        report_add_unmanaged "$actual_name"
-
-        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-            printf "%-22s %-10s %-12s %-12s %s\n" \
-                "${actual_name:0:21}" "-" "-" "$actual_status" "UNMANAGED"
-        fi
-    done < <(get_unmanaged_names "$agents_json" "$@")
 }
 
 main "$@"
