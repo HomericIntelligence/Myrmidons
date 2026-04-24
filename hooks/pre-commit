@@ -15,7 +15,7 @@ set -euo pipefail
 ERRORS=0
 
 # Get staged YAML files in agents/ and fleets/
-STAGED_YAMLS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(agents|fleets)/.*\.yaml$' || true)
+STAGED_YAMLS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(agents|fleets)/.*\.ya?ml$' || true)
 
 if [[ -z "$STAGED_YAMLS" ]]; then
     exit 0
@@ -92,8 +92,8 @@ while IFS= read -r file; do
     fi
 
     # Validate deployment type
-    if [[ "$deploy_type" != "local" && "$deploy_type" != "docker" ]]; then
-        local_errors+=("spec.deployment.type must be 'local' or 'docker', got '${deploy_type}'")
+    if [[ "$deploy_type" != "local" && "$deploy_type" != "docker" && "$deploy_type" != "nomad" ]]; then
+        local_errors+=("spec.deployment.type must be 'local', 'docker', or 'nomad', got '${deploy_type}'")
     fi
 
     # Validate docker image is present when deployment.type=docker

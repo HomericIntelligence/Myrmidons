@@ -87,8 +87,8 @@
           "properties": {
             "type": {
               "type": "string",
-              "enum": ["local", "docker"],
-              "description": "'local' runs in a tmux session on the host; 'docker' runs in a container"
+              "enum": ["local", "docker", "nomad"],
+              "description": "'local' runs in a tmux session on the host; 'docker' runs in a container; 'nomad' is reserved for future Nomad integration (ADR-008)"
             },
             "docker": {
               "type": "object",
