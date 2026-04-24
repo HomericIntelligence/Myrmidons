@@ -44,6 +44,19 @@ report:
 plan HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --dry-run
 
+# Field-level diff: desired YAML vs actual Agamemnon state (optional --agent filter)
+# Usage: just diff               — diff all agents
+#        just diff hermes        — diff agents for a specific host
+#        just diff "" my-agent   — diff a single agent across all hosts
+#        just diff hermes my-agent — diff a single agent on a specific host
+diff HOST="" AGENT="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=()
+    if [[ -n "{{HOST}}" ]]; then args+=({{HOST}}); fi
+    if [[ -n "{{AGENT}}" ]]; then args+=(--agent "{{AGENT}}"); fi
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/diff.sh "${args[@]+"${args[@]}"}"
+
 # =============================================================================
 # Apply
 # =============================================================================

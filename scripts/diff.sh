@@ -173,6 +173,20 @@ diff_agent() {
 
     if [[ -z "$actual_json" ]]; then
         printf "${BOLD}${GREEN}[+] %s${RESET} — not in Agamemnon (would be created)\n" "$name"
+        printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "label:"            "$desired_label"
+        printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "program:"          "$desired_program"
+        printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "workingDirectory:" "$desired_workdir"
+        if [[ -n "$desired_args" ]]; then
+            printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "programArgs:"  "$desired_args"
+        fi
+        if [[ -n "$desired_desc" ]]; then
+            printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "taskDescription:" "$desired_desc"
+        fi
+        if [[ -n "$desired_tags_csv" ]]; then
+            printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "tags:"         "$desired_tags_csv"
+        fi
+        printf "    %-20s ${GREEN}\"%s\"${RESET}\n" "desiredState:"     "$desired_state"
+        echo ""
         return 1
     fi
 
