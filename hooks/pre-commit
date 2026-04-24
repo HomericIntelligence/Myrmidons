@@ -246,6 +246,33 @@ else
     echo "WARNING: yq not found — skipping metadata.name uniqueness check" >&2
 fi
 
+# ── Dangerous-flags lint guard ──────────────────────────────────────────────
+# Check staged files for bare --dangerously-skip-permissions usage.
+# Only runs if any staged YAML files exist (already checked above).
+#
+# Use git rev-parse to find the working tree root regardless of where the hook
+# binary lives (e.g. installed at .git/hooks/pre-commit vs hooks/pre-commit).
+REPO_ROOT_HOOK="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+DANGEROUS_FLAGS_SCRIPT="${REPO_ROOT_HOOK}/scripts/check-dangerous-flags.sh"
+
+if [[ -x "$DANGEROUS_FLAGS_SCRIPT" ]]; then
+    # Build list of staged files as arguments
+    mapfile -t STAGED_ARRAY <<< "$STAGED_YAMLS"
+    if [[ ${#STAGED_ARRAY[@]} -gt 0 && -n "${STAGED_ARRAY[0]}" ]]; then
+        # Resolve absolute paths for staged files (git diff gives relative paths)
+        STAGED_ABS=()
+        for f in "${STAGED_ARRAY[@]}"; do
+            [[ -z "$f" ]] && continue
+            STAGED_ABS+=("${REPO_ROOT_HOOK}/${f}")
+        done
+        if ! "$DANGEROUS_FLAGS_SCRIPT" "${STAGED_ABS[@]}"; then
+            echo ""
+            echo "Pre-commit: dangerous-flags lint check failed. Fix before committing."
+            exit 1
+        fi
+    fi
+fi
+
 # ── Issue #146: Optional test suite ─────────────────────────────────────────
 # Set SKIP_TESTS=1 to bypass this step (e.g. when test environment is unavailable).
 if [[ "${SKIP_TESTS:-0}" != "1" ]]; then
