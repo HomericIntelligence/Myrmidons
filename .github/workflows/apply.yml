@@ -30,6 +30,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up pixi
+        # jq and yq (go-yq) versions are pinned in pixi.lock:
+        #   jq    = 1.8.1  (conda-forge, issue #74)
+        #   go-yq = 4.53.2 (conda-forge, mikefarah/yq v4, issue #133)
+        # Run `pixi update` to bump these pins.
         uses: ./.github/actions/setup-pixi
 
       - name: Plan — show what will change
