@@ -279,10 +279,11 @@ cleanup_fleet_tmpdir() {
 }
 
 # Build a JSON create body from parsed YAML fields.
-# Usage: build_create_json name label program workingDirectory programArgs taskDescription tags owner role
+# Usage: build_create_json name label program workingDirectory programArgs taskDescription tags owner role model deploymentType
 build_create_json() {
     local name="$1" label="$2" program="$3" workdir="$4"
     local args="$5" desc="$6" tags_csv="$7" owner="$8" role="$9"
+    local model="${10:-}" deploy_type="${11:-local}"
 
     # Convert comma-separated tags to JSON array
     local tags_json
@@ -290,6 +291,14 @@ build_create_json() {
         tags_json="[]"
     else
         tags_json="$(echo "$tags_csv" | jq -Rc 'split(",")')"
+    fi
+
+    # model may be null/empty; represent as JSON null when absent
+    local model_json
+    if [[ -z "$model" ]]; then
+        model_json="null"
+    else
+        model_json="$(jq -n --arg m "$model" '$m')"
     fi
 
     # Note: $label is a reserved keyword in jq 1.6 (label-break syntax).
@@ -304,6 +313,8 @@ build_create_json() {
         --argjson tags "$tags_json" \
         --arg owner "$owner" \
         --arg role "$role" \
+        --argjson model "$model_json" \
+        --arg deploymentType "$deploy_type" \
         '{
             name: $name,
             label: $lbl,
@@ -313,7 +324,9 @@ build_create_json() {
             taskDescription: $taskDescription,
             tags: $tags,
             owner: $owner,
-            role: $role
+            role: $role,
+            model: $model,
+            deployment: {type: $deploymentType}
         }'
 }
 

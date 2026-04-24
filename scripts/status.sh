@@ -103,7 +103,7 @@ status_agent() {
     local yaml_file="$1"
     local agents_json="$2"
 
-    local name host desired_state label program workdir args desc tags
+    local name host desired_state label program workdir args desc tags model owner role deploy_type
     name="$(yq eval '.metadata.name' "$yaml_file")"
     host="$(yq eval '.metadata.host // "hermes"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
@@ -113,6 +113,10 @@ status_agent() {
     args="$(yq eval '.spec.programArgs // ""' "$yaml_file")"
     desc="$(yq eval '.spec.taskDescription // ""' "$yaml_file")"
     tags="$(yq eval '.spec.tags // [] | join(",")' "$yaml_file")"
+    model="$(yq eval '.spec.model // ""' "$yaml_file")"
+    owner="$(yq eval '.spec.owner // ""' "$yaml_file")"
+    role="$(yq eval '.spec.role // "member"' "$yaml_file")"
+    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
 
     local actual_json
     actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
@@ -135,12 +139,12 @@ status_agent() {
 
     local drift
     drift="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+        "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$model" "$owner" "$role" "$deploy_type")"
 
     local drift_json="[]"
     if [[ "$drift" == UPDATE:* ]]; then
         drift_json="$(build_drift_json "$drift" "$actual_json" \
-            "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+            "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role")"
     fi
 
     local action
