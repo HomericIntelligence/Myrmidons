@@ -7,12 +7,13 @@ on:
       - 'agents/**'
       - 'fleets/**'
       - 'scripts/**'
+      - 'hooks/**'
       - '.github/workflows/**'
       - 'schemas/**'
       - '.myrmidons.yaml'
+      - '.pre-commit-config.yaml'
       - 'pixi.toml'
       - 'pixi.lock'
-      - 'hooks/**'
       - 'tests/**'
       - 'CHANGELOG.md'
 
@@ -125,6 +126,19 @@ jobs:
           echo "To skip this check, include [skip changelog] in the PR title, body,"
           echo "any commit message, or add the 'skip changelog' label to the PR."
           exit 1
+
+  pre-commit:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pixi
+        with:
+          environment: lint
+
+      - name: Run pre-commit on all files
+        run: pixi run --environment lint pre-commit run --all-files
 
   validate:
     name: Validate YAML Schemas

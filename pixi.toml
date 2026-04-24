@@ -13,7 +13,7 @@ bats-core = ">=1.11,<2"
 curl      = ">=8.0"
 
 [feature.lint.dependencies]
-shellcheck = ">=0.10,<1"
+shellcheck = "0.10.0.*"
 yamllint   = ">=1.35,<2"
 pre-commit = ">=3.0,<5"
 

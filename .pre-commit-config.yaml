@@ -1,7 +1,7 @@
 repos:
   # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -10,14 +10,14 @@ repos:
 
   # Shell script linting
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: a23f6b85d0fdd5bb9d564e2579e678033debbdff  # v0.10.0.1
     hooks:
       - id: shellcheck
         args: [--severity=warning]
 
   # YAML linting for agents/ and fleets/
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
+    rev: 81e9f98ffd059efe8aa9c1b1a42e5cce61b640c6  # v1.35.1
     hooks:
       - id: yamllint
         files: ^(agents|fleets)/.*\.yaml$
