@@ -69,6 +69,25 @@ spec:
 
 This design is intentional: filenames are label-derived for human readability; `metadata.name` carries the Agamemnon backend identity.
 
+### Drift detection
+
+The reconciler detects changes to these fields and applies them automatically on `apply`:
+
+| Field | Drift action |
+|-------|-------------|
+| `spec.desiredState: active` vs actual offline | WAKE |
+| `spec.desiredState: hibernated` vs actual active/online | HIBERNATE |
+| `spec.label` | UPDATE |
+| `spec.program` | UPDATE |
+| `spec.workingDirectory` | UPDATE |
+| `spec.programArgs` | UPDATE |
+| `spec.taskDescription` | UPDATE |
+| `spec.tags` | UPDATE (order-insensitive) |
+| `spec.owner` | UPDATE |
+| `spec.role` | UPDATE |
+
+Fields not currently tracked for drift: `spec.model`, `spec.deployment.type`
+
 ## Scripts
 
 | Script | Purpose |
