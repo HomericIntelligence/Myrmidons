@@ -118,6 +118,38 @@ export AGAMEMNON_API_KEY=your-token-here
 
 In CI, add `AGAMEMNON_API_KEY` as a GitHub Actions secret (see `.github/workflows/apply.yml`).
 
+### AGAMEMNON_URL security
+
+`AGAMEMNON_URL` should point to a trusted Agamemnon instance only. The scripts
+pass this URL directly to `curl` — a malicious URL could redirect API calls to
+an attacker-controlled server. In CI, always source this from a GitHub secret,
+never hard-code it in workflow files.
+
+## TLS / HTTPS
+
+To connect to Agamemnon over HTTPS, set these environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `AGAMEMNON_CA_CERT` | Path to a PEM CA certificate file for server verification |
+| `AGAMEMNON_CLIENT_CERT` | Path to a PEM client certificate file (mTLS) |
+| `AGAMEMNON_CLIENT_KEY` | Path to a PEM client key file (mTLS) |
+| `AGAMEMNON_TLS_VERIFY` | Set to `false` to skip TLS verification (not recommended) |
+
+### Generating and storing TLS secrets for CI
+
+1. Base64-encode PEM files for GitHub secrets:
+   ```bash
+   base64 -w0 ca.pem   # → AGAMEMNON_CA_CERT_B64
+   base64 -w0 client.pem  # → AGAMEMNON_CLIENT_CERT_B64
+   base64 -w0 client.key  # → AGAMEMNON_CLIENT_KEY_B64
+   ```
+2. Add each as a repository secret via GitHub UI or:
+   ```bash
+   gh secret set AGAMEMNON_CA_CERT_B64 < <(base64 -w0 ca.pem)
+   ```
+3. The apply workflow decodes them to temp files before running scripts.
+
 ## Adding a new agent
 
 1. Choose a label (e.g. `MyAgent`) — the filename will be `agents/hermes/myagent.yaml` (lowercase label)
@@ -163,3 +195,11 @@ The justification must describe:
 - In CI on every PR (all agent/fleet YAMLs)
 
 To run manually: `./scripts/check-dangerous-flags.sh`
+
+## Known Gotchas
+
+### jq 1.6: `label` is a reserved keyword
+
+jq 1.6 treats `label` as a reserved keyword for its label-break syntax (`label $out | ...`).
+Using `--arg label` in a jq invocation silently fails or errors. All scripts use `--arg lbl`
+(or `--arg agentLabel`) instead. Do not rename these back to `--arg label`.
