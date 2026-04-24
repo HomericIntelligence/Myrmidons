@@ -203,3 +203,13 @@ To run manually: `./scripts/check-dangerous-flags.sh`
 jq 1.6 treats `label` as a reserved keyword for its label-break syntax (`label $out | ...`).
 Using `--arg label` in a jq invocation silently fails or errors. All scripts use `--arg lbl`
 (or `--arg agentLabel`) instead. Do not rename these back to `--arg label`.
+
+### Shellcheck directives
+
+Scripts use inline shellcheck directives where needed:
+
+- `# shellcheck source=scripts/lib/api.sh` — instructs shellcheck to follow relative sourced files by path, suppressing SC1091 (can't follow dynamic source paths like `source "${SCRIPT_DIR}/lib/api.sh"`)
+- `# shellcheck disable=SC2034` — suppresses "unused variable" warnings for variables exported for subprocesses
+- `# shellcheck disable=SC2086` — suppresses unquoted variable warnings where intentional word-splitting is used
+
+Run shellcheck locally: `pixi run --environment lint lint-shell`
