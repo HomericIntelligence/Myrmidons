@@ -1,15 +1,24 @@
-[project]
+[workspace]
 name = "myrmidons"
 version = "0.1.0"
 description = "GitOps agent provisioning for the HomericIntelligence mesh"
 channels = ["conda-forge"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "osx-arm64"]
 
 [dependencies]
-just = ">=1.13"
-jq   = ">=1.6"
-# yq (go-based, https://github.com/mikefarah/yq) is not available in conda-forge.
-# Install manually: see scripts/lib/reconcile.sh or CI workflows.
+just      = ">=1.13"
+jq        = ">=1.6"
+go-yq     = ">=4.40,<5"
+bats-core = ">=1.11,<2"
+
+[feature.lint.dependencies]
+shellcheck = ">=0.10,<1"
+yamllint   = ">=1.35,<2"
+pre-commit = ">=3.0,<5"
+
+[environments]
+default = { solve-group = "default" }
+lint    = { features = ["lint"], solve-group = "lint" }
 
 [tasks]
 status        = "just status"
@@ -19,3 +28,16 @@ validate      = "just validate"
 export        = "just export"
 lint-names    = "bash scripts/lint-names.sh"
 lint-shell    = "bash scripts/lint-shell.sh"
+
+test-unit        = "bats tests/unit/"
+test-integration = "bats tests/integration/"
+test-schema      = "./tests/validate-schemas.sh"
+test-doc-drift   = "./tests/detect-doc-drift.sh"
+test-api-retry   = "./tests/test-api-retry.sh"
+test-rollback    = "./tests/test-rollback.sh"
+test-standalone  = { depends-on = ["test-api-retry", "test-rollback"] }
+test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-standalone"] }
+
+[feature.lint.tasks]
+lint-shell = { cmd = "find scripts tests hooks -name '*.sh' -o -name 'pre-commit' | sort | xargs shellcheck --severity=warning", description = "ShellCheck all shell scripts at warning severity" }
+lint       = { depends-on = ["lint-shell"] }

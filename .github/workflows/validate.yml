@@ -9,34 +9,22 @@ on:
       - 'pixi.toml'
       - 'pixi.lock'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate YAML Schemas
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache pixi environment
-        uses: actions/cache@v4
-        with:
-          path: |
-            .pixi
-            ~/.cache/rattler/cache
-          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
-
-      - name: Install dependencies (locked)
-        run: pixi install --locked
-
-      - name: Install yq
-        env:
-          YQ_VERSION: "v4.40.5"
-        run: |
-          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
-            -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-          yq --version
+      - uses: ./.github/actions/setup-pixi
 
       - name: Validate all YAML files
-        run: |
-          chmod +x tests/validate-schemas.sh
-          ./tests/validate-schemas.sh
+        run: pixi run test-schema

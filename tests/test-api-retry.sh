@@ -137,7 +137,7 @@ sleep() { : ; }
 
 # ── Load api.sh ───────────────────────────────────────────────────────────────
 AGAMEMNON_URL="http://mock.test:9999"
-AGAMEMNON_TIMEOUT=5
+export AGAMEMNON_TIMEOUT=5
 source "${REPO_ROOT}/scripts/lib/api.sh"
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -233,9 +233,9 @@ curl() {
     echo -n "200"
     return 0
 }
-AGAMEMNON_TIMEOUT=42
+export AGAMEMNON_TIMEOUT=42
 _agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null
-AGAMEMNON_TIMEOUT=5
+export AGAMEMNON_TIMEOUT=5
 CAPTURED_ARGS="$(cat "$_CAPTURED_FILE")"
 rm -f "$_CAPTURED_FILE"
 # Restore standard curl mock

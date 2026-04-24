@@ -34,40 +34,80 @@ agamemnon_check_connection() {
     fi
 }
 
-# Internal helper: curl with standard flags (timeout, error output on failure).
+# Internal helper: curl with retry on transient errors (connection refused, timeout, 5xx).
 # Injects auth headers automatically when AGAMEMNON_API_KEY is set.
-# Usage: _agamemnon_curl [-X METHOD] URL [-H header] [-d body]
-_agamemnon_curl() {
-    local http_code
-    local response
-    local tmpfile
-    tmpfile="$(mktemp)"
+# Usage: _agamemnon_curl_retry [-X METHOD] URL [-H header] [-d body]
+_agamemnon_curl_retry() {
+    local max_attempts=3
+    local delay=1
+    local attempt=1
+    local http_code response tmpfile curl_exit
 
     _agamemnon_auth_headers
 
-    # Write response body to tmpfile; capture HTTP status code separately.
-    http_code="$(curl -s --max-time 10 -w "%{http_code}" -o "$tmpfile" \
-        "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "$@")"
-    local curl_exit=$?
+    while [[ $attempt -le $max_attempts ]]; do
+        tmpfile="$(mktemp)"
+        http_code="$(curl -s --max-time "${AGAMEMNON_TIMEOUT:-10}" -w "%{http_code}" -o "$tmpfile" \
+            "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "$@" 2>/dev/null)"
+        curl_exit=$?
+        response="$(cat "$tmpfile")"
+        rm -f "$tmpfile"
 
-    response="$(cat "$tmpfile")"
-    rm -f "$tmpfile"
+        # Success
+        if [[ $curl_exit -eq 0 && "${http_code:0:1}" == "2" ]]; then
+            echo "$response"
+            return 0
+        fi
+
+        # Classify failure: transient = retry; permanent = fail immediately
+        local is_transient=0
+        if [[ $curl_exit -eq 7 || $curl_exit -eq 28 ]]; then
+            is_transient=1
+        elif [[ $curl_exit -ne 0 ]]; then
+            is_transient=0
+        elif [[ "${http_code:0:1}" == "5" ]]; then
+            is_transient=1
+        fi
+
+        if [[ $is_transient -eq 0 ]]; then
+            if [[ $curl_exit -ne 0 ]]; then
+                echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
+            else
+                echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
+                echo "  URL: $*" >&2
+                if [[ -n "$response" ]]; then
+                    echo "  Body: ${response}" >&2
+                fi
+            fi
+            return 1
+        fi
+
+        if [[ $attempt -lt $max_attempts ]]; then
+            echo "WARN: Retry ${attempt}/${max_attempts} in ${delay}s (curl_exit=${curl_exit} http=${http_code}): $*" >&2
+            sleep "$delay"
+            delay=$((delay * 2))
+        fi
+
+        attempt=$((attempt + 1))
+    done
 
     if [[ $curl_exit -ne 0 ]]; then
-        echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2
-        return 1
-    fi
-
-    if [[ "${http_code:0:1}" != "2" ]]; then
-        echo "ERROR: HTTP ${http_code} from Agamemnon" >&2
+        echo "ERROR: curl failed after ${max_attempts} attempts (exit ${curl_exit}) for: $*" >&2
+    else
+        echo "ERROR: HTTP ${http_code} from Agamemnon after ${max_attempts} attempts" >&2
         echo "  URL: $*" >&2
         if [[ -n "$response" ]]; then
             echo "  Body: ${response}" >&2
         fi
-        return 1
     fi
+    return 1
+}
 
-    echo "$response"
+# Internal helper: single curl call with auth headers.
+# All API functions delegate here. Uses retry logic from _agamemnon_curl_retry.
+# Usage: _agamemnon_curl [-X METHOD] URL [-H header] [-d body]
+_agamemnon_curl() {
+    _agamemnon_curl_retry "$@"
 }
 
 # List all agents registered on this host.
@@ -151,7 +191,9 @@ agamemnon_id_by_name() {
 # Helper: get agent status by name. Returns "unknown" if not found.
 agamemnon_status_by_name() {
     local name="$1"
-    agamemnon_list_agents | jq -r --arg name "$name" \
-        '.[] | select(.name == $name) | .status // "unknown"'
+    local status
+    status="$(agamemnon_list_agents | jq -r --arg name "$name" \
+        'first(.[] | select(.name == $name) | .status) // "unknown"')"
+    echo "${status:-unknown}"
 }
 

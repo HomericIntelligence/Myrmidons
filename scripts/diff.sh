@@ -159,7 +159,7 @@ diff_agent() {
     desired_workdir="$(normalize_path "${fields[workingDirectory]:-}")"
     local desired_args="${fields[programArgs]:-}"
     local desired_desc="${fields[taskDescription]:-}"
-    local desired_tags="${fields[tags]:-}"
+    local desired_tags_csv="${fields[tags]:-}"
 
     # Apply --agent filter
     if [[ -n "$AGENT_FILTER" && "$name" != "$AGENT_FILTER" ]]; then
@@ -202,8 +202,8 @@ diff_agent() {
 
     # Sort desired tags for stable comparison
     local desired_tags_sorted=""
-    if [[ -n "$desired_tags" ]]; then
-        desired_tags_sorted="$(echo "$desired_tags" | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')"
+    if [[ -n "$desired_tags_csv" ]]; then
+        desired_tags_sorted="$(echo "$desired_tags_csv" | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')"
     fi
 
     # Collect drifted fields

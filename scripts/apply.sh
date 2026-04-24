@@ -21,7 +21,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
@@ -31,7 +30,6 @@ source "${SCRIPT_DIR}/lib/reconcile.sh"
 source "${SCRIPT_DIR}/lib/report.sh"
 
 HOST=""
-FLEET=""
 PRUNE=0
 DRY_RUN=0
 OUTPUT_FORMAT="text"   # "text" | "json"
@@ -50,7 +48,6 @@ parse_args() {
         case "$1" in
             --prune)       PRUNE=1; shift ;;
             --dry-run)     DRY_RUN=1; shift ;;
-            --fleet)       FLEET="$2"; shift 2 ;;
             --output)      OUTPUT_FORMAT="$2"; shift 2 ;;
             --webhook)     WEBHOOK_URL="$2"; shift 2 ;;
             -h|--help)     usage; exit 0 ;;
@@ -61,13 +58,12 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--output json] [--webhook <url>]
+Usage: $0 [host] [--prune] [--dry-run] [--output json] [--webhook <url>]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
   host               Only apply agents for this host (default: all)
-  --fleet NAME       Only apply agents in this fleet
   --prune            Hibernate and delete unmanaged agents (agents in Agamemnon
                      but not in YAML). DEFAULT: warn only.
   --dry-run          Show what would happen, make no changes (same as plan.sh)
@@ -79,7 +75,6 @@ Options:
 Examples:
   $0                              # Reconcile everything
   $0 hermes                       # Reconcile hermes only
-  $0 --fleet dev-mesh             # Reconcile dev-mesh fleet
   $0 --prune                      # Reconcile + remove unmanaged agents
   $0 --output json | jq .         # Machine-readable report
   $0 --webhook http://host/hook   # Post report to webhook
@@ -168,20 +163,18 @@ apply_agent() {
     local agents_json="$2"
 
     # Parse YAML fields into local variables
-    local name label program model workdir args desc tags owner role deploy_type desired_state
+    local name label program workdir args desc tags owner role desired_state
     name="$(yq eval '.metadata.name' "$yaml_file")"
     local agent_host
     agent_host="$(yq eval '.metadata.host // "hermes"' "$yaml_file")"
     label="$(yq eval '.spec.label // ""' "$yaml_file")"
     program="$(yq eval '.spec.program // "claude-code"' "$yaml_file")"
-    model="$(yq eval '.spec.model // ""' "$yaml_file")"
     workdir="$(yq eval '.spec.workingDirectory // ""' "$yaml_file")"
     args="$(yq eval '.spec.programArgs // ""' "$yaml_file")"
     desc="$(yq eval '.spec.taskDescription // ""' "$yaml_file")"
     tags="$(yq eval '.spec.tags // [] | join(",")' "$yaml_file")"
     owner="$(yq eval '.spec.owner // ""' "$yaml_file")"
     role="$(yq eval '.spec.role // "member"' "$yaml_file")"
-    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
 
     # Look up actual agent

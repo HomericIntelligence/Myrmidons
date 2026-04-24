@@ -132,7 +132,7 @@ restore_agent() {
     local agent_json="$1"
     local current_agents_json="$2"
 
-    local name id label program workdir args desc status
+    local name label program workdir args desc status
     name="$(echo "$agent_json" | jq -r '.name // empty')"
     label="$(echo "$agent_json" | jq -r '.label // ""')"
     program="$(echo "$agent_json" | jq -r '.program // "claude-code"')"

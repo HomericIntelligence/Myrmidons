@@ -86,7 +86,8 @@ TMPDIR_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_ROOT"' EXIT
 
 make_snapshot_dir() {
-    local dir="${TMPDIR_ROOT}/snapshots_$(date +%s%N)"
+    local dir
+    dir="${TMPDIR_ROOT}/snapshots_$(date +%s%N)"
     mkdir -p "$dir"
     echo "$dir"
 }
@@ -353,11 +354,11 @@ test_rollback_specific_snapshot_file() {
     local snap_dir
     snap_dir="$(make_snapshot_dir)"
 
-    local old_file new_file
+    local old_file
     old_file="$(make_snapshot_file "$snap_dir" "2024-01-01T00:00:00Z" \
         '[{"id":"1","name":"old-agent","status":"offline"}]')"
-    new_file="$(make_snapshot_file "$snap_dir" "2024-01-15T10:00:00Z" \
-        '[{"id":"2","name":"new-agent","status":"active"}]')"
+    make_snapshot_file "$snap_dir" "2024-01-15T10:00:00Z" \
+        '[{"id":"2","name":"new-agent","status":"active"}]' >/dev/null
 
     # Ask for the old snapshot specifically
     local output

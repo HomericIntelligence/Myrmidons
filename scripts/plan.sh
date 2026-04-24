@@ -7,7 +7,6 @@
 # Usage:
 #   ./scripts/plan.sh                  # Plan all agents on all hosts
 #   ./scripts/plan.sh hermes           # Plan agents for a specific host
-#   ./scripts/plan.sh --fleet dev-mesh # Plan a specific fleet
 #
 # Exit codes:
 #   0 = no changes needed
@@ -16,7 +15,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck source=scripts/lib/log.sh
 source "${SCRIPT_DIR}/lib/log.sh"
@@ -26,12 +24,10 @@ source "${SCRIPT_DIR}/lib/api.sh"
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 HOST=""
-FLEET=""
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --fleet) FLEET="$2"; shift 2 ;;
             -h|--help) usage; exit 0 ;;
             *) HOST="$1"; shift ;;
         esac
@@ -39,14 +35,13 @@ parse_args() {
 }
 
 usage() {
-    echo "Usage: $0 [host] [--fleet <fleet-name>]"
+    echo "Usage: $0 [host]"
     echo ""
     echo "Shows what apply.sh would do without making any changes."
     echo ""
     echo "Examples:"
     echo "  $0                    # Plan all agents"
     echo "  $0 hermes             # Plan agents on hermes"
-    echo "  $0 --fleet dev-mesh   # Plan dev-mesh fleet"
 }
 
 main() {

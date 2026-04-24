@@ -1,0 +1,24 @@
+name: Set Up Pixi Environment
+description: Install pixi and cache rattler + .pixi. Wraps prefix-dev/setup-pixi.
+
+inputs:
+  environment:
+    description: 'Pixi environment to install (default, lint)'
+    required: false
+    default: 'default'
+
+runs:
+  using: composite
+  steps:
+    - uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e  # v0.9.4
+      with:
+        pixi-version: v0.63.2
+        environments: ${{ inputs.environment }}
+
+    - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5
+      with:
+        path: |
+          .pixi
+          ~/.cache/rattler/cache
+        key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+        restore-keys: pixi-${{ runner.os }}-
