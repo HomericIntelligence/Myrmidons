@@ -305,7 +305,8 @@ snapshot_prune() {
 # Build a drift JSON array from an UPDATE:<fields> action string and the actual/desired values.
 # Usage: build_drift_json <action_string> <actual_json> \
 #                         <desired_label> <desired_program> <desired_workdir> \
-#                         <desired_args> <desired_desc> <desired_tags_csv>
+#                         <desired_args> <desired_desc> <desired_tags_csv> \
+#                         <desired_owner> <desired_role>
 # Outputs a JSON array like: [{"field":"label","old":"X","new":"Y"}, ...]
 build_drift_json() {
     local action="$1"
@@ -316,6 +317,8 @@ build_drift_json() {
     local desired_args="$6"
     local desired_desc="$7"
     local desired_tags_csv="${8:-}"
+    local desired_owner="${9:-}"
+    local desired_role="${10:-}"
 
     if [[ "$action" != UPDATE:* ]]; then
         echo "[]"
@@ -333,6 +336,8 @@ build_drift_json() {
     desired_vals["programArgs"]="$desired_args"
     desired_vals["taskDescription"]="$desired_desc"
     desired_vals["tags"]="$desired_tags_csv"
+    desired_vals["owner"]="$desired_owner"
+    desired_vals["role"]="$desired_role"
 
     # Build JSON array using jq
     local entries="[]"
@@ -346,6 +351,8 @@ build_drift_json() {
             programArgs)      old_val="$(echo "$actual_json" | jq -r '.programArgs // ""')" ;;
             taskDescription)  old_val="$(echo "$actual_json" | jq -r '.taskDescription // ""')" ;;
             tags)             old_val="$(echo "$actual_json" | jq -r '.tags // [] | sort | join(",")')" ;;
+            owner)            old_val="$(echo "$actual_json" | jq -r '.owner // ""')" ;;
+            role)             old_val="$(echo "$actual_json" | jq -r '.role // ""')" ;;
             *)                old_val="" ;;
         esac
 

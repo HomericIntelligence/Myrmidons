@@ -398,7 +398,7 @@ apply_agent() {
     local agents_json="$2"
 
     # Parse YAML fields into local variables
-    local name label program workdir args desc tags owner role desired_state
+    local name label program workdir args desc tags owner role model deploy_type desired_state
     name="$(yq eval '.metadata.name' "$yaml_file")"
     local agent_host
     agent_host="$(yq eval '.metadata.host // "hermes"' "$yaml_file")"
@@ -410,6 +410,8 @@ apply_agent() {
     tags="$(yq eval '.spec.tags // [] | join(",")' "$yaml_file")"
     owner="$(yq eval '.spec.owner // ""' "$yaml_file")"
     role="$(yq eval '.spec.role // "member"' "$yaml_file")"
+    model="$(yq eval '.spec.model // ""' "$yaml_file")"
+    deploy_type="$(yq eval '.spec.deployment.type // "local"' "$yaml_file")"
     desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
 
     # Look up actual agent
@@ -422,7 +424,7 @@ apply_agent() {
             echo "[+] Creating ${name}..."
         fi
         local create_body
-        create_body="$(build_create_json "$name" "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role")"
+        create_body="$(build_create_json "$name" "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role" "$model" "$deploy_type")"
 
         local result
         if result="$(agamemnon_create_agent "$create_body" 2>&1)"; then
@@ -470,7 +472,7 @@ apply_agent() {
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+        "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$model" "$owner" "$role" "$deploy_type")"
 
     case "$action" in
         UNCHANGED)
@@ -528,7 +530,7 @@ apply_agent() {
 
             local drift_json
             drift_json="$(build_drift_json "$action" "$actual_json" \
-                "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+                "$label" "$program" "$workdir" "$args" "$desc" "$tags" "$owner" "$role")"
 
             local tags_json
             if [[ -z "$tags" ]]; then
