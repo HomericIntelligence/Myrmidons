@@ -78,12 +78,24 @@ This design is intentional: filenames are label-derived for human readability; `
 | `scripts/apply.sh [--prune]` | Reconcile desired → actual |
 | `scripts/status.sh` | Table of desired vs actual + drift |
 
+### Observability flags
+
+Both `apply.sh` and `status.sh` accept:
+- `--output json` — emit a machine-readable JSON summary to `reports/last-reconciliation.json`
+- `--webhook <url>` — POST the JSON summary to a webhook endpoint after reconciliation
+
+Example: `./scripts/apply.sh hermes --output json | jq .summary`
+
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
 | `AGAMEMNON_API_KEY` | _(unset)_ | Bearer token / API key for authenticating requests |
+| `AGAMEMNON_TIMEOUT` | `10` | HTTP request timeout in seconds for all API calls |
+| `LOG_LEVEL` | `INFO` | Log verbosity: DEBUG, INFO, WARN, ERROR |
+| `LOG_FORMAT` | `text` | Log output format: text or json |
+| `AIM_LOCK_FILE` | `.myrmidons.lock` | Path to the apply lock file (use workspace-scoped path in parallel CI) |
 
 ## Authentication
 
