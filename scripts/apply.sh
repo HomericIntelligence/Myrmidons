@@ -30,6 +30,7 @@ source "${SCRIPT_DIR}/lib/reconcile.sh"
 source "${SCRIPT_DIR}/lib/report.sh"
 
 HOST=""
+FLEET_NAME=""
 PRUNE=0
 DRY_RUN=0
 OUTPUT_FORMAT="text"   # "text" | "json"
@@ -49,6 +50,7 @@ parse_args() {
         case "$1" in
             --prune)            PRUNE=1; shift ;;
             --dry-run)          DRY_RUN=1; shift ;;
+            --fleet)            FLEET_NAME="$2"; shift 2 ;;
             --lock-timeout)     AIM_LOCK_TIMEOUT="$2"; shift 2 ;;
             --output)           OUTPUT_FORMAT="$2"; shift 2 ;;
             --webhook)          WEBHOOK_URL="$2"; shift 2 ;;
@@ -61,12 +63,13 @@ parse_args() {
 
 usage() {
     cat <<EOF
-Usage: $0 [host] [--prune] [--dry-run] [--force] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
+Usage: $0 [host] [--fleet <name>] [--prune] [--dry-run] [--force] [--lock-timeout SECONDS] [--output json] [--webhook <url>]
 
 Reconciles agent YAML definitions against Agamemnon's actual state.
 
 Options:
   host                 Only apply agents for this host (default: all)
+  --fleet NAME         Only apply agents belonging to the named fleet
   --prune              Hibernate and delete unmanaged agents (agents in Agamemnon
                        but not in YAML). DEFAULT: warn only.
   --dry-run            Show what would happen, make no changes (same as plan.sh)
@@ -81,6 +84,7 @@ Options:
 Examples:
   $0                              # Reconcile everything
   $0 hermes                       # Reconcile hermes only
+  $0 --fleet dev-mesh             # Reconcile agents in the dev-mesh fleet
   $0 --prune                      # Reconcile + remove unmanaged agents
   $0 --dry-run --force            # Dry-run (force is handled correctly)
   $0 --lock-timeout 120           # Reconcile with 120s lock timeout
@@ -147,13 +151,13 @@ main() {
 
     # Initialise report accumulator
     report_init "${HOST:-all}"
-    trap report_cleanup EXIT
+    trap 'report_cleanup; cleanup_fleet_tmpdir' EXIT
 
     local agents_json
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    mapfile -t yaml_files < <(get_agent_files "$HOST" "$FLEET_NAME")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
         if [[ "$OUTPUT_FORMAT" == "json" ]]; then

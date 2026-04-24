@@ -24,25 +24,30 @@ source "${SCRIPT_DIR}/lib/api.sh"
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 HOST=""
+FLEET_NAME=""
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -h|--help) usage; exit 0 ;;
-            --dry-run) shift ;;
+            -h|--help)  usage; exit 0 ;;
+            --dry-run)  shift ;;
+            --fleet)    FLEET_NAME="$2"; shift 2 ;;
+            --output)   shift 2 ;;  # Accepted but ignored in plan (no JSON report)
+            --webhook)  shift 2 ;;  # Accepted but ignored in plan
             *) HOST="$1"; shift ;;
         esac
     done
 }
 
 usage() {
-    echo "Usage: $0 [host]"
+    echo "Usage: $0 [host] [--fleet <name>]"
     echo ""
     echo "Shows what apply.sh would do without making any changes."
     echo ""
     echo "Examples:"
-    echo "  $0                    # Plan all agents"
-    echo "  $0 hermes             # Plan agents on hermes"
+    echo "  $0                        # Plan all agents"
+    echo "  $0 hermes                 # Plan agents on hermes"
+    echo "  $0 --fleet dev-mesh       # Plan agents in the dev-mesh fleet"
 }
 
 main() {
@@ -50,11 +55,13 @@ main() {
     check_deps
     agamemnon_check_connection
 
+    trap 'cleanup_fleet_tmpdir' EXIT
+
     local agents_json
     agents_json="$(agamemnon_list_agents)"
 
     local yaml_files
-    mapfile -t yaml_files < <(get_agent_files "$HOST")
+    mapfile -t yaml_files < <(get_agent_files "$HOST" "$FLEET_NAME")
 
     if [[ ${#yaml_files[@]} -eq 0 ]]; then
         log_info "No agent YAML files found."

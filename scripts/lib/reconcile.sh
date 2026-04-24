@@ -64,21 +64,87 @@ validate_host() {
     fi
 }
 
-# Get all agent YAML files for a given host (or all hosts).
-# Usage: get_agent_files [host]
+# Get all agent YAML files for a given host and/or fleet.
+# When fleet_name is provided, only the agents in that fleet are returned.
+# When fleet_name is empty, all agents/ files plus all fleet members are returned.
+# Deduplicates output so a given agent path is only returned once.
+# Note: FLEET_TMPDIR for inline agents is set inside a process-substitution
+#       subshell when called via mapfile < <(...). Temp-file cleanup is
+#       best-effort via cleanup_fleet_tmpdir in the caller's EXIT trap.
+# Usage: get_agent_files [host] [fleet_name]
 get_agent_files() {
     local host="${1:-}"
+    local fleet_name="${2:-}"
     local repo_root
     repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
     validate_host "$host" || return 1
 
+    # If scoped to a single fleet, resolve only that fleet's agents
+    if [[ -n "$fleet_name" ]]; then
+        local fleet_file
+        fleet_file="$(find_fleet_file "$fleet_name")" || return 1
+        resolve_fleet_files "$fleet_file"
+        return
+    fi
+
+    # General case: collect agents/ files and all fleet members, deduplicating.
+    # We output paths as we find them and track seen ones via an associative array.
+    declare -A _gaf_seen
+
+    # 1. Gather direct Agent YAML files from agents/
+    local raw_files=()
     if [[ -n "$host" ]]; then
-        find "${repo_root}/agents/${host}" -name "*.yaml" \
-            ! -path "*/_templates/*" 2>/dev/null || true
+        mapfile -t raw_files < <(
+            find "${repo_root}/agents/${host}" -name "*.yaml" \
+                ! -path "*/_templates/*" 2>/dev/null || true
+        )
     else
-        find "${repo_root}/agents" -name "*.yaml" \
-            ! -path "*/_templates/*" 2>/dev/null || true
+        mapfile -t raw_files < <(
+            find "${repo_root}/agents" -name "*.yaml" \
+                ! -path "*/_templates/*" 2>/dev/null || true
+        )
+    fi
+
+    for f in "${raw_files[@]+"${raw_files[@]}"}"; do
+        local kind
+        kind="$(yq eval '.kind // ""' "$f" 2>/dev/null)"
+        # Skip any Fleet files that may live under agents/; only emit Agent files
+        if [[ "$kind" != "Fleet" ]]; then
+            if [[ -z "${_gaf_seen[$f]+x}" ]]; then
+                _gaf_seen[$f]=1
+                echo "$f"
+            fi
+        fi
+    done
+
+    # 2. Discover Fleet YAML files in fleets/ and resolve their members
+    if [[ -d "${repo_root}/fleets" ]]; then
+        local fleet_files=()
+        mapfile -t fleet_files < <(find "${repo_root}/fleets" -name "*.yaml" 2>/dev/null | sort)
+        for fleet_file in "${fleet_files[@]+"${fleet_files[@]}"}"; do
+            local fleet_kind
+            fleet_kind="$(yq eval '.kind // ""' "$fleet_file" 2>/dev/null)"
+            if [[ "$fleet_kind" != "Fleet" ]]; then
+                continue
+            fi
+
+            # If host filter is set, only process fleets whose metadata.host matches
+            if [[ -n "$host" ]]; then
+                local fleet_host
+                fleet_host="$(yq eval '.metadata.host // ""' "$fleet_file" 2>/dev/null)"
+                if [[ "$fleet_host" != "$host" ]]; then
+                    continue
+                fi
+            fi
+
+            while IFS= read -r agent_file; do
+                if [[ -z "${_gaf_seen[$agent_file]+x}" ]]; then
+                    _gaf_seen[$agent_file]=1
+                    echo "$agent_file"
+                fi
+            done < <(resolve_fleet_files "$fleet_file")
+        done
     fi
 }
 
