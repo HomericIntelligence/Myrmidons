@@ -99,6 +99,12 @@ mock_sequence() {
 # Override curl so tests don't hit the network.
 # Reads sequence from _SEQ_FILE, writes body from _BODY_FILE to -o target,
 # outputs http_code, returns exit_code.
+#
+# Handles both space-separated and equals-sign forms of flags:
+#   --max-time 30   (space form)
+#   --max-time=30   (equals sign form, issue #265)
+#   -o file         (space form)
+#   -o=file         (equals sign form)
 curl() {
     # Increment call count
     local count
@@ -118,14 +124,27 @@ curl() {
         echo "$rest" > "$_SEQ_FILE"
     fi
 
-    # Write body to -o file
+    # Write body to -o file, handling both "-o file" and "-o=file" / "--output=file"
     local args=("$@")
     local i
     for (( i=0; i<${#args[@]}; i++ )); do
-        if [[ "${args[$i]}" == "-o" ]]; then
-            cat "$_BODY_FILE" > "${args[$((i+1))]}"
-            break
-        fi
+        case "${args[$i]}" in
+            -o)
+                # Space-separated: -o <file>
+                cat "$_BODY_FILE" > "${args[$((i+1))]}"
+                break
+                ;;
+            -o=*)
+                # Equals-sign form: -o=<file>
+                cat "$_BODY_FILE" > "${args[$i]#-o=}"
+                break
+                ;;
+            --output=*)
+                # Long equals-sign form: --output=<file>
+                cat "$_BODY_FILE" > "${args[$i]#--output=}"
+                break
+                ;;
+        esac
     done
 
     echo -n "$http_code"
@@ -250,12 +269,30 @@ curl() {
     [[ "$rest" != "$seq" ]] && echo "$rest" > "$_SEQ_FILE"
     local args=("$@"); local i
     for (( i=0; i<${#args[@]}; i++ )); do
-        if [[ "${args[$i]}" == "-o" ]]; then cat "$_BODY_FILE" > "${args[$((i+1))]}"; break; fi
+        case "${args[$i]}" in
+            -o) cat "$_BODY_FILE" > "${args[$((i+1))]}"; break ;;
+            -o=*) cat "$_BODY_FILE" > "${args[$i]#-o=}"; break ;;
+            --output=*) cat "$_BODY_FILE" > "${args[$i]#--output=}"; break ;;
+        esac
     done
     echo -n "$http_code"
     return "$exit_code"
 }
 assert_contains "AGAMEMNON_TIMEOUT passed as --max-time 42" "--max-time 42" "$CAPTURED_ARGS"
+teardown_mock
+
+# ── Test 7b: mock curl handles --max-time=N (equals sign form, issue #265) ───────
+# Verify the mock curl body-writing loop works correctly when a caller passes
+# --max-time=30 instead of --max-time 30.  We simulate this by calling the
+# mock directly with the equals-sign form and confirming it writes the body.
+setup_mock
+mock_single 0 200
+_EQ_FILE="$(mktemp)"
+# Call the mock curl directly with --max-time=30 (equals sign) and -o <file>
+curl --max-time=30 -o "$_EQ_FILE" "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null || true
+eq_body="$(cat "$_EQ_FILE")"
+rm -f "$_EQ_FILE"
+assert_eq "mock curl handles --max-time=N: body written via -o" '{"ok":true}' "$eq_body"
 teardown_mock
 
 # ── Test 8: All 3 attempts fail (exit 7 each), non-zero exit returned ──────────

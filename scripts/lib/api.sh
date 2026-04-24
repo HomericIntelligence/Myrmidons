@@ -20,6 +20,91 @@ set -euo pipefail
 AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
 AGAMEMNON_API_KEY="${AGAMEMNON_API_KEY:-}"
 
+# Validate that AGAMEMNON_URL is a safe http/https URL.
+#
+# Rejects:
+#   - Non-http/https schemes (ftp://, file://, javascript:, etc.)
+#   - URLs with embedded credentials (user:password@)
+#   - URLs with fragment (#) or query (?) components
+#   - Non-numeric port numbers
+#   - IPv6 bracket notation in the hostname field
+#   - Empty or clearly non-URL strings
+#   - Strings with embedded newlines (header injection)
+#
+# Usage:
+#   _agamemnon_validate_url "$AGAMEMNON_URL" || exit 1
+_agamemnon_validate_url() {
+    local url="$1"
+
+    # Reject empty
+    if [[ -z "$url" ]]; then
+        echo "ERROR: AGAMEMNON_URL is empty." >&2
+        return 1
+    fi
+
+    # Reject embedded newlines (header injection)
+    if [[ "$url" == *$'\n'* ]]; then
+        echo "ERROR: AGAMEMNON_URL contains a newline character." >&2
+        return 1
+    fi
+
+    # Must start with http:// or https://
+    if [[ "$url" != http://* && "$url" != https://* ]]; then
+        echo "ERROR: AGAMEMNON_URL must use http or https scheme: ${url}" >&2
+        return 1
+    fi
+
+    # Strip scheme
+    local rest="${url#http://}"
+    rest="${rest#https://}"
+
+    # Reject embedded credentials (user:pass@)
+    if [[ "$rest" == *@* ]]; then
+        echo "ERROR: AGAMEMNON_URL must not contain credentials: ${url}" >&2
+        return 1
+    fi
+
+    # Reject fragment (#) — fragments are client-side and indicate a bad URL
+    if [[ "$url" == *'#'* ]]; then
+        echo "ERROR: AGAMEMNON_URL must not contain a fragment (#): ${url}" >&2
+        return 1
+    fi
+
+    # Reject query string (?) — the API path is fixed; a query in the base URL is suspicious
+    if [[ "$url" == *'?'* ]]; then
+        echo "ERROR: AGAMEMNON_URL must not contain a query string (?): ${url}" >&2
+        return 1
+    fi
+
+    # Reject IPv6 bracket notation in the host field (not supported)
+    if [[ "$rest" == '['* ]]; then
+        echo "ERROR: AGAMEMNON_URL IPv6 bracket notation is not supported: ${url}" >&2
+        return 1
+    fi
+
+    # Extract host[:port][/path] — split off optional path
+    local hostport="${rest%%/*}"
+
+    # If there is a port, validate it is numeric
+    if [[ "$hostport" == *:* ]]; then
+        local port="${hostport##*:}"
+        if [[ -z "$port" || "$port" =~ [^0-9] ]]; then
+            echo "ERROR: AGAMEMNON_URL port must be numeric: ${url}" >&2
+            return 1
+        fi
+    fi
+
+    # Host must be non-empty
+    local host="${hostport%%:*}"
+    if [[ -z "$host" ]]; then
+        echo "ERROR: AGAMEMNON_URL host is empty: ${url}" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+
 # Build the TLS flags array for curl based on environment variables.
 # Populates the global _AGAMEMNON_TLS_FLAGS array; call once at source time.
 _agamemnon_build_tls_flags() {
@@ -83,7 +168,13 @@ validate_agamemnon_url() {
 }
 
 # Check that Agamemnon is reachable before making calls.
+# Also validates that AGAMEMNON_URL is a safe http/https URL (issue #120).
 agamemnon_check_connection() {
+    # Validate the URL before making any network calls.
+    if ! _agamemnon_validate_url "${AGAMEMNON_URL}"; then
+        echo "ERROR: Refusing to connect — AGAMEMNON_URL failed security validation." >&2
+        return 1
+    fi
     _agamemnon_auth_headers
     if ! curl -sf --max-time 5 "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
             "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
