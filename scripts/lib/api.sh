@@ -119,15 +119,39 @@ _agamemnon_build_tls_flags() {
     fi
 
     # Custom CA certificate bundle.
+    # Issue #167: validate path at source time.
     if [[ -n "${AGAMEMNON_CA_CERT:-}" ]]; then
+        if [[ ! -r "${AGAMEMNON_CA_CERT}" ]]; then
+            echo "WARN: AGAMEMNON_CA_CERT is set but path is not readable: ${AGAMEMNON_CA_CERT}" >&2
+        fi
         _AGAMEMNON_TLS_FLAGS+=(--cacert "${AGAMEMNON_CA_CERT}")
     fi
 
+    # Issue #168: warn when only one of CLIENT_CERT / CLIENT_KEY is specified.
+    local have_cert=0 have_key=0
+    [[ -n "${AGAMEMNON_CLIENT_CERT:-}" ]] && have_cert=1
+    [[ -n "${AGAMEMNON_CLIENT_KEY:-}"  ]] && have_key=1
+    if [[ $have_cert -ne $have_key ]]; then
+        echo "WARN: mTLS misconfiguration — AGAMEMNON_CLIENT_CERT and AGAMEMNON_CLIENT_KEY must both be set or both be unset." >&2
+        if [[ $have_cert -eq 0 ]]; then
+            echo "  AGAMEMNON_CLIENT_CERT is unset; AGAMEMNON_CLIENT_KEY is set." >&2
+        else
+            echo "  AGAMEMNON_CLIENT_CERT is set; AGAMEMNON_CLIENT_KEY is unset." >&2
+        fi
+    fi
+
     # Mutual TLS: client certificate + key.
+    # Issue #167: validate paths at source time.
     if [[ -n "${AGAMEMNON_CLIENT_CERT:-}" ]]; then
+        if [[ ! -r "${AGAMEMNON_CLIENT_CERT}" ]]; then
+            echo "WARN: AGAMEMNON_CLIENT_CERT is set but path is not readable: ${AGAMEMNON_CLIENT_CERT}" >&2
+        fi
         _AGAMEMNON_TLS_FLAGS+=(--cert "${AGAMEMNON_CLIENT_CERT}")
     fi
     if [[ -n "${AGAMEMNON_CLIENT_KEY:-}" ]]; then
+        if [[ ! -r "${AGAMEMNON_CLIENT_KEY}" ]]; then
+            echo "WARN: AGAMEMNON_CLIENT_KEY is set but path is not readable: ${AGAMEMNON_CLIENT_KEY}" >&2
+        fi
         _AGAMEMNON_TLS_FLAGS+=(--key "${AGAMEMNON_CLIENT_KEY}")
     fi
 }
@@ -169,15 +193,26 @@ validate_agamemnon_url() {
 
 # Check that Agamemnon is reachable before making calls.
 # Also validates that AGAMEMNON_URL is a safe http/https URL (issue #120).
+# Issue #116: a RETURN trap ensures any curl temp state (e.g. response output
+# files written to disk on unexpected exit) is cleaned up on every exit path.
 agamemnon_check_connection() {
     # Validate the URL before making any network calls.
     if ! _agamemnon_validate_url "${AGAMEMNON_URL}"; then
         echo "ERROR: Refusing to connect — AGAMEMNON_URL failed security validation." >&2
         return 1
     fi
+    local _check_tmpfile
+    _check_tmpfile="$(mktemp)"
+    # Trap fires on RETURN (normal exit, error, or early return) to remove any
+    # temp file left behind if curl exits unexpectedly mid-transfer.
+    # shellcheck disable=SC2064
+    trap "rm -f '${_check_tmpfile}'" RETURN
+
     _agamemnon_auth_headers
-    if ! curl -sf --max-time 5 "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
-            "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "${AGAMEMNON_URL}/v1/health" > /dev/null 2>&1; then
+    if ! curl -sf --max-time 5 -o "${_check_tmpfile}" \
+            "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
+            "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" \
+            "${AGAMEMNON_URL}/v1/health" 2>&1; then
         echo "ERROR: Cannot reach Agamemnon at ${AGAMEMNON_URL}" >&2
         echo "  Is Agamemnon running? Check your ProjectAgamemnon deployment." >&2
         return 1
