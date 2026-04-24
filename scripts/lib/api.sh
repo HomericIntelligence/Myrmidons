@@ -61,6 +61,27 @@ _agamemnon_auth_headers() {
     fi
 }
 
+# Validate that AGAMEMNON_URL is set and has a recognised scheme (http/https).
+# Call this early in any entry-point script before issuing API calls.
+validate_agamemnon_url() {
+    local url="${AGAMEMNON_URL:-}"
+    if [[ -z "$url" ]]; then
+        echo "ERROR: AGAMEMNON_URL is not set." >&2
+        echo "  Export AGAMEMNON_URL before running this script." >&2
+        echo "  Example: export AGAMEMNON_URL=http://localhost:8080" >&2
+        return 1
+    fi
+    case "$url" in
+        http://*|https://*)
+            ;;
+        *)
+            echo "ERROR: AGAMEMNON_URL has an unrecognised scheme: ${url}" >&2
+            echo "  Expected a URL beginning with http:// or https://" >&2
+            return 1
+            ;;
+    esac
+}
+
 # Check that Agamemnon is reachable before making calls.
 agamemnon_check_connection() {
     _agamemnon_auth_headers

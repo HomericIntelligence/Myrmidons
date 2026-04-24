@@ -17,7 +17,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
+# shellcheck source=scripts/lib/config.sh
+source "${SCRIPT_DIR}/lib/config.sh"
+load_config
+
+# MYRM_AIM_HOST is populated by load_config; fall back to env/default for safety.
+AGAMEMNON_URL="${AGAMEMNON_URL:-${MYRM_AIM_HOST:-http://localhost:8080}}"
 
 # Flags
 SKIP_CONNECTIVITY=false
@@ -118,6 +123,21 @@ check_connectivity() {
     section "Check 2: Agamemnon connectivity"
 
     printf '  URL: %s\n' "$AGAMEMNON_URL"
+
+    # Validate URL format (#118)
+    if [[ -z "$AGAMEMNON_URL" ]]; then
+        fail "AGAMEMNON_URL is not set" \
+            "Export AGAMEMNON_URL before running (e.g. export AGAMEMNON_URL=http://localhost:8080)"
+        return
+    fi
+    case "$AGAMEMNON_URL" in
+        http://*|https://*) ;;
+        *)
+            fail "AGAMEMNON_URL has an unrecognised scheme: ${AGAMEMNON_URL}" \
+                "Expected a URL beginning with http:// or https://"
+            return
+            ;;
+    esac
 
     if [[ "$SKIP_CONNECTIVITY" == "true" ]]; then
         warn "Agamemnon connectivity (skipped via --skip-connectivity)"
