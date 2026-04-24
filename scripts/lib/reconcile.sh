@@ -187,6 +187,15 @@ resolve_fleet_files() {
     local repo_root
     repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+    # Trap to clean up any FLEET_TMPDIR we create on error exit (#158)
+    _resolve_fleet_cleanup() {
+        if [[ -n "${FLEET_TMPDIR:-}" && -d "${FLEET_TMPDIR}" ]]; then
+            rm -rf "${FLEET_TMPDIR}"
+            FLEET_TMPDIR=""
+        fi
+    }
+    trap '_resolve_fleet_cleanup' ERR
+
     local fleet_host
     fleet_host="$(yq eval '.metadata.host // ""' "$fleet_file")"
 
@@ -419,6 +428,8 @@ report_unmanaged() {
     # Guard: nothing to check if Agamemnon returned no agents
     [[ -z "$agents_json" || "$agents_json" == '[]' ]] && return 0
     shift
+    # Guard: nothing to check if no YAML files are managed (#130)
+    [[ $# -eq 0 ]] && return 0
     while IFS= read -r actual_name; do
         log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
     done < <(get_unmanaged_names "$agents_json" "$@")
@@ -432,15 +443,15 @@ get_unmanaged_names() {
     # Guard: nothing to check if Agamemnon returned no agents
     [[ -z "$agents_json" || "$agents_json" == '[]' ]] && return 0
     shift
+    # Guard: nothing to check if no YAML files are managed (#130)
+    [[ $# -eq 0 ]] && return 0
     local yaml_files=("$@")
 
-    # Collect all managed names from YAML files
+    # Collect all managed names from YAML files in a single yq invocation (#233)
     local managed_names=()
-    for yaml_file in "${yaml_files[@]}"; do
-        local n
-        n="$(yq eval '.metadata.name' "$yaml_file")"
-        managed_names+=("$n")
-    done
+    while IFS= read -r n; do
+        [[ -n "$n" ]] && managed_names+=("$n")
+    done < <(yq eval '.metadata.name' "${yaml_files[@]}")
 
     # Emit names present in Agamemnon but absent from managed list
     while IFS= read -r actual_name; do
