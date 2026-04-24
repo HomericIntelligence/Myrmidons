@@ -23,6 +23,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck source=scripts/lib/api.sh
 source "${SCRIPT_DIR}/lib/api.sh"
+# shellcheck source=scripts/lib/report.sh
+source "${SCRIPT_DIR}/lib/report.sh"
 
 SNAPSHOT_DIR="${REPO_ROOT}/.myrmidons/snapshots"
 SNAPSHOT_FILE=""
@@ -87,7 +89,8 @@ list_snapshots() {
         local basename
         basename="$(basename "$snap")"
         local agent_count
-        agent_count="$(jq 'length' "$snap" 2>/dev/null || echo "?")"
+        # Support both new format {context:{}, agents:[]} and legacy plain array
+        agent_count="$(jq 'if type == "object" and has("agents") then .agents | length elif type == "array" then length else 0 end' "$snap" 2>/dev/null || echo "?")"
         local marker=""
         [[ $i -eq 0 ]] && marker=" ← most recent"
         printf "  %s  (%s agents)%s\n" "$basename" "$agent_count" "$marker"
@@ -122,10 +125,20 @@ validate_snapshot() {
         return 1
     fi
 
-    if ! jq -e '. | type == "array"' "$snapshot_file" > /dev/null 2>&1; then
+    # Accept both new format {context:{},agents:[]} and legacy plain array
+    if ! jq -e '(type == "array") or (type == "object" and has("agents") and (.agents | type == "array"))' \
+            "$snapshot_file" > /dev/null 2>&1; then
         echo "ERROR: Snapshot is not a valid JSON array: ${snapshot_file}" >&2
         return 1
     fi
+}
+
+# Extract the agents array from a snapshot file.
+# Handles both new {context,agents} format and legacy plain-array format.
+# Usage: extract_snapshot_agents <snapshot_file>  → JSON array on stdout
+extract_snapshot_agents() {
+    local snapshot_file="$1"
+    jq 'if type == "object" and has("agents") then .agents else . end' "$snapshot_file"
 }
 
 restore_agent() {
@@ -250,7 +263,7 @@ main() {
     echo ""
 
     local snapshot_agents
-    snapshot_agents="$(cat "$SNAPSHOT_FILE")"
+    snapshot_agents="$(extract_snapshot_agents "$SNAPSHOT_FILE")"
 
     local agent_count
     agent_count="$(echo "$snapshot_agents" | jq 'length')"
@@ -264,6 +277,14 @@ main() {
     local current_agents_json="{}"
     if [[ $DRY_RUN -eq 0 ]]; then
         current_agents_json="$(agamemnon_list_agents)"
+    fi
+
+    # (#225) Snapshot current state before restoring, to enable chained rollbacks.
+    if [[ $DRY_RUN -eq 0 ]]; then
+        local pre_rollback_snap
+        pre_rollback_snap="$(snapshot_write "$current_agents_json" "$SNAPSHOT_DIR" "all" "pre-rollback")"
+        echo "Pre-rollback snapshot saved: ${pre_rollback_snap}"
+        echo ""
     fi
 
     # Restore each agent from the snapshot
