@@ -55,6 +55,7 @@
         "workingDirectory": {
           "type": "string",
           "minLength": 1,
+          "pattern": "^/",
           "description": "Absolute path to the working directory for the agent process"
         },
         "programArgs": {
