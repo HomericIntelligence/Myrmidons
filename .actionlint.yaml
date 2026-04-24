@@ -1,0 +1,9 @@
+# actionlint configuration
+# https://github.com/rhysd/actionlint/blob/main/docs/config.md
+
+# Explicitly enable shellcheck integration so actionlint lints the shell
+# scripts inside run: steps (#139). By default actionlint skips shellcheck
+# when the binary is not found; with this config the CI step passes
+# -shellcheck shellcheck on the command line so it is always enabled.
+self-hosted-runner:
+  labels: []
