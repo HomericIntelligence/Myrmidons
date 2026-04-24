@@ -60,6 +60,7 @@ HIBERNATED=0
 UNCHANGED=0
 PRUNED=0
 ERRORS=0
+FAILED_AGENTS=()   # names of agents that encountered errors
 
 # Per-agent error tracking: parallel arrays of (agent_name, http_status, error_message)
 FAILED_AGENT_NAMES=()
@@ -350,7 +351,15 @@ main() {
     else
         echo ""
         echo "================================================"
-        echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} errors=${ERRORS}"
+        echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} pruned=${PRUNED} errors=${ERRORS}"
+
+        if [[ ${#FAILED_AGENTS[@]} -gt 0 ]]; then
+            echo ""
+            echo "Failed agents (${#FAILED_AGENTS[@]}):"
+            for fa in "${FAILED_AGENTS[@]}"; do
+                echo "  - ${fa}"
+            done
+        fi
 
         # Always save a report file (silently) so report_save is useful even in text mode
         local report_json
@@ -453,6 +462,7 @@ apply_agent() {
                 echo "    ERROR creating ${name}: ${err_msg}" >&2
             fi
             record_failure "$name" "$http_status" "$err_msg"
+            FAILED_AGENTS+=("$name")
             report_add_agent "$name" "$agent_host" "ERROR" "$desired_state" "unknown" "[]" "create failed: ${err_msg}"
         fi
         return
@@ -533,6 +543,8 @@ apply_agent() {
             fi
 
             local patch_body
+            # Note: $label is a reserved keyword in jq 1.6 (label-break syntax).
+            # Use $lbl as the variable name to avoid the parser conflict.
             patch_body="$(jq -n \
                 --arg lbl "$label" \
                 --arg program "$program" \
@@ -572,6 +584,7 @@ apply_agent() {
                     echo "    ERROR updating ${name}: ${err_msg}" >&2
                 fi
                 record_failure "$name" "$http_status" "Failed to update fields [${changed_fields}]: ${err_msg}"
+                FAILED_AGENTS+=("$name")
                 report_add_agent "$name" "$agent_host" "ERROR" "$desired_state" "$actual_status" "$drift_json" "update failed: ${err_msg}"
             fi
             ;;

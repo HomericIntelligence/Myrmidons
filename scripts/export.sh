@@ -60,8 +60,17 @@ main() {
 }
 
 check_jq() {
+    local missing=()
     if ! command -v jq &>/dev/null; then
-        log_error "jq is required. Install: apt install jq"
+        missing+=("jq")
+    fi
+    if ! command -v yq &>/dev/null; then
+        missing+=("yq")
+    fi
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Missing required tools: ${missing[*]}"
+        log_error "  Install jq: apt install jq / brew install jq"
+        log_error "  Install yq: https://github.com/mikefarah/yq"
         exit 1
     fi
 }
