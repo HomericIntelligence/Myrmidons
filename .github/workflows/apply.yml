@@ -9,6 +9,9 @@ on:
       - 'pixi.toml'
       - 'pixi.lock'
 
+permissions:
+  contents: read
+
 jobs:
   apply:
     name: Reconcile Desired State
@@ -17,6 +20,12 @@ jobs:
       AGAMEMNON_URL: ${{ secrets.AGAMEMNON_URL }}
       AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
     steps:
+      - name: Mask secrets
+        run: |
+          if [[ -n "$AGAMEMNON_API_KEY" ]]; then
+            echo "::add-mask::$AGAMEMNON_API_KEY"
+          fi
+
       - uses: actions/checkout@v4
 
       - name: Cache pixi environment
