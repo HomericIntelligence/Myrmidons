@@ -191,12 +191,12 @@ restore_agent() {
         echo "  [~] Restoring: ${name}..."
         local patch_body
         patch_body="$(jq -n \
-            --arg label "$label" \
+            --arg lbl "$label" \
             --arg program "$program" \
             --arg workingDirectory "$workdir" \
             --arg programArgs "$args" \
             --arg taskDescription "$desc" \
-            '{label: $label, program: $program, workingDirectory: $workingDirectory,
+            '{label: $lbl, program: $program, workingDirectory: $workingDirectory,
               programArgs: $programArgs, taskDescription: $taskDescription}')"
 
         if ! agamemnon_update_agent "$current_id" "$patch_body" > /dev/null 2>&1; then
