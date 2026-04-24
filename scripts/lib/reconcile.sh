@@ -337,6 +337,8 @@ normalize_path() {
 # Usage: report_unmanaged <agents_json> <yaml_file>...
 report_unmanaged() {
     local agents_json="$1"
+    # Guard: nothing to check if Agamemnon returned no agents
+    [[ -z "$agents_json" || "$agents_json" == '[]' ]] && return 0
     shift
     while IFS= read -r actual_name; do
         log_warn "[-] UNMANAGED ${actual_name} (in Agamemnon but not in desired state — use --prune to remove)"
@@ -348,6 +350,8 @@ report_unmanaged() {
 # Usage: get_unmanaged_names <agents_json> <yaml_file>...
 get_unmanaged_names() {
     local agents_json="$1"
+    # Guard: nothing to check if Agamemnon returned no agents
+    [[ -z "$agents_json" || "$agents_json" == '[]' ]] && return 0
     shift
     local yaml_files=("$@")
 
