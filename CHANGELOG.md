@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Renamed `--arg label` to `--arg lbl` in `scripts/apply.sh` and `scripts/rollback.sh` to avoid jq 1.6 reserved keyword `label` (#261)
+
 ## [0.3.0] - 2026-04-05
 
 ### Added
