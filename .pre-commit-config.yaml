@@ -21,7 +21,6 @@ repos:
     hooks:
       - id: yamllint
         files: ^(agents|fleets)/.*\.yaml$
-        args: [--config-data, "{extends: default, rules: {line-length: {max: 120}, truthy: {allowed-values: ['true', 'false', 'null']}}}"]
 
   # Custom local hook: Myrmidons schema validation
   - repo: local

@@ -1,0 +1,26 @@
+---
+extends: default
+
+rules:
+  # Agent YAML files use 2-space indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Allow long lines in task descriptions and URLs
+  line-length:
+    max: 120
+    level: warning
+
+  # Allow null/empty values (model: null is valid in agent specs)
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+
+  # Allow comments (used for yaml-language-server schema hints)
+  comments:
+    min-spaces-from-content: 1
+
+  # Don't require document start marker in agent files
+  document-start: disable
