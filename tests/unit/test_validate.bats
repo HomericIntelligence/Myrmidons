@@ -18,16 +18,20 @@ teardown() {
     [[ -d "$TEST_TMPDIR" ]] && rm -rf "$TEST_TMPDIR"
 }
 
-# Helper function to run validate script in temp directory
+# Helper function to run validate script in temp directory.
+# NOTE: must be exported so BATS's `run` subshell can resolve it.
 run_validate() {
     cd "$TEST_TMPDIR"
     # The script uses REPO_ROOT derived from its own path, so we need to run it
     # in a way that makes it think the temp dir is the root.
-    # We'll create a tests/validate-schemas.sh symlink in the temp dir
+    # Copy both validate-schemas.sh and validate-fleet-refs.sh so the
+    # in-script call to "${SCRIPT_DIR}/validate-fleet-refs.sh" resolves.
     mkdir -p "$TEST_TMPDIR/tests"
     cp "$SCRIPT_DIR/tests/validate-schemas.sh" "$TEST_TMPDIR/tests/"
+    cp "$SCRIPT_DIR/tests/validate-fleet-refs.sh" "$TEST_TMPDIR/tests/"
     bash "$TEST_TMPDIR/tests/validate-schemas.sh"
 }
+export -f run_validate
 
 # ---------------------------------------------------------------------------
 # Test 1: Valid agent YAML exits 0
