@@ -30,6 +30,11 @@ just plan hermes
 just apply hermes
 ```
 
+> **Note:** `export.sh` derives YAML filenames from the agent's display label (lowercased),
+> not from `metadata.name`. For example, an agent with label `MyAgent` exports to
+> `agents/hermes/myagent.yaml`. The `metadata.name` field inside the file retains the
+> original Agamemnon API name. See [Naming convention](#naming-convention) for details.
+
 ## Common workflows
 
 ```bash
