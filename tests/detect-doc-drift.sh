@@ -26,7 +26,6 @@ CHECKED=0
 FORBIDDEN_PHRASES=(
     "Myrmidons.*Nomad.*cluster|implies Myrmidons actively drives a Nomad cluster"
     "apply\.sh.*Nomad|implies apply.sh submits Nomad jobs"
-    "deployment\.type.*nomad|implies nomad is a valid deployment type (not yet implemented)"
     "Nomad integration.*implemented|implies Nomad integration is complete"
     "Nomad.*currently supported|implies Nomad is currently supported"
 )

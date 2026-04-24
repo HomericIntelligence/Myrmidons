@@ -17,9 +17,13 @@ agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
 # Observability
 # =============================================================================
 
-# Show desired vs actual state for all agents (or a specific host)
-status HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh {{HOST}}
+# Show desired vs actual state for all agents (or a specific host); pass fleet="" to filter by fleet
+status HOST=host fleet="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=({{HOST}})
+    if [[ -n "{{fleet}}" ]]; then args+=(--fleet "{{fleet}}"); fi
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh "${args[@]}"
 
 # Show desired vs actual state for a named fleet
 status-fleet FLEET:
@@ -40,9 +44,13 @@ report:
 # Planning
 # =============================================================================
 
-# Dry-run: show what apply would do (no changes made)
-plan HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --dry-run
+# Dry-run: show what apply would do (no changes made); pass fleet="<name>" to target a fleet
+plan HOST=host fleet="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=({{HOST}} --dry-run)
+    if [[ -n "{{fleet}}" ]]; then args+=(--fleet "{{fleet}}"); fi
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh "${args[@]}"
 
 # Field-level diff: desired YAML vs actual Agamemnon state (optional --agent filter)
 # Usage: just diff               — diff all agents
@@ -61,9 +69,13 @@ diff HOST="" AGENT="":
 # Apply
 # =============================================================================
 
-# Reconcile desired state → Agamemnon (creates/updates/starts/stops)
-apply HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}}
+# Reconcile desired state → Agamemnon (creates/updates/starts/stops); pass fleet="<name>" to target a fleet
+apply HOST=host fleet="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=({{HOST}})
+    if [[ -n "{{fleet}}" ]]; then args+=(--fleet "{{fleet}}"); fi
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh "${args[@]}"
 
 # Apply with --prune (removes agents in Agamemnon that are not in YAML)
 apply-prune HOST=host:
