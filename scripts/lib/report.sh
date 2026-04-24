@@ -152,8 +152,12 @@ report_emit() {
         }'
 }
 
-# Write the report to the canonical last-reconciliation file.
+# Write the report to the canonical last-reconciliation file and a timestamped copy.
 # Usage: report_save <json_string> [report_dir]
+#
+# Writes two files:
+#   reports/last-reconciliation.json         — always the most recent snapshot
+#   reports/reconciliation-<timestamp>.json  — timestamped copy for history retention
 report_save() {
     local json="$1"
     local report_dir="${2:-}"
@@ -165,23 +169,43 @@ report_save() {
     fi
 
     mkdir -p "$report_dir"
-    echo "$json" > "${report_dir}/last-reconciliation.json"
+
+    local timestamp
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    local timestamped_file="${report_dir}/reconciliation-${timestamp}.json"
+
+    # Write timestamped history copy
+    printf '%s\n' "$json" > "$timestamped_file"
+
+    # Write (or overwrite) the canonical latest snapshot
+    printf '%s\n' "$json" > "${report_dir}/last-reconciliation.json"
 }
 
 # POST the report JSON to the Agamemnon webhook endpoint.
+# Outputs a webhook_delivery JSON object to stdout indicating success/failure.
 # Usage: report_webhook <json_string> <webhook_url>
+# Output (stdout): JSON object — {"status":"success"|"failure","http_code":<N>}
 report_webhook() {
     local json="$1"
     local webhook_url="$2"
 
-    if curl -sf --max-time 10 \
+    local http_code
+    http_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
         -X POST "$webhook_url" \
         -H 'Content-Type: application/json' \
-        -d "$json" > /dev/null 2>&1; then
-        echo "Webhook delivered to ${webhook_url}" >&2
+        -d "$json" 2>/dev/null)" || http_code="0"
+
+    local status
+    if [[ "$http_code" =~ ^2 ]]; then
+        status="success"
+        echo "Webhook delivered to ${webhook_url} (HTTP ${http_code})" >&2
     else
-        echo "WARNING: Webhook delivery failed to ${webhook_url}" >&2
+        status="failure"
+        echo "WARNING: Webhook delivery failed to ${webhook_url} (HTTP ${http_code})" >&2
     fi
+
+    jq -n --arg status "$status" --argjson code "${http_code:-0}" \
+        '{status: $status, http_code: $code}'
 }
 
 # Clean up temp files.  Call after report_emit (or on EXIT).
