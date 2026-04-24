@@ -146,6 +146,25 @@ just plan
 just apply <HOST>
 ```
 
+## Drift detection
+
+The reconciler compares these fields between desired YAML state and actual Agamemnon state:
+
+| Field | Checked for drift |
+|-------|------------------|
+| `spec.label` | ✓ |
+| `spec.program` | ✓ |
+| `spec.workingDirectory` | ✓ |
+| `spec.programArgs` | ✓ |
+| `spec.taskDescription` | ✓ |
+| `spec.tags` | ✓ (order-insensitive) |
+| `spec.owner` | ✓ |
+| `spec.role` | ✓ |
+| `spec.desiredState` | ✓ (drives WAKE/HIBERNATE) |
+| `spec.deployment.type` | ✓ |
+
+Fields NOT currently tracked (no drift detection): `spec.model`, `spec.deployment.docker.*`
+
 ## Pull Request Process
 
 ### Before You Start

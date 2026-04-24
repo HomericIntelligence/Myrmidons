@@ -107,6 +107,12 @@ When you report a vulnerability:
 - Social engineering attacks
 - Physical security
 
+## Drift detection as a security control
+
+The `status.sh` and `plan.sh` scripts detect configuration drift between desired YAML
+state and actual Agamemnon state. Running `just status` or `just plan` regularly can
+surface unauthorized changes to agent configurations made outside GitOps.
+
 ## Security Best Practices
 
 When contributing to Myrmidons:
