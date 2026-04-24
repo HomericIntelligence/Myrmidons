@@ -1,0 +1,90 @@
+name: Agent Addition Request
+description: Request provisioning of a new AI agent
+title: "[Agent] "
+labels:
+  - "kind: agent-addition"
+  - "status: needs-triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill in the details below to request a new agent be provisioned in ProjectAgamemnon.
+
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent Name
+      description: The `metadata.name` value — used as the Agamemnon API identifier and tmux session name.
+      placeholder: e.g. odyssey-mainline-analysis
+    validations:
+      required: true
+
+  - type: input
+    id: agent-host
+    attributes:
+      label: Host
+      description: The host where the agent should run (e.g. hermes).
+      placeholder: e.g. hermes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent-program
+    attributes:
+      label: Program
+      description: The program the agent runs.
+      options:
+        - claude-code
+        - aider
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: agent-model
+    attributes:
+      label: Model
+      description: Model override (leave blank for default).
+      placeholder: e.g. claude-sonnet-4-6 (optional)
+
+  - type: input
+    id: agent-working-dir
+    attributes:
+      label: Working Directory
+      description: Absolute path to the agent's working directory.
+      placeholder: e.g. /home/mvillmow/MyProject
+    validations:
+      required: true
+
+  - type: textarea
+    id: agent-task
+    attributes:
+      label: Purpose / Task Description
+      description: What does this agent do? This becomes `spec.taskDescription`.
+      placeholder: Describe the agent's role and responsibilities.
+    validations:
+      required: true
+
+  - type: input
+    id: agent-tags
+    attributes:
+      label: Tags
+      description: Comma-separated list of tags (e.g. myproject, analysis).
+      placeholder: e.g. myproject, analysis
+
+  - type: input
+    id: agent-owner
+    attributes:
+      label: Owner
+      description: GitHub username of the agent owner.
+      placeholder: e.g. mvillmow
+    validations:
+      required: true
+
+  - type: textarea
+    id: justification
+    attributes:
+      label: Justification
+      description: Why is this agent needed? What work will it perform?
+    validations:
+      required: true
