@@ -107,6 +107,11 @@ while IFS= read -r -d '' file; do
     [[ -z "$program" ]] && field_errors+=("spec.program is required")
     [[ -z "$workdir" ]] && field_errors+=("spec.workingDirectory is required")
 
+    # Validate workingDirectory is an absolute path
+    if [[ -n "$workdir" && "$workdir" != /* ]]; then
+        field_errors+=("spec.workingDirectory '$workdir' is not an absolute path (must start with /)")
+    fi
+
     # Validate spec.program against known enum
     if [[ -n "$program" ]]; then
         case "$program" in
