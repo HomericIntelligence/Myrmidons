@@ -56,6 +56,10 @@ apply HOST=host:
 apply-prune HOST=host:
     AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
 
+# Retry: re-apply agents from .myrmidons/failed-agents.txt (issue #269)
+retry HOST=host:
+    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --retry
+
 # =============================================================================
 # Bootstrap
 # =============================================================================

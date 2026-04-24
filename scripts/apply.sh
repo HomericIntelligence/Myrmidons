@@ -339,7 +339,7 @@ apply_agent() {
 
             local patch_body
             patch_body="$(jq -n \
-                --arg lbl "$label" \
+                --arg label "$label" \
                 --arg program "$program" \
                 --arg workingDirectory "$workdir" \
                 --arg programArgs "$args" \
@@ -347,7 +347,7 @@ apply_agent() {
                 --argjson tags "$tags_json" \
                 --arg owner "$owner" \
                 --arg role "$role" \
-                '{label: $lbl, program: $program, workingDirectory: $workingDirectory,
+                '{label: $label, program: $program, workingDirectory: $workingDirectory,
                   programArgs: $programArgs, taskDescription: $taskDescription,
                   tags: $tags, owner: $owner, role: $role}')"
 
