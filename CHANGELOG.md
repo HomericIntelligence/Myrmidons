@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- `curl >= 8.0` added to `pixi.toml` dependencies to close the gap between declared and actual script requirements (#103)
+
 ## [0.3.0] - 2026-04-05
 
 ### Added
