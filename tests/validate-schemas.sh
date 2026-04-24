@@ -190,6 +190,9 @@ if [[ $ERRORS -gt 0 ]]; then
     exit 1
 fi
 
-# Also validate fleet ref referential integrity
-echo ""
-"${SCRIPT_DIR}/validate-fleet-refs.sh"
+# Also validate fleet ref referential integrity (skip if script is not present,
+# e.g. when running from a temp directory in unit tests)
+if [[ -x "${SCRIPT_DIR}/validate-fleet-refs.sh" ]]; then
+    echo ""
+    "${SCRIPT_DIR}/validate-fleet-refs.sh"
+fi

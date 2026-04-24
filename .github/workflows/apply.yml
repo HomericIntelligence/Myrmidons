@@ -29,30 +29,8 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Cache pixi environment
-        uses: actions/cache@v4
-        with:
-          path: |
-            .pixi
-            ~/.cache/rattler/cache
-          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
-
-      - name: Install dependencies (locked)
-        run: pixi install --locked
-
-      - name: Install yq
-        env:
-          YQ_VERSION: "v4.40.5"
-        run: |
-          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
-            -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-          yq --version
-
-      - name: Install jq
-        run: |
-          sudo apt-get install -y --no-install-recommends jq
-          jq --version
+      - name: Set up pixi
+        uses: ./.github/actions/setup-pixi
 
       - name: Plan — show what will change
         run: |
