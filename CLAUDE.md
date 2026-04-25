@@ -17,6 +17,9 @@ Myrmidons is the source of truth for *desired* agent state. Agent definitions li
 ## Quick start
 
 ```bash
+# Install pre-commit hooks (runs the dangerous-flags policy check on every commit)
+just install-hooks
+
 # Export current Agamemnon agents to YAML (run once)
 ./scripts/export.sh
 
