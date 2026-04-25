@@ -1,0 +1,26 @@
+# yaml-language-server: =../../schemas/agent-v1.schema.json
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue22-ship-odysseus
+  host: hermes
+spec:
+  label: "Issue 22 Shipper - Odysseus"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Commits and opens PR for issue #22 CI hardening. PR body uses Closes #22."
+  tags:
+    - issue-22
+    - shipper
+    - ci-hardening
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active

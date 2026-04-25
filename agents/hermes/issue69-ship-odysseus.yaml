@@ -1,0 +1,27 @@
+# yaml-language-server: =../../schemas/agent-v1.schema.json
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue69-ship-odysseus
+  host: hermes
+spec:
+  label: "Issue 69 Final Shipper - Odysseus"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Commits and opens the final Odysseus PR for issue #69. Adds configs/claude/read-permissions.json canonical source and scripts/verify_claude_read_permissions.py. PR body uses Closes #69."
+  tags:
+    - issue-69
+    - shipper
+    - odysseus
+    - claude-permissions
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active
