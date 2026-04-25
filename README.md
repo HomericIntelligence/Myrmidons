@@ -2,6 +2,7 @@
 
 [![Lint and Test](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/lint.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/lint.yml)
 [![Validate YAML](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/validate.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/validate.yml)
+[![Repo Grade: B+](https://img.shields.io/badge/repo%20grade-B%2B-brightgreen)](https://github.com/HomericIntelligence/Myrmidons/issues/35)
 
 GitOps agent provisioning for the HomericIntelligence mesh.
 Agent YAML files are the source of truth for **desired** state.
