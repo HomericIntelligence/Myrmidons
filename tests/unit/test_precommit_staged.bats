@@ -77,7 +77,7 @@ teardown() {
 
 @test "pre-commit hook: exits 0 when no YAML files are staged" {
     # Nothing staged at all
-    run bash "$HOOK"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
 }
 
@@ -90,7 +90,7 @@ teardown() {
     git -C "$REPO_DIR" add "agents/hermes/myagent.yaml"
     run git -C "$REPO_DIR" -c core.hooksPath="${SCRIPT_DIR}/hooks" diff --cached --name-only
     # Run hook inside the test repo so git commands see the index
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
 }
 
@@ -101,7 +101,7 @@ teardown() {
 @test "pre-commit hook: exits non-zero when staged agent YAML is missing metadata.name" {
     _write_invalid_agent "agents/hermes/noname.yaml"
     git -C "$REPO_DIR" add "agents/hermes/noname.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -ne 0 ]]
 }
 
@@ -128,7 +128,7 @@ teardown() {
     _write_valid_agent "agents/hermes/staged-valid.yaml"
     git -C "$REPO_DIR" add "agents/hermes/staged-valid.yaml"
     # Run hook — it should only see staged-valid.yaml and pass
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
 }
 
@@ -137,7 +137,7 @@ teardown() {
     _write_valid_agent "agents/hermes/agent-one.yaml" "agent-one"
     _write_valid_agent "agents/hermes/agent-two.yaml" "agent-two"
     git -C "$REPO_DIR" add "agents/hermes/agent-one.yaml" "agents/hermes/agent-two.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
     # Output should mention both files
     [[ "$output" == *"agent-one.yaml"* ]]
@@ -148,7 +148,7 @@ teardown() {
     _write_valid_agent "agents/hermes/good.yaml" "good-agent"
     _write_invalid_agent "agents/hermes/bad.yaml"
     git -C "$REPO_DIR" add "agents/hermes/good.yaml" "agents/hermes/bad.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"bad.yaml"* ]]
 }
@@ -164,7 +164,7 @@ teardown() {
     git -C "$REPO_DIR" commit -q -m "initial"
     git -C "$REPO_DIR" rm -q "agents/hermes/todelete.yaml"
     # The diff-filter=ACM used by the hook excludes D (deleted), so nothing to check
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
 }
 
@@ -179,7 +179,7 @@ teardown() {
 key: value
 EOF
     git -C "$REPO_DIR" add "config/settings.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
 }
 
@@ -201,7 +201,7 @@ spec:
     type: local
 EOF
     git -C "$REPO_DIR" add "agents/hermes/wrongver.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"apiVersion"* ]]
 }
@@ -226,7 +226,7 @@ spec:
   desiredState: running
 EOF
     git -C "$REPO_DIR" add "agents/hermes/badstate.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"desiredState"* ]]
 }
@@ -248,7 +248,7 @@ spec:
     - ref: hermes/someagent
 EOF
     git -C "$REPO_DIR" add "fleets/myfleet.yaml"
-    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    run bash -c "cd '$REPO_DIR' && SKIP_TESTS=1 bash '$HOOK'"
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Fleet"* ]]
 }

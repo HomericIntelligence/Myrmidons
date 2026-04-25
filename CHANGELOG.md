@@ -9,9 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - CHANGELOG.md update validation in PR CI workflow — PRs must update CHANGELOG.md or include `[skip changelog]` to bypass (#126, #127)
 - Doctor dependency check (`scripts/doctor.sh --skip-connectivity`) added to validate.yml CI (#244)
+- `compute_drift` now accepts `owner`, `role`, and `deploy_type` parameters for deeper configuration drift detection (#330)
+- pre-commit hook: dangerous-flags lint guard calls `check-dangerous-flags.sh` on staged agent/fleet YAMLs (#147)
 
 ### Changed
 - validate.yml lint job now uses pixi's shellcheck (via `pixi run --environment lint lint-shell`) instead of a manual curl install (#102)
+
+### Fixed
+- pre-commit hook: `REPO_ROOT` now uses `git rev-parse --show-toplevel` so the hook resolves the correct repo root when installed as `.git/hooks/pre-commit` (#330)
+- pre-commit hook: `NAME_LIST` pipeline guarded with `|| true` to prevent `set -o pipefail` from aborting the hook when `yq` returns non-zero on an unstaged file (#330)
+- Unit test ShellCheck violations resolved: SC2314, SC2315, SC2034, SC2088, SC2155, SC2164, SC2188 (#330)
+- `test_export_status.bats`: UNCHANGED drift test now passes correct `owner`/`role` in mock response to match YAML values (#330)
 
 ## [0.3.0] - 2026-04-05
 

@@ -15,12 +15,10 @@
 #   - Mock agamemnon_create_agent and agamemnon_wake_agent as no-ops
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
-FIXTURES_DIR="${SCRIPT_DIR}/tests/fixtures"
 
 # ── shared variables ─────────────────────────────────────────────────────────
 
 TEMP_DIR=""
-CAPTURED_PATCH_BODY=""
 CAPTURED_PATCH_FILE=""
 
 # ── setup / teardown ─────────────────────────────────────────────────────────
@@ -178,7 +176,7 @@ apply_agent() {
             report_add_agent "$name" "$agent_host" "HIBERNATE" "$desired_state" "$actual_status" "[]" ""
             ;;
         UPDATE:*)
-            local changed_fields="${action#UPDATE:}"
+            local _changed_fields="${action#UPDATE:}"
 
             local tags_json
             if [[ -z "$tags" ]]; then

@@ -9,7 +9,6 @@
 # Issue #208: Add bats tests for resolve_fleet() and fleet resolution logic
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
-FIXTURES_DIR="${SCRIPT_DIR}/tests/fixtures"
 REPO_ROOT="${SCRIPT_DIR}"
 
 # Source reconcile.sh before each test
@@ -95,7 +94,7 @@ spec:
 EOF
 
     result="$(resolve_fleet_files "$tmp_fleet" 2>&1 || true)"
-    ! resolve_fleet_files "$tmp_fleet" 2>/dev/null
+    run ! resolve_fleet_files "$tmp_fleet" 2>/dev/null
     [[ "$result" == *"not found"* ]]
     rm -f "$tmp_fleet"
 }
@@ -290,7 +289,7 @@ EOF
 
     unset FLEET_TMPDIR
     result="$(resolve_fleet_files "$tmp_fleet" 2>&1 || true)"
-    ! resolve_fleet_files "$tmp_fleet" 2>/dev/null
+    run ! resolve_fleet_files "$tmp_fleet" 2>/dev/null
     [[ "$result" == *"no name"* ]]
     rm -f "$tmp_fleet"
 }

@@ -55,7 +55,8 @@ _make_actual() {
 
 @test "compute_drift UNCHANGED: tilde path normalized with full path" {
     actual="$(_make_actual "active" "Agent" "claude-code" "${HOME}/Projects" "" "" '[]')"
-    result="$(compute_drift "agent" "active" "$actual" "Agent" "claude-code" "~/Projects" "" "" "")"
+    # shellcheck disable=SC2088
+    result="$(compute_drift "agent" "active" "$actual" "Agent" "claude-code" '~/Projects' "" "" "")"
     [[ "$result" == "UNCHANGED" ]]
 }
 

@@ -59,7 +59,7 @@ setup() {
     result="$(get_unmanaged_names "$agents_json" "${FIXTURES_DIR}/agent-valid.yaml")"
     # Should only output rogue-agent
     [[ "$result" == "rogue-agent" ]]
-    ! [[ "$result" == *"test-agent"* ]]
+    [[ ! "$result" == *"test-agent"* ]]
 }
 
 @test "get_unmanaged_names: multiple yaml files with mix of managed and unmanaged" {
@@ -69,8 +69,8 @@ setup() {
     result="$(get_unmanaged_names "$agents_json" "${FIXTURES_DIR}/agent-valid.yaml" "${FIXTURES_DIR}/agent-minimal.yaml")"
     # Should only output unknown-agent
     [[ "$result" == "unknown-agent" ]]
-    ! [[ "$result" == *"test-agent"* ]]
-    ! [[ "$result" == *"minimal-agent"* ]]
+    [[ ! "$result" == *"test-agent"* ]]
+    [[ ! "$result" == *"minimal-agent"* ]]
 }
 
 @test "get_unmanaged_names: agents_json with null entries does not crash" {
@@ -138,8 +138,8 @@ setup() {
     # Should contain orphan-agent line
     [[ "$result" == *"orphan-agent"* ]]
     # Should NOT contain test-agent or minimal-agent as unmanaged
-    ! [[ "$result" == *"test-agent"* && "$result" == *"UNMANAGED test-agent"* ]]
-    ! [[ "$result" == *"minimal-agent"* && "$result" == *"UNMANAGED minimal-agent"* ]]
+    [[ ! "$result" == *"test-agent"* || ! "$result" == *"UNMANAGED test-agent"* ]]
+    [[ ! "$result" == *"minimal-agent"* || ! "$result" == *"UNMANAGED minimal-agent"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -153,13 +153,12 @@ setup() {
     [[ -z "$result" ]]
 }
 
-@test "report_unmanaged: no yaml files with unmanaged agents still reports them" {
-    # Pass agents but no yaml files to compare against
+@test "report_unmanaged: no yaml files produces no output (guard #130)" {
+    # When no YAML files are passed, the function returns early (guard #130:
+    # if nothing is managed, unmanaged detection is a no-op).
     local agents_json='[{"name":"any-agent","status":"active"}]'
     result="$(report_unmanaged "$agents_json")" || true
-    # With no yaml files, any agent in agents_json is unmanaged
-    [[ "$result" == *"any-agent"* ]]
-    [[ "$result" == *"UNMANAGED"* ]]
+    [[ -z "$result" ]]
 }
 
 @test "get_unmanaged_names: agent name with special characters is handled" {

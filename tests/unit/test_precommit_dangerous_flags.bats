@@ -76,7 +76,8 @@ _stage_and_run_hook() {
     fi
 
     # Run the pre-commit hook from the repo root
-    (cd "$TMP_REPO" && PATH="$run_path" bash ".git/hooks/pre-commit") 2>&1
+    # SKIP_TESTS=1: TMP_REPO has no Justfile/pixi.toml, so skip the test-suite step
+    (cd "$TMP_REPO" && SKIP_TESTS=1 PATH="$run_path" bash ".git/hooks/pre-commit") 2>&1
 }
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ setup() {
 
     # File that records every path returned by our mktemp override
     TRACKED_LIST="${TRACKED_TMPDIR}/tracked_tmps"
-    > "$TRACKED_LIST"
+    : > "$TRACKED_LIST"
     export TRACKED_LIST
 
     # File recording curl invocation count
@@ -194,7 +194,7 @@ _assert_no_leaked_tmpfiles() {
 @test "_agamemnon_curl_retry: exactly 1 temp file created and removed on success" {
     echo "0,200" > "$SEQ_FILE"
     # Reset tracked list so we only count what this test creates
-    > "$TRACKED_LIST"
+    : > "$TRACKED_LIST"
 
     _agamemnon_curl_retry "http://mock.test:19999/v1/agents" >/dev/null 2>/dev/null
 
@@ -213,7 +213,7 @@ _assert_no_leaked_tmpfiles() {
 @test "_agamemnon_curl_retry: 3 temp files created and all removed when all retries fail" {
     echo "7,000" > "$SEQ_FILE"
     # Reset tracked list so we only count what this test creates
-    > "$TRACKED_LIST"
+    : > "$TRACKED_LIST"
 
     run _agamemnon_curl_retry "http://mock.test:19999/v1/agents" 2>/dev/null
 
