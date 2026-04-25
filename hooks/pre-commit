@@ -15,8 +15,9 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Use git rev-parse to find the repo root — works whether the hook runs from
+# hooks/pre-commit (dev) or .git/hooks/pre-commit (installed).
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || { SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd "${SCRIPT_DIR}/.."; pwd; })"
 
 ERRORS=0
 
@@ -230,7 +231,7 @@ if command -v yq &>/dev/null; then
                 [[ -n "$n" ]] && printf '%s\n' "$n"
             fi
         done
-    )
+    ) || true
     DUPLICATE_NAMES=$(printf '%s\n' "$NAME_LIST" | sort | uniq -d)
     if [[ -n "$DUPLICATE_NAMES" ]]; then
         echo "FAIL — duplicate metadata.name values found:"

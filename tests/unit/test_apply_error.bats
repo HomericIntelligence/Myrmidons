@@ -7,7 +7,6 @@
 # - Exit code semantics (0 success, 1 partial failure, 2 --fail-fast abort)
 # - --retry reads failed-agents.txt and filters agents correctly
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 TEMP_TEST_DIR=""
 
 setup() {

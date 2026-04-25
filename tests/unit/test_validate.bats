@@ -21,7 +21,7 @@ teardown() {
 # Helper function to run validate script in temp directory.
 # NOTE: must be exported so BATS's `run` subshell can resolve it.
 run_validate() {
-    cd "$TEST_TMPDIR"
+    cd "$TEST_TMPDIR" || return 1
     # The script uses REPO_ROOT derived from its own path, so we need to run it
     # in a way that makes it think the temp dir is the root.
     # Copy both validate-schemas.sh and validate-fleet-refs.sh so the

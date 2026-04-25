@@ -5,14 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 
 # Create a temporary directory for test config files
 setup() {
-    export TEST_TMP_DIR="$(mktemp -d)"
-    export ORIGINAL_DIR="$(pwd)"
+    TEST_TMP_DIR="$(mktemp -d)"
+    export TEST_TMP_DIR
+    ORIGINAL_DIR="$(pwd)"
+    export ORIGINAL_DIR
 
     # Create a justfile to mark repo root
     touch "${TEST_TMP_DIR}/justfile"
 
     # Change to the test directory so _cfg_repo_root finds our files
-    cd "$TEST_TMP_DIR"
+    cd "$TEST_TMP_DIR" || return 1
 
     # Clear any environment variables that might interfere
     unset AGAMEMNON_URL
@@ -26,7 +28,7 @@ setup() {
 }
 
 teardown() {
-    cd "$ORIGINAL_DIR"
+    cd "$ORIGINAL_DIR" || return 1
     rm -rf "$TEST_TMP_DIR"
 }
 

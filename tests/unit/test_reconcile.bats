@@ -17,7 +17,8 @@ setup() {
 # ---------------------------------------------------------------------------
 
 @test "normalize_path: expands tilde to HOME" {
-    result="$(normalize_path "~/Projects/foo")"
+    # shellcheck disable=SC2088
+    result="$(normalize_path '~/Projects/foo')"
     [[ "$result" == "${HOME}/Projects/foo" ]]
 }
 
@@ -254,7 +255,8 @@ _make_actual() {
 
 @test "compute_drift: UNCHANGED when workingDirectory uses tilde and actual uses full path" {
     actual="$(_make_actual "active" "Agent" "claude-code" "${HOME}/Projects" "" "" '[]')"
-    result="$(compute_drift "agent" "active" "$actual" "Agent" "claude-code" "~/Projects" "" "" "")"
+    # shellcheck disable=SC2088
+    result="$(compute_drift "agent" "active" "$actual" "Agent" "claude-code" '~/Projects' "" "" "")"
     [[ "$result" == "UNCHANGED" ]]
 }
 

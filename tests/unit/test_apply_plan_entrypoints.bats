@@ -15,7 +15,6 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 HELPERS_DIR="${SCRIPT_DIR}/tests/helpers"
-FIXTURES_DIR="${SCRIPT_DIR}/tests/fixtures"
 
 MOCK_PORT=18082
 MOCK_PID_FILE=""

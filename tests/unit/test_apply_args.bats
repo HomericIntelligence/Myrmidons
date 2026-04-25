@@ -10,8 +10,6 @@
 # These tests use a simplified approach: extract and test the parse_args function
 # in isolation, then verify the --dry-run exec behavior with a mock plan.sh.
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
-
 # Temporary directory for mock scripts
 MOCK_SCRIPTS_DIR=""
 
@@ -39,8 +37,8 @@ _test_parse_args() {
     local HOST=""
     local PRUNE=0
     local DRY_RUN=0
-    local OUTPUT_FORMAT="text"
-    local WEBHOOK_URL=""
+    local _OUTPUT_FORMAT="text"
+    local _WEBHOOK_URL=""
 
     parse_args() {
         while [[ $# -gt 0 ]]; do

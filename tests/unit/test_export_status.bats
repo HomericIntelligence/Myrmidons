@@ -22,7 +22,6 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 HELPERS_DIR="${SCRIPT_DIR}/tests/helpers"
-FIXTURES_DIR="${SCRIPT_DIR}/tests/fixtures"
 
 MOCK_PORT=18083
 MOCK_PID_FILE=""
@@ -479,7 +478,7 @@ status_agent() {
     local yaml_file="\$1"
     local agents_json="\$2"
 
-    local name host desired_state label program workdir args desc tags
+    local name host desired_state label program workdir args desc tags owner role deploy_type
     name="\$(yq eval '.metadata.name' "\$yaml_file")"
     host="\$(yq eval '.metadata.host // "hermes"' "\$yaml_file")"
     desired_state="\$(yq eval '.spec.desiredState // "active"' "\$yaml_file")"
@@ -489,6 +488,9 @@ status_agent() {
     args="\$(yq eval '.spec.programArgs // ""' "\$yaml_file")"
     desc="\$(yq eval '.spec.taskDescription // ""' "\$yaml_file")"
     tags="\$(yq eval '.spec.tags // [] | join(",")' "\$yaml_file")"
+    owner="\$(yq eval '.spec.owner // ""' "\$yaml_file")"
+    role="\$(yq eval '.spec.role // "member"' "\$yaml_file")"
+    deploy_type="\$(yq eval '.spec.deployment.type // "local"' "\$yaml_file")"
 
     local actual_json
     actual_json="\$(echo "\$agents_json" | jq -r --arg n "\$name" '.[] | select(.name == \$n)')"
@@ -504,7 +506,7 @@ status_agent() {
 
     local drift
     drift="\$(compute_drift "\$name" "\$desired_state" "\$actual_json" \\
-        "\$label" "\$program" "\$workdir" "\$args" "\$desc" "\$tags")"
+        "\$label" "\$program" "\$workdir" "\$args" "\$desc" "\$tags" "" "\$owner" "\$role" "\$deploy_type")"
 
     local drift_display
     case "\$drift" in
@@ -564,10 +566,9 @@ WRAPPER
 @test "status.sh: shows 'ok' drift for UNCHANGED agent" {
     _make_agent_yaml hermes "status-agent" "StatusAgent" active claude-code /tmp mvillmow member
 
-    # owner/role must be "" in actual since compute_drift is called without those args
-    # (they default to "" at positions $11/$12), so actual must also be "" to avoid drift.
+    # owner/role in actual must match the YAML values so compute_drift returns UNCHANGED.
     local mock_body
-    mock_body='[{"id":"id-001","name":"status-agent","status":"active","label":"StatusAgent","program":"claude-code","workingDirectory":"/tmp","programArgs":"","taskDescription":"Test agent","tags":[],"owner":"","role":""}]'
+    mock_body='[{"id":"id-001","name":"status-agent","status":"active","label":"StatusAgent","program":"claude-code","workingDirectory":"/tmp","programArgs":"","taskDescription":"Test agent","tags":[],"owner":"mvillmow","role":"member"}]'
     _run_status "$mock_body"
 
     [[ "$status" -eq 0 ]]
