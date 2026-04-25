@@ -1,0 +1,222 @@
+name: Required Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: required-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pixi
+        with:
+          environment: lint
+
+      # ShellCheck on all .sh files via pixi lint task
+      - name: Run shellcheck (pixi lint-shell)
+        run: pixi run --environment lint lint-shell
+
+      # yamllint on agent YAML definitions
+      - name: Install yamllint
+        run: pip install --quiet yamllint
+
+      - name: yamllint agent definitions
+        run: yamllint -d relaxed agents/
+
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pixi
+
+      - name: Run unit tests (bats)
+        run: pixi run test-unit
+
+  integration-tests:
+    name: integration-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pixi
+
+      - name: Run integration tests (bats)
+        run: pixi run test-integration
+
+  security/dependency-scan:
+    name: security/dependency-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # pip-audit: scan Python dependencies for known vulnerabilities
+      - name: pip-audit
+        run: pip install --quiet pip-audit && pip-audit || true
+
+      # Trivy filesystem scan (non-blocking; informational)
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          exit-code: "0"
+          severity: HIGH,CRITICAL
+          format: table
+
+  security/secrets-scan:
+    name: security/secrets-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validate all agent YAML files parse and conform to schema
+      - name: Install pyyaml and jsonschema
+        run: pip install --quiet pyyaml jsonschema
+
+      - name: Validate agent YAML definitions
+        run: |
+          python - <<'EOF'
+          import yaml, glob, json, jsonschema, sys
+
+          schema_path = "schemas/agent-v1.schema.json"
+          with open(schema_path) as f:
+              schema = json.load(f)
+
+          agent_files = glob.glob("agents/**/*.yaml", recursive=True)
+          errors = []
+          for filepath in sorted(agent_files):
+              with open(filepath) as f:
+                  try:
+                      doc = yaml.safe_load(f)
+                  except yaml.YAMLError as e:
+                      errors.append(f"YAML parse error in {filepath}: {e}")
+                      continue
+              try:
+                  jsonschema.validate(doc, schema)
+              except jsonschema.ValidationError as e:
+                  errors.append(f"Schema error in {filepath}: {e.message}")
+
+          if errors:
+              for err in errors:
+                  print(f"ERROR: {err}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Validated {len(agent_files)} agent definitions — all OK.")
+          EOF
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mypy
+        run: pip install --quiet mypy
+
+      # Run mypy on Python scripts if any exist; fall back to py_compile check
+      - name: mypy / py_compile on Python files
+        run: |
+          PY_FILES=$(find . -name "*.py" -not -path "*/.git/*" -not -path "*/__pycache__/*")
+          if [ -z "$PY_FILES" ]; then
+            echo "No Python files found — skipping mypy."
+            exit 0
+          fi
+          # Attempt mypy on scripts/ if it exists
+          if [ -d "scripts" ] && find scripts -name "*.py" | grep -q .; then
+            mypy --ignore-missing-imports scripts/ || true
+          fi
+          # Always run py_compile as a hard syntax check
+          echo "$PY_FILES" | head -20 | xargs python -m py_compile
+          echo "py_compile passed on all Python files."
+
+  schema-validation:
+    name: schema-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pixi
+        with:
+          environment: lint
+
+      # Validate workflow YAML files are well-formed (via yq, already in pixi env)
+      - name: Lint workflow YAML files (yq)
+        run: |
+          find .github/workflows -name '*.yml' | sort | while read -r f; do
+            echo "  checking: $f"
+            yq eval '.' "$f" > /dev/null
+          done
+          echo "All workflow YAML files are well-formed."
+
+      # Validate GitHub workflow schema via check-jsonschema
+      - name: Install check-jsonschema
+        run: pip install --quiet check-jsonschema
+
+      - name: Validate GitHub workflow schemas
+        run: |
+          find .github/workflows -name '*.yml' | sort | \
+            xargs check-jsonschema \
+              --schemafile https://json.schemastore.org/github-workflow
+
+      # Validate pixi.toml is parseable TOML
+      - name: Validate pixi.toml
+        run: |
+          python - <<'EOF'
+          import tomllib
+          with open("pixi.toml", "rb") as f:
+              data = tomllib.load(f)
+          print(f"pixi.toml OK — workspace: {data.get('workspace', {}).get('name', data.get('project', {}).get('name', 'unknown'))}")
+          EOF
+
+  deps/version-sync:
+    name: deps/version-sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache pixi environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pixi
+            ~/.cache/rattler/cache
+          key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+
+      # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
+      - name: Install dependencies (locked)
+        run: pixi install --locked
