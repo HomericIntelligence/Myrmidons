@@ -456,15 +456,15 @@ get_unmanaged_names() {
     # Guard: nothing to check if Agamemnon returned no agents
     [[ -z "$agents_json" || "$agents_json" == '[]' ]] && return 0
     shift
-    # Guard: nothing to check if no YAML files are managed (#130)
-    [[ $# -eq 0 ]] && return 0
     local yaml_files=("$@")
 
-    # Collect all managed names from YAML files in a single yq invocation (#233)
+    # Collect managed names from YAML files; if no files provided, all agents are unmanaged.
     local managed_names=()
-    while IFS= read -r n; do
-        [[ -n "$n" ]] && managed_names+=("$n")
-    done < <(yq eval '.metadata.name' "${yaml_files[@]}")
+    if [[ ${#yaml_files[@]} -gt 0 ]]; then
+        while IFS= read -r n; do
+            [[ -n "$n" ]] && managed_names+=("$n")
+        done < <(yq eval '.metadata.name' "${yaml_files[@]}")
+    fi
 
     # Emit names present in Agamemnon but absent from managed list
     while IFS= read -r actual_name; do
