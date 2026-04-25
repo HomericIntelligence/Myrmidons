@@ -29,3 +29,4 @@ hello-world/main.py
 
 # Reconciliation reports (runtime state, not config)
 reports/last-reconciliation.json
+.issue_implementer/
