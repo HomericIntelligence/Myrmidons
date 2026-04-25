@@ -60,7 +60,7 @@ jobs:
       - name: Run integration tests (bats)
         run: pixi run test-integration
 
-  security/dependency-scan:
+  security-dependency-scan:
     name: security/dependency-scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -81,7 +81,7 @@ jobs:
           severity: HIGH,CRITICAL
           format: table
 
-  security/secrets-scan:
+  security-secrets-scan:
     name: security/secrets-scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -202,7 +202,7 @@ jobs:
           print(f"pixi.toml OK — workspace: {data.get('workspace', {}).get('name', data.get('project', {}).get('name', 'unknown'))}")
           EOF
 
-  deps/version-sync:
+  deps-version-sync:
     name: deps/version-sync
     runs-on: ubuntu-latest
     timeout-minutes: 15
