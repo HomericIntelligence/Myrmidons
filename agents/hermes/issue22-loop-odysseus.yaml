@@ -1,0 +1,26 @@
+# yaml-language-server: =../../schemas/agent-v1.schema.json
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue22-loop-odysseus
+  host: hermes
+spec:
+  label: "Issue 22 Loop - Odysseus"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Test/implement/review loop for issue #22 CI hardening. Extends .github/workflows/ci.yml with markdownlint, pixi.toml validity, justfile parse, symlink integrity, and read-permissions verifier."
+  tags:
+    - issue-22
+    - loop
+    - ci-hardening
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active

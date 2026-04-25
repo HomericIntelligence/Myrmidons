@@ -1,0 +1,27 @@
+# yaml-language-server: =../../schemas/agent-v1.schema.json
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: issue69-ship-proteus
+  host: hermes
+spec:
+  label: "Issue 69 Shipper - ProjectProteus"
+  program: claude-code
+  model: null
+  workingDirectory: /home/mvillmow/Odysseus
+  programArgs: ""
+  taskDescription: "Commits and opens PR for issue #69 permission merge in ProjectProteus. PR body references HomericIntelligence/Odysseus#69."
+  tags:
+    - issue-69
+    - shipper
+    - proteus
+    - claude-permissions
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-claude:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active
