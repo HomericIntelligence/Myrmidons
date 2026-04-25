@@ -15,9 +15,11 @@
 
 set -euo pipefail
 
-# Use git rev-parse to find the repo root — works whether the hook runs from
-# hooks/pre-commit (dev) or .git/hooks/pre-commit (installed).
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || { SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd "${SCRIPT_DIR}/.."; pwd; })"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# REPO_ROOT_HOOK: the actual git repository root, even when the hook is installed
+# inside a test's temporary git repo (where SCRIPT_DIR resolves to .git/hooks).
+REPO_ROOT_HOOK="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
 
 ERRORS=0
 
@@ -202,7 +204,7 @@ echo "All YAML files valid."
 # Run validate-fleet-refs.sh when any staged file is a fleet YAML.
 STAGED_FLEET_YAMLS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^fleets/.*\.yaml$' || true)
 if [[ -n "$STAGED_FLEET_YAMLS" ]]; then
-    FLEET_VALIDATOR="${REPO_ROOT}/tests/validate-fleet-refs.sh"
+    FLEET_VALIDATOR="${REPO_ROOT_HOOK}/tests/validate-fleet-refs.sh"
     if [[ -x "$FLEET_VALIDATOR" ]]; then
         echo ""
         echo "Validating fleet ref referential integrity..."
@@ -223,12 +225,12 @@ if command -v yq &>/dev/null; then
     # Collect all metadata.name values from every agent YAML (kind: Agent only)
     # Use printf to build a null-delimited list for safe filename handling
     NAME_LIST=$(
-        find "${REPO_ROOT}/agents" -name "*.yaml" -not -path "*/_templates/*" -print0 2>/dev/null \
+        find "${REPO_ROOT_HOOK}/agents" -name "*.yaml" -not -path "*/_templates/*" -print0 2>/dev/null \
         | while IFS= read -r -d '' f; do
             k="$(yq eval '.kind // ""' "$f" 2>/dev/null)"
             if [[ "$k" == "Agent" ]]; then
                 n="$(yq eval '.metadata.name // ""' "$f" 2>/dev/null)"
-                [[ -n "$n" ]] && printf '%s\n' "$n"
+                [[ -n "$n" ]] && printf '%s\n' "$n" || true
             fi
         done
     ) || true
@@ -250,10 +252,6 @@ fi
 # ── Dangerous-flags lint guard ──────────────────────────────────────────────
 # Check staged files for bare --dangerously-skip-permissions usage.
 # Only runs if any staged YAML files exist (already checked above).
-#
-# Use git rev-parse to find the working tree root regardless of where the hook
-# binary lives (e.g. installed at .git/hooks/pre-commit vs hooks/pre-commit).
-REPO_ROOT_HOOK="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 DANGEROUS_FLAGS_SCRIPT="${REPO_ROOT_HOOK}/scripts/check-dangerous-flags.sh"
 
 if [[ -x "$DANGEROUS_FLAGS_SCRIPT" ]]; then
@@ -278,22 +276,22 @@ fi
 # Set SKIP_TESTS=1 to bypass this step (e.g. when test environment is unavailable).
 if [[ "${SKIP_TESTS:-0}" != "1" ]]; then
     echo ""
-    if command -v just &>/dev/null; then
+    if command -v just &>/dev/null && [[ -f "${REPO_ROOT_HOOK}/Justfile" ]]; then
         echo "Running test suite (just test) — set SKIP_TESTS=1 to skip..."
-        if ! just --justfile "${REPO_ROOT}/Justfile" test; then
+        if ! just --justfile "${REPO_ROOT_HOOK}/Justfile" test; then
             echo ""
             echo "Pre-commit: tests failed. Fix failing tests or set SKIP_TESTS=1 to bypass."
             exit 1
         fi
-    elif command -v pixi &>/dev/null; then
+    elif command -v pixi &>/dev/null && [[ -f "${REPO_ROOT_HOOK}/pixi.toml" ]]; then
         echo "Running test suite (pixi run test) — set SKIP_TESTS=1 to skip..."
-        if ! pixi run --manifest-path "${REPO_ROOT}/pixi.toml" test; then
+        if ! pixi run --manifest-path "${REPO_ROOT_HOOK}/pixi.toml" test; then
             echo ""
             echo "Pre-commit: tests failed. Fix failing tests or set SKIP_TESTS=1 to bypass."
             exit 1
         fi
     else
-        echo "NOTE: neither 'just' nor 'pixi' found — skipping test suite (set SKIP_TESTS=1 to suppress this note)"
+        echo "NOTE: neither 'just' nor 'pixi' found or project files missing — skipping test suite (set SKIP_TESTS=1 to suppress)"
     fi
 fi
 
