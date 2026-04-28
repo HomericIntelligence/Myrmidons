@@ -1,26 +1,21 @@
----
+# YAML Lint configuration
+# See https://yamllint.readthedocs.io/en/stable/configuration.html
+
 extends: default
 
-rules:
-  # Agent YAML files use 2-space indentation
-  indentation:
-    spaces: 2
-    indent-sequences: true
-    check-multi-line-strings: false
+ignore: |
+  helm/**/templates/
 
-  # Allow long lines in task descriptions and URLs
+rules:
   line-length:
     max: 120
     level: warning
-
-  # Allow null/empty values (model: null is valid in agent specs)
-  truthy:
-    allowed-values: ['true', 'false']
-    check-keys: false
-
-  # Allow comments (used for yaml-language-server schema hints)
+  indentation:
+    spaces: 2
+    indent-sequences: true
   comments:
     min-spaces-from-content: 1
-
-  # Don't require document start marker in agent files
   document-start: disable
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false
