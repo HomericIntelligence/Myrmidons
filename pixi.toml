@@ -46,6 +46,7 @@ test-api-retry   = "./tests/test-api-retry.sh"
 test-rollback    = "./tests/test-rollback.sh"
 test-standalone  = { depends-on = ["test-api-retry", "test-rollback"] }
 test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-standalone"] }
+build-hello-world = "just build-hello-world"
 
 [feature.lint.tasks]
 lint-shell = { cmd = "find scripts tests hooks \\( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \\) | sort | xargs shellcheck --severity=warning", description = "ShellCheck all shell scripts and bats tests at warning severity" }

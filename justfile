@@ -150,6 +150,15 @@ lint:
 check: lint test
 
 # =============================================================================
+# C++ Examples
+# =============================================================================
+
+# Build the hello-world C++ example (requires cmake and ninja on PATH)
+build-hello-world:
+    cmake -S hello-world -B build/hello-world -G Ninja -DCMAKE_BUILD_TYPE=Release
+    cmake --build build/hello-world
+
+# =============================================================================
 # Hooks
 # =============================================================================
 
