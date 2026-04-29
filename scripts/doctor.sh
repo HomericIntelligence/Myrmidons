@@ -26,11 +26,13 @@ AGAMEMNON_URL="${AGAMEMNON_URL:-${MYRM_AIM_HOST:-http://localhost:8080}}"
 
 # Flags
 SKIP_CONNECTIVITY=false
+SKIP_HOOKS=false
 
 # Parse command-line flags
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-connectivity) SKIP_CONNECTIVITY=true; shift ;;
+        --skip-hooks) SKIP_HOOKS=true; shift ;;
         *) shift ;;
     esac
 done
@@ -285,6 +287,11 @@ check_yaml() {
 
 check_hooks() {
     section "Check 4: Git hooks"
+
+    if [[ "$SKIP_HOOKS" == "true" ]]; then
+        warn "pre-commit hook check skipped (--skip-hooks)"
+        return
+    fi
 
     local hook_src="${REPO_ROOT}/hooks/pre-commit"
     local hook_dst="${REPO_ROOT}/.git/hooks/pre-commit"

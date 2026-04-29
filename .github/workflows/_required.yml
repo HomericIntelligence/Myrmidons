@@ -76,7 +76,7 @@ jobs:
       # Trivy filesystem scan (non-blocking; informational)
       - name: Trivy filesystem scan
         env:
-          TV_VER: "0.61.0"
+          TV_VER: "0.70.0"
         run: |
           base="https://github.com/aquasecurity/trivy/releases/download"
           curl -sSfL \
