@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Commits and opens PR for issue #22 CI hardening. PR body uses Closes #22."
+  taskDescription: >-
+    Commits and opens PR for issue #22 CI hardening.
+    PR body uses Closes #22.
   tags:
     - issue-22
     - shipper

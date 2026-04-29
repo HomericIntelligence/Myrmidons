@@ -10,7 +10,10 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Plans CI workflow hardening for Odysseus: markdownlint on docs, pixi.toml validity, justfile parse, symlink integrity, read-permissions verifier. Single-repo task."
+  taskDescription: >-
+    Plans CI workflow hardening for Odysseus: markdownlint on docs, pixi.toml
+    validity, justfile parse, symlink integrity, read-permissions verifier.
+    Single-repo task.
   tags:
     - issue-22
     - planner

@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Test/implement/review loop for issue #69 permission merge in ProjectNestor. Merges canonical read-permissions allow-list into .claude/settings.json."
+  taskDescription: >-
+    Test/implement/review loop for issue #69 permission merge in ProjectNestor.
+    Merges canonical read-permissions allow-list into .claude/settings.json.
   tags:
     - issue-69
     - loop

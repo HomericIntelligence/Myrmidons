@@ -32,9 +32,9 @@ fi
 echo "Running shellcheck on all shell scripts..."
 echo ""
 
-# Find and check all shell scripts
+# Find and check all shell scripts and bats test files
 find "${REPO_ROOT}/scripts" "${REPO_ROOT}/tests" "${REPO_ROOT}/hooks" \
-    -name '*.sh' -o -name 'pre-commit' \
+    \( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \) \
     | sort \
     | xargs "$SHELLCHECK_CMD" --severity=warning
 

@@ -4,7 +4,9 @@ kind: Fleet
 metadata:
   name: issue8-justfile
   host: hermes
-  description: "Multi-repo E2E fleet for Issue #8 — add justfile recipes for AchaeanFleet, Proteus, Mnemosyne, Hephaestus"
+  description: >-
+    Multi-repo E2E fleet for Issue #8 — add justfile recipes for AchaeanFleet,
+    Proteus, Mnemosyne, Hephaestus
 spec:
   agents:
     # Planner (1 agent, read-only workspace)

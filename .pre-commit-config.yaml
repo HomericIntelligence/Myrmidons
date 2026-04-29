@@ -1,3 +1,6 @@
+# Source of truth for all linting.
+# CI runs `pre-commit run --all-files` via validate.yml.
+# Do not add CI-only linters here.
 repos:
   # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -8,21 +11,35 @@ repos:
       - id: check-yaml
         args: [--allow-multiple-documents]
 
-  # Shell script linting
+  # Shell script linting — covers .sh, .bats, and hooks/pre-commit
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: a23f6b85d0fdd5bb9d564e2579e678033debbdff  # v0.10.0.1
     hooks:
       - id: shellcheck
         args: [--severity=warning]
+        files: '\.(sh|bats)$|(^|/)pre-commit$'
 
-  # YAML linting for agents/ and fleets/
+  # GitHub Actions workflow linting
+  - repo: https://github.com/rhysd/actionlint
+    rev: 5408c5b9e68f51f5f36bc10e9ed01bfa55f87d08  # v1.7.7
+    hooks:
+      - id: actionlint
+
+  # YAML linting — all YAML files across the repo
   - repo: https://github.com/adrienverge/yamllint
     rev: 81e9f98ffd059efe8aa9c1b1a42e5cce61b640c6  # v1.35.1
     hooks:
       - id: yamllint
-        files: ^(agents|fleets)/.*\.yaml$
+        args: [-d, relaxed]
+        files: '\.ya?ml$'
 
-  # Custom local hook: Myrmidons schema validation
+  # Secret scanning (binary mode, no license required)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # Myrmidons schema validation
   - repo: local
     hooks:
       - id: myrmidons-validate
@@ -32,3 +49,10 @@ repos:
         types: [yaml]
         files: ^(agents|fleets)/.*\.yaml$
         pass_filenames: false
+
+      - id: myrmidons-test-schema
+        name: Myrmidons schema validation tests
+        language: system
+        entry: pixi run test-schema
+        pass_filenames: false
+        files: '^(agents|fleets|schemas|tests)/'

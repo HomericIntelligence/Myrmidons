@@ -149,7 +149,9 @@ jobs:
       # Run mypy on Python scripts if any exist; fall back to py_compile check
       - name: mypy / py_compile on Python files
         run: |
-          PY_FILES=$(find . -name "*.py" -not -path "*/.git/*" -not -path "*/__pycache__/*")
+          PY_FILES=$(find . -name "*.py" \
+            -not -path "*/.git/*" \
+            -not -path "*/__pycache__/*")
           if [ -z "$PY_FILES" ]; then
             echo "No Python files found — skipping mypy."
             exit 0
@@ -173,7 +175,7 @@ jobs:
         with:
           environment: lint
 
-      # Validate workflow YAML files are well-formed (via yq, already in pixi env)
+      # Validate workflow YAML files are well-formed (yq, already in pixi env)
       - name: Lint workflow YAML files (yq)
         run: |
           find .github/workflows -name '*.yml' | sort | while read -r f; do
@@ -199,7 +201,9 @@ jobs:
           import tomllib
           with open("pixi.toml", "rb") as f:
               data = tomllib.load(f)
-          print(f"pixi.toml OK — workspace: {data.get('workspace', {}).get('name', data.get('project', {}).get('name', 'unknown'))}")
+          name = (data.get('workspace', {}).get('name')
+                  or data.get('project', {}).get('name', 'unknown'))
+          print(f"pixi.toml OK — workspace: {name}")
           EOF
 
   deps-version-sync:

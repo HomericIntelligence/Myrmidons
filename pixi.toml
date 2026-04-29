@@ -48,5 +48,5 @@ test-standalone  = { depends-on = ["test-api-retry", "test-rollback"] }
 test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-standalone"] }
 
 [feature.lint.tasks]
-lint-shell = { cmd = "find scripts tests hooks -name '*.sh' -o -name 'pre-commit' | sort | xargs shellcheck --severity=warning", description = "ShellCheck all shell scripts at warning severity" }
+lint-shell = { cmd = "find scripts tests hooks \\( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \\) | sort | xargs shellcheck --severity=warning", description = "ShellCheck all shell scripts and bats tests at warning severity" }
 lint       = { depends-on = ["lint-shell"] }

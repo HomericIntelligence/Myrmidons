@@ -10,7 +10,10 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Plans always-approve-reads permission merge across Odysseus + 14 submodule repos. Reads gist canonical list, diffs each .claude/settings.json, produces per-repo patch plan."
+  taskDescription: >-
+    Plans always-approve-reads permission merge across Odysseus + 14 submodule
+    repos. Reads gist canonical list, diffs each .claude/settings.json,
+    produces per-repo patch plan.
   tags:
     - issue-69
     - planner

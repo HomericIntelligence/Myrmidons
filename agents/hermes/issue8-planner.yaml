@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Plans justfile recipes for 4 missing repos (AchaeanFleet, Proteus, Mnemosyne, Hephaestus). Read-only workspace."
+  taskDescription: >-
+    Plans justfile recipes for 4 missing repos (AchaeanFleet, Proteus,
+    Mnemosyne, Hephaestus). Read-only workspace.
   tags:
     - issue-8
     - planner

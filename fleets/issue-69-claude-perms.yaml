@@ -4,10 +4,13 @@ kind: Fleet
 metadata:
   name: issue-69-claude-perms
   host: hermes
-  description: "Issue #69 — merge always-approve-reads allow-list into .claude/settings.json across Odysseus + 14 submodule repos"
+  description: >-
+    Issue #69 — merge always-approve-reads allow-list into .claude/settings.json
+    across Odysseus + 14 submodule repos
 spec:
   agents:
-    # Planner (1 agent, reads gist + all .claude/settings.json, produces per-repo patch plan)
+    # Planner (1 agent, reads gist + all .claude/settings.json,
+    # produces per-repo patch plan)
     - ref: hermes/issue69-planner
 
     # Per-repo loop workers (test/implement/review, one per submodule)
@@ -26,7 +29,8 @@ spec:
     - ref: hermes/issue69-loop-mnemosyne
     - ref: hermes/issue69-loop-hephaestus
 
-    # Per-repo shippers (commit + PR, one per submodule; PRs reference Odysseus#69)
+    # Per-repo shippers (commit + PR, one per submodule;
+    # PRs reference Odysseus#69)
     - ref: hermes/issue69-ship-achaean-fleet
     - ref: hermes/issue69-ship-argus
     - ref: hermes/issue69-ship-hermes
@@ -42,6 +46,7 @@ spec:
     - ref: hermes/issue69-ship-mnemosyne
     - ref: hermes/issue69-ship-hephaestus
 
-    # Final Odysseus shipper (adds canonical configs/claude/read-permissions.json +
+    # Final Odysseus shipper (adds canonical
+    # configs/claude/read-permissions.json +
     # scripts/verify_claude_read_permissions.py; PR uses Closes #69)
     - ref: hermes/issue69-ship-odysseus

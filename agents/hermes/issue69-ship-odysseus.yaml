@@ -10,7 +10,10 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Commits and opens the final Odysseus PR for issue #69. Adds configs/claude/read-permissions.json canonical source and scripts/verify_claude_read_permissions.py. PR body uses Closes #69."
+  taskDescription: >-
+    Commits and opens the final Odysseus PR for issue #69. Adds
+    configs/claude/read-permissions.json canonical source and
+    scripts/verify_claude_read_permissions.py. PR body uses Closes #69.
   tags:
     - issue-69
     - shipper

@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Test/implement/review loop for ProjectHephaestus justfile recipes. Read-write workspace."
+  taskDescription: >-
+    Test/implement/review loop for ProjectHephaestus justfile recipes.
+    Read-write workspace.
   tags:
     - issue-8
     - loop

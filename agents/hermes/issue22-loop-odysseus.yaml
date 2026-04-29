@@ -10,7 +10,10 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Test/implement/review loop for issue #22 CI hardening. Extends .github/workflows/ci.yml with markdownlint, pixi.toml validity, justfile parse, symlink integrity, and read-permissions verifier."
+  taskDescription: >-
+    Test/implement/review loop for issue #22 CI hardening. Extends
+    .github/workflows/ci.yml with markdownlint, pixi.toml validity, justfile
+    parse, symlink integrity, and read-permissions verifier.
   tags:
     - issue-22
     - loop

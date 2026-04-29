@@ -8,7 +8,6 @@
 #   - --yes bypasses the prompt and continues
 #   - Non-interactive (piped) stdin also bypasses the prompt
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 TEMP_TEST_DIR=""
 
 setup() {
