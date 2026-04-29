@@ -21,7 +21,7 @@ repos:
 
   # GitHub Actions workflow linting
   - repo: https://github.com/rhysd/actionlint
-    rev: 5408c5b9e68f51f5f36bc10e9ed01bfa55f87d08  # v1.7.7
+    rev: v1.7.7
     hooks:
       - id: actionlint
 
