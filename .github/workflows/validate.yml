@@ -155,10 +155,9 @@ jobs:
 
       - uses: ./.github/actions/setup-pixi
 
-      - name: Run doctor (deps only, skip connectivity)
+      - name: Run doctor (deps only, skip connectivity + hooks)
         run: |
           chmod +x scripts/doctor.sh
-          # In CI there is no real Agamemnon endpoint; skip connectivity check.
-          # The doctor still validates that required tools (yq, jq, curl) and
-          # the pixi environment are all present and functional.
-          pixi run bash scripts/doctor.sh --skip-connectivity
+          # In CI there is no real Agamemnon endpoint or installed git hooks;
+          # skip both. Doctor still validates tools, YAML, and pixi env.
+          pixi run bash scripts/doctor.sh --skip-connectivity --skip-hooks

@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Agent and fleet YAML `taskDescription`/`description` fields with lines >80 chars rewritten using YAML folded scalars (`>-`) to satisfy yamllint relaxed line-length rule
 
 ### Fixed
+- `scripts/doctor.sh`: added `--skip-hooks` flag; CI doctor job now passes `--skip-connectivity --skip-hooks` since git hooks are not installed on fresh CI checkouts
+- `_required.yml` trivy binary install: corrected version from non-existent `0.61.0` to `0.70.0`
+- `pixi.lock` updated via `pixi update` to resolve CVEs in transitive dependencies (ncurses, pathspec, virtualenv, just)
 - `_required.yml` SC2015 (shellcheck): `pip install --quiet pip-audit && pip-audit || true` split into separate `run:` lines to eliminate `A && B || C` anti-pattern
 - `tests/unit/test_apply_yes.bats`: removed unused `SCRIPT_DIR` variable (SC2034)
 - `tests/unit/test_doctor.bats`: added `# shellcheck disable=SC2120` to `_run_doctor` which forwards optional extra args no current caller passes
