@@ -53,6 +53,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - gitleaks secret scanning: migrated from `gitleaks-action@v2` (paid license) to free CLI install (#263)
 - pixi bumped to 0.67.2; bats-core made platform-specific to fix linux-aarch64 solve failure
 
+### Security
+- gitleaks secret scan is now blocking: removed `continue-on-error: true` from validate.yml security job so secret detection failures fail the PR; dropped `--no-git` so git history is also scanned; added `--config .gitleaks.toml` to use the existing allowlist for known false positives (#375)
+
 ### Fixed
 - pre-commit hook: `REPO_ROOT` now uses `git rev-parse --show-toplevel` so the hook resolves the correct repo root when installed as `.git/hooks/pre-commit` (#330)
 - pre-commit hook: `NAME_LIST` pipeline guarded with `|| true` to prevent `set -o pipefail` from aborting the hook when `yq` returns non-zero on an unstaged file (#330)
