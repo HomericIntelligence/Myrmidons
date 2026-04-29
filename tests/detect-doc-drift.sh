@@ -28,6 +28,10 @@ FORBIDDEN_PHRASES=(
     "apply\.sh.*Nomad|implies apply.sh submits Nomad jobs"
     "Nomad integration.*implemented|implies Nomad integration is complete"
     "Nomad.*currently supported|implies Nomad is currently supported"
+    "spec\.model.*reconcil|implies spec.model changes are reconciled by apply.sh"
+    "spec\.deployment\.type.*reconcil|implies spec.deployment.type changes are reconciled"
+    "spec\.model.*tracked|implies spec.model is tracked for drift"
+    "spec\.deployment\.type.*tracked|implies spec.deployment.type is tracked for drift (it is not)"
 )
 
 # Files and directories to scan (relative to repo root).
