@@ -495,7 +495,7 @@ main() {
     agents_json="$(agamemnon_list_agents)"
 
     # Capture pre-apply snapshot (#228: includes context fields user/branch/host/timestamp)
-    local effective_snapshot_dir="${SNAPSHOT_DIR:-${repo_root}/.myrmidons/snapshots}"
+    local effective_snapshot_dir="${SNAPSHOT_DIR:-${REPO_ROOT}/.myrmidons/snapshots}"
     local snap_file
     snap_file="$(snapshot_write "$agents_json" "$effective_snapshot_dir" "${HOST:-all}")"
     snapshot_prune "$effective_snapshot_dir" "$SNAPSHOT_KEEP"
