@@ -203,9 +203,15 @@ jobs:
 
       - name: Validate GitHub workflow schemas
         run: |
-          find .github/workflows -name '*.yml' | sort | \
-            xargs check-jsonschema \
-              --schemafile https://json.schemastore.org/github-workflow
+          mapfile -t workflow_files < <(find .github/workflows -name '*.yml' | sort)
+          # Retry up to 3 times to handle transient schemastore.org 503s
+          for attempt in 1 2 3; do
+            check-jsonschema \
+              --schemafile https://json.schemastore.org/github-workflow \
+              "${workflow_files[@]}" && break
+            echo "::warning::Schema validation attempt $attempt failed; retrying in 15s..."
+            sleep 15
+          done
 
       # Validate pixi.toml is parseable TOML
       - name: Validate pixi.toml
@@ -231,3 +237,4 @@ jobs:
       # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
       - name: Install dependencies (locked)
         run: pixi install --locked
+
