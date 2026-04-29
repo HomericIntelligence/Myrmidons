@@ -118,6 +118,7 @@ Example: `./scripts/apply.sh hermes --output json | jq .summary`
 | `LOG_LEVEL` | `INFO` | Log verbosity: DEBUG, INFO, WARN, ERROR |
 | `LOG_FORMAT` | `text` | Log output format: text or json |
 | `AIM_LOCK_FILE` | `.myrmidons.lock` | Path to the apply lock file (use workspace-scoped path in parallel CI) |
+| `MYRMIDONS_DEFAULT_OWNER` | `$(whoami)` | Fallback owner written to exported agent YAMLs when the Agamemnon API returns no owner |
 
 ## Authentication
 
