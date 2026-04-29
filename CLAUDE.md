@@ -89,7 +89,17 @@ The reconciler detects changes to these fields and applies them automatically on
 | `spec.owner` | UPDATE |
 | `spec.role` | UPDATE |
 
-Fields not currently tracked for drift: `spec.model`, `spec.deployment.type`
+Fields not currently tracked for drift — changes to these fields are **silently
+ignored** by the reconciler and will NOT be applied to the running agent:
+
+| Field | Why not tracked |
+|-------|----------------|
+| `spec.model` | Agamemnon manages model selection at runtime; no drift endpoint exists |
+| `spec.deployment.type` | Type changes require agent recreation, not an update — manual step required |
+
+> **AI agent note:** If you modify `spec.model` or `spec.deployment.type` in a YAML
+> file, `apply.sh` will not detect drift for those fields. The running agent will keep
+> its current values until manually recreated.
 
 ## Scripts
 
