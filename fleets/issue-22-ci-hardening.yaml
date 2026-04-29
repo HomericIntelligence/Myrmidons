@@ -4,10 +4,12 @@ kind: Fleet
 metadata:
   name: issue-22-ci-hardening
   host: hermes
-  description: "Issue #22 — harden Odysseus CI workflow with markdownlint, pixi.toml validity, justfile parse, symlink integrity, and read-permissions verifier"
+  description: >-
+    Issue #22 — harden Odysseus CI workflow with markdownlint, pixi.toml
+    validity, justfile parse, symlink integrity, and read-permissions verifier
 spec:
   agents:
-    # Planner (reads existing .github/workflows/ci.yml, produces hardening patch plan)
+    # Planner (reads .github/workflows/ci.yml, produces hardening patch plan)
     - ref: hermes/issue22-planner
 
     # Loop worker (test/implement/review for the CI workflow extension)

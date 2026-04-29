@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Commits and opens PR for issue #69 permission merge in ProjectProteus. PR body references HomericIntelligence/Odysseus#69."
+  taskDescription: >-
+    Commits and opens PR for issue #69 permission merge in ProjectProteus.
+    PR body references HomericIntelligence/Odysseus#69.
   tags:
     - issue-69
     - shipper

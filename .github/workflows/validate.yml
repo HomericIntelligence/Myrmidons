@@ -26,49 +26,25 @@ permissions:
   pull-requests: read
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-pixi
-        with:
-          environment: lint
-
-      - name: Run shellcheck
-        run: pixi run --environment lint lint-shell
-
-      - name: Install actionlint
-        env:
-          ACTIONLINT_VERSION: "1.7.7"
-        run: |
-          curl -fsSL \
-            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            | tar -xz -C /usr/local/bin actionlint
-          actionlint --version
-
-      - name: Run actionlint
-        # Pass -shellcheck explicitly so actionlint always lints run: step
-        # scripts through shellcheck even if auto-detection would skip it (#139).
-        run: actionlint -shellcheck shellcheck
-
-  security:
-    name: Security Scan
+  # Single source-of-truth lint job: runs every hook in .pre-commit-config.yaml.
+  # Adding a linter? Add it to .pre-commit-config.yaml — it auto-runs here.
+  # Do not add CI-only linters outside pre-commit.
+  pre-commit:
+    name: Pre-commit (parity)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install gitleaks
-        run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz \
-            | tar -xz -C /usr/local/bin gitleaks
+      - uses: ./.github/actions/setup-pixi
+        with:
+          environment: lint
 
-      - name: Scan for secrets (gitleaks)
-        run: gitleaks detect --source . --no-git -v
-        continue-on-error: true
+      - name: Run pre-commit on all files
+        run: |
+          pixi run --environment lint pre-commit run \
+            --all-files --show-diff-on-failure
 
   changelog:
     name: CHANGELOG Updated
@@ -89,27 +65,28 @@ jobs:
         run: |
           # Allow skip via [skip changelog] in PR title/body or commit messages
           if echo "${PR_TITLE}" | grep -qiF '[skip changelog]'; then
-            echo "Skipping CHANGELOG check: [skip changelog] found in PR title."
+            echo "Skipping CHANGELOG check: [skip changelog] in PR title."
             exit 0
           fi
           if echo "${PR_BODY}" | grep -qiF '[skip changelog]'; then
-            echo "Skipping CHANGELOG check: [skip changelog] found in PR body."
+            echo "Skipping CHANGELOG check: [skip changelog] in PR body."
             exit 0
           fi
 
           # Check labels (requires pull-requests: read permission)
           labels="$(gh pr view "${PR_NUMBER}" \
             --repo "${REPO}" \
-            --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")"
+            --json labels \
+            --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")"
           if echo "$labels" | grep -qi "skip changelog"; then
-            echo "Skipping CHANGELOG check: 'skip changelog' label found."
+            echo "Skipping: 'skip changelog' label found."
             exit 0
           fi
 
           # Check if any commit in this PR contains [skip changelog]
           if git log "origin/${BASE_REF}..HEAD" --format="%s %b" \
               | grep -qiF '[skip changelog]'; then
-            echo "Skipping CHANGELOG check: [skip changelog] found in a commit message."
+            echo "Skipping: [skip changelog] found in a commit message."
             exit 0
           fi
 
@@ -122,34 +99,21 @@ jobs:
 
           echo "ERROR: CHANGELOG.md was not updated in this PR."
           echo ""
-          echo "Please add an entry under the [Unreleased] section in CHANGELOG.md"
-          echo "describing what changed. Use conventional commit categories:"
+          echo "Please add an entry under [Unreleased] in CHANGELOG.md"
+          echo "using conventional commit categories:"
           echo "  ### Added / Changed / Fixed / Removed / Security"
           echo ""
-          echo "To skip this check, include [skip changelog] in the PR title, body,"
-          echo "any commit message, or add the 'skip changelog' label to the PR."
+          echo "To skip: include [skip changelog] in the PR title, body,"
+          echo "any commit message, or add the 'skip changelog' label."
           exit 1
-
-  pre-commit:
-    name: Pre-commit hooks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-pixi
-        with:
-          environment: lint
-
-      - name: Run pre-commit on all files
-        run: pixi run --environment lint pre-commit run --all-files
 
   validate:
     name: Validate YAML Schemas
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [pre-commit]
     timeout-minutes: 10
-    # AGAMEMNON_API_KEY: if scripts exercised during validation make authenticated
-    # API calls, set this as a GitHub Actions secret and pass it here:
+    # AGAMEMNON_API_KEY: if scripts need authenticated Agamemnon API calls,
+    # set this as a GitHub Actions secret and pass it here:
     #   env:
     #     AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
     # The validate job currently runs schema checks only and does not call the
@@ -184,7 +148,7 @@ jobs:
   doctor:
     name: Doctor — Dependency Check
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [pre-commit]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

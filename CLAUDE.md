@@ -235,3 +235,18 @@ Scripts use inline shellcheck directives where needed:
 - `# shellcheck disable=SC2086` — suppresses unquoted variable warnings where intentional word-splitting is used
 
 Run shellcheck locally: `pixi run --environment lint lint-shell`
+
+### CI ↔ pre-commit parity
+
+`.pre-commit-config.yaml` is the **single source of truth** for all linting.
+CI's `Pre-commit (parity)` job runs `pre-commit run --all-files` — the exact same
+command as local development. This keeps coverage identical with zero drift.
+
+Rules:
+- **Adding a linter?** Add it to `.pre-commit-config.yaml`. It automatically runs in CI.
+- **Removing or relaxing a lint?** Change it in `.pre-commit-config.yaml`. Bias is toward *more* coverage.
+- **Never add CI-only linters** outside of `.pre-commit-config.yaml`.
+
+The `lint-shell` task in `pixi.toml` / `scripts/lint-shell.sh` covers `*.sh`, `*.bats`,
+and `hooks/pre-commit`. Keep it in sync with the pre-commit shellcheck hook's `files:`
+pattern.

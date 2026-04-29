@@ -10,12 +10,13 @@ metadata:
 spec:
   label: CHANGE_ME         # Display name in Agamemnon UI
   program: claude-code
-  model: null              # null = use Agamemnon default; or "claude-sonnet-4-6"
+  model: null           # null = use Agamemnon default; or "claude-sonnet-4-6"
   workingDirectory: /home/mvillmow/CHANGE_ME
-  programArgs: ""          # Extra flags, e.g. "--model claude-opus-4-6"
-                           # WARNING: Do not use --dangerously-skip-permissions without a
-                           # "# skip-permissions-lint: <justification>" annotation on the same line.
-                           # See scripts/check-dangerous-flags.sh and CLAUDE.md Security section.
+  programArgs: ""       # Extra flags, e.g. "--model claude-opus-4-6"
+                        # WARNING: Do not use --dangerously-skip-permissions
+                        # without a "# skip-permissions-lint: <justification>"
+                        # annotation on the same line.
+                        # See check-dangerous-flags.sh and CLAUDE.md.
   taskDescription: "Describe what this agent does"
   tags: []
   owner: mvillmow
@@ -23,7 +24,8 @@ spec:
   deployment:
     type: local            # "local" = tmux on host; "docker" = container
     # docker block is only used when type: docker.
-    # For type: local, this block is ignored by apply.sh but kept for easy switching.
+    # For type: local, this block is ignored by apply.sh but kept for
+    # easy switching to docker.
     docker:
       image: achaean-claude:latest  # Image from AchaeanFleet repo
       cpus: 2

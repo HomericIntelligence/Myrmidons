@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Creates PR in ProjectProteus repo for justfile recipes. Git-only + read-only workspace."
+  taskDescription: >-
+    Creates PR in ProjectProteus repo for justfile recipes.
+    Git-only + read-only workspace.
   tags:
     - issue-8
     - ship

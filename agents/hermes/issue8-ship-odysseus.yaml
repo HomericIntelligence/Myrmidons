@@ -10,7 +10,9 @@ spec:
   model: null
   workingDirectory: /home/mvillmow/Odysseus
   programArgs: ""
-  taskDescription: "Final Odysseus PR: justfile delegation recipes + submodule pin updates. Closes #8. Git-only + read-only workspace."
+  taskDescription: >-
+    Final Odysseus PR: justfile delegation recipes + submodule pin updates.
+    Closes #8. Git-only + read-only workspace.
   tags:
     - issue-8
     - ship

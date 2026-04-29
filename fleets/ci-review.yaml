@@ -10,6 +10,7 @@ spec:
     - name: pr-reviewer
       program: claude-code
       workingDirectory: /tmp/pr-review
+      # yamllint disable-line rule:line-length
       programArgs: "--dangerously-skip-permissions" # skip-permissions-lint: CI review agents run in ephemeral Docker containers with no persistent state; Agamemnon job timeout and read-only workspace mount act as compensating controls
       taskDescription: "Reviews pull requests in CI context"
       tags:

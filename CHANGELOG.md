@@ -7,6 +7,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- CI ↔ pre-commit parity architecture: `.pre-commit-config.yaml` is now the single source of truth for all linting; CI runs `pre-commit run --all-files` to eliminate drift
+- actionlint pre-commit hook added (v1.7.7) so GitHub Actions workflow lint failures are caught locally before push
+- gitleaks pre-commit hook added (v8.24.3, unlicensed binary mode) so secret scanning matches CI
+- shellcheck pre-commit hook explicitly covers `*.bats` files (via `files:` pattern) to match `lint-shell.sh` scope
+- yamllint scope broadened from `agents/+fleets/` to all `*.yaml` files across the repo
+- `myrmidons-test-schema` local pre-commit hook validates YAML schemas locally (matches `validate` CI job)
+- CLAUDE.md: new "CI ↔ pre-commit parity" Known Gotcha documents the invariant and rules
+
+### Changed
+- `validate.yml`: standalone `lint`, `pre-commit`, and `security` jobs collapsed into single `Pre-commit (parity)` job; `validate` and `doctor` jobs now depend on `pre-commit` instead of `lint`
+- `_required.yml` `lint` job: replaced shellcheck+yamllint steps with `pre-commit run --all-files`
+- `_required.yml` `security/secrets-scan`: replaced `gitleaks/gitleaks-action@v2` (requires paid license) with unlicensed gitleaks binary, matching `validate.yml` approach
+- `_required.yml` `deps-version-sync`: replaced manual `actions/cache` block with `./.github/actions/setup-pixi` composite — fixes `pixi: command not found` error
+- `lock-check.yml`: replaced manual `actions/cache` block with `./.github/actions/setup-pixi` composite — fixes `pixi: command not found` error
+- `apply.yml`: apply job now skips (no-op) when `AGAMEMNON_URL` secret is not set, preventing permanent red CI on repos without a reachable Agamemnon endpoint
+- `scripts/lint-shell.sh` and `pixi.toml` `lint-shell` task: extended `find` pattern to also match `*.bats` files, matching the pre-commit shellcheck hook
+- Agent and fleet YAML `taskDescription`/`description` fields with lines >80 chars rewritten using YAML folded scalars (`>-`) to satisfy yamllint relaxed line-length rule
+
+### Fixed
+- `_required.yml` SC2015 (shellcheck): `pip install --quiet pip-audit && pip-audit || true` split into separate `run:` lines to eliminate `A && B || C` anti-pattern
+- `tests/unit/test_apply_yes.bats`: removed unused `SCRIPT_DIR` variable (SC2034)
+- `tests/unit/test_doctor.bats`: added `# shellcheck disable=SC2120` to `_run_doctor` which forwards optional extra args no current caller passes
+
 - CHANGELOG.md update validation in PR CI workflow — PRs must update CHANGELOG.md or include `[skip changelog]` to bypass (#126, #127)
 - Doctor dependency check (`scripts/doctor.sh --skip-connectivity`) added to validate.yml CI (#244)
 - `compute_drift` now accepts `owner`, `role`, and `deploy_type` parameters for deeper configuration drift detection (#330)

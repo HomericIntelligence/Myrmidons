@@ -28,6 +28,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 # Helper: run doctor.sh with --skip-connectivity (avoids network I/O in unit tests)
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2120
 _run_doctor() {
     run bash "$DOCTOR_SCRIPT" --skip-connectivity "$@"
 }

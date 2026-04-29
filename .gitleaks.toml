@@ -3,7 +3,7 @@ title = "Myrmidons gitleaks configuration"
 [extend]
 useDefault = true
 
-[[rules.allowlist]]
+[allowlist]
 description = "Test fixtures and documentation examples"
 regexes = [
   '''your-token-here''',
