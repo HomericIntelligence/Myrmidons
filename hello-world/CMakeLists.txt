@@ -9,13 +9,19 @@ include(FetchContent)
 FetchContent_Declare(
   nats_c
   GIT_REPOSITORY https://github.com/nats-io/nats.c.git
-  GIT_TAG v3.9.1
+  GIT_TAG v3.12.0
   GIT_SHALLOW TRUE
 )
 set(NATS_BUILD_STREAMING OFF CACHE BOOL "" FORCE)
-set(NATS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(NATS_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
+set(NATS_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING        OFF CACHE BOOL "" FORCE)
+
+# Prevent nats.c from inheriting project -Werror flags
+get_directory_property(_saved_compile_options COMPILE_OPTIONS)
+set_directory_properties(PROPERTIES COMPILE_OPTIONS "")
 FetchContent_MakeAvailable(nats_c)
+set_directory_properties(PROPERTIES COMPILE_OPTIONS "${_saved_compile_options}")
 
 FetchContent_Declare(
   nlohmann_json
@@ -27,3 +33,4 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 add_executable(hello_myrmidon main.cpp)
 target_link_libraries(hello_myrmidon PRIVATE nats_static nlohmann_json::nlohmann_json)
+target_compile_options(hello_myrmidon PRIVATE -Wall -Wextra -Werror)
