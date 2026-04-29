@@ -2,6 +2,8 @@
 
 GitOps agent provisioning for the HomericIntelligence mesh.
 
+> For agent safety boundaries and permitted tool use, see [AGENTS.md](AGENTS.md).
+
 ## What this repo is
 
 Myrmidons is the source of truth for *desired* agent state. Agent definitions live as code (YAML). Scripts reconcile desired state against ProjectAgamemnon's REST API.
