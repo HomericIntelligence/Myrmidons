@@ -330,7 +330,7 @@ confirm_destructive() {
 # confirm desired == actual. Reports any that did not converge.
 # Returns 1 if any agent failed to converge (caller should increment ERRORS).
 verify_convergence() {
-    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 ]]; then
+    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 && ${#_PRUNED_NAMES[@]} -eq 0 ]]; then
         return 0
     fi
 
@@ -393,6 +393,20 @@ verify_convergence() {
             failed=$((failed + 1))
         fi
     done
+
+    # Verify pruned agents are gone from the API
+    if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+        for pruned_name in "${_PRUNED_NAMES[@]}"; do
+            local still_exists
+            still_exists="$(echo "$agents_json_fresh" | jq -r --arg n "$pruned_name" '.[] | select(.name == $n) | .name')"
+            if [[ -n "$still_exists" ]]; then
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "  [!] ${pruned_name}: pruned but still present in API (convergence failed)"
+                fi
+                failed=$((failed + 1))
+            fi
+        done
+    fi
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo "Convergence: ${verified} converged, ${failed} failed."
@@ -608,11 +622,6 @@ main() {
         _write_failed_agents_file
     fi
 
-    # Verify convergence: ensure all managed agents match desired state
-    local post_agents_json
-    post_agents_json="$(agamemnon_list_agents)"
-    verify_convergence "$post_agents_json" "${yaml_files[@]}"
-
     # Emit output
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then
         local report_json
@@ -682,69 +691,6 @@ _write_failed_agents_file() {
             echo "$agent_name" >> "$failed_file"
         done
         log_warn "Wrote ${#FAILED_AGENTS[@]} failed agent(s) to ${failed_file}"
-    fi
-}
-
-# verify_convergence — after apply, confirm each agent reached its desired state.
-# For pruned agents, confirms they are absent from the API.
-# Prints warnings for any divergence; does not fail the apply.
-verify_convergence() {
-    local agents_json="$1"
-    shift
-    local yaml_files=("$@")
-
-    local divergent=0
-
-    for yaml_file in "${yaml_files[@]}"; do
-        local name desired_state
-        name="$(yq eval '.metadata.name' "$yaml_file")"
-        desired_state="$(yq eval '.spec.desiredState // "active"' "$yaml_file")"
-
-        local actual_json
-        actual_json="$(echo "$agents_json" | jq -r --arg n "$name" '.[] | select(.name == $n)')"
-
-        if [[ -z "$actual_json" ]]; then
-            if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-                echo "[WARN] verify_convergence: ${name} not found in API after apply" >&2
-            fi
-            divergent=$((divergent + 1))
-            continue
-        fi
-
-        local actual_status
-        actual_status="$(echo "$actual_json" | jq -r '.status // "unknown"')"
-
-        local ok=1
-        case "$desired_state" in
-            active)
-                [[ "$actual_status" == "active" || "$actual_status" == "online" ]] || ok=0
-                ;;
-            hibernated)
-                [[ "$actual_status" == "hibernated" || "$actual_status" == "offline" ]] || ok=0
-                ;;
-        esac
-
-        if [[ $ok -eq 0 && "$OUTPUT_FORMAT" != "json" ]]; then
-            echo "[WARN] verify_convergence: ${name} desired=${desired_state} actual=${actual_status}" >&2
-            divergent=$((divergent + 1))
-        fi
-    done
-
-    # Verify pruned agents are gone from the API
-    # PRUNED_NAMES is populated by handle_unmanaged when PRUNE=1
-    if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
-        for pruned_name in "${_PRUNED_NAMES[@]}"; do
-            local still_exists
-            still_exists="$(echo "$agents_json" | jq -r --arg n "$pruned_name" '.[] | select(.name == $n) | .name')"
-            if [[ -n "$still_exists" && "$OUTPUT_FORMAT" != "json" ]]; then
-                echo "[WARN] verify_convergence: pruned agent ${pruned_name} still present in API" >&2
-                divergent=$((divergent + 1))
-            fi
-        done
-    fi
-
-    if [[ $divergent -eq 0 && "$OUTPUT_FORMAT" != "json" ]]; then
-        echo "[OK] Convergence verified: all ${#yaml_files[@]} agent(s) match desired state."
     fi
 }
 
