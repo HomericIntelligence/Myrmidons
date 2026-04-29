@@ -162,12 +162,17 @@ _agamemnon_build_tls_flags
 # Build auth headers array for curl. Populates _AUTH_HEADERS global array.
 # Prefers Authorization: Bearer when AGAMEMNON_API_KEY is set.
 # Falls back to no auth (backward compatible).
+# set +x guard prevents the token value from appearing in bash -x / xtrace output.
 _agamemnon_auth_headers() {
     _AUTH_HEADERS=()
+    local _had_xtrace=0
+    if [[ "$-" == *x* ]]; then _had_xtrace=1; fi
+    { set +x; } 2>/dev/null
     if [[ -n "${AGAMEMNON_API_KEY}" ]]; then
         _AUTH_HEADERS+=(-H "Authorization: Bearer ${AGAMEMNON_API_KEY}")
         _AUTH_HEADERS+=(-H "X-API-Key: ${AGAMEMNON_API_KEY}")
     fi
+    if [[ $_had_xtrace -eq 1 ]]; then set -x; fi
 }
 
 # Validate that AGAMEMNON_URL is set and has a recognised scheme (http/https).
@@ -209,10 +214,16 @@ agamemnon_check_connection() {
     trap "rm -f '${_check_tmpfile}'" RETURN
 
     _agamemnon_auth_headers
-    if ! curl -sf --max-time 5 -o "${_check_tmpfile}" \
+    local _had_xtrace=0
+    if [[ "$-" == *x* ]]; then _had_xtrace=1; fi
+    { set +x; } 2>/dev/null
+    local _conn_rc=0
+    curl -sf --max-time 5 -o "${_check_tmpfile}" \
             "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
             "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" \
-            "${AGAMEMNON_URL}/v1/health" 2>&1; then
+            "${AGAMEMNON_URL}/v1/health" 2>&1 || _conn_rc=$?
+    if [[ $_had_xtrace -eq 1 ]]; then set -x; fi
+    if [[ $_conn_rc -ne 0 ]]; then
         echo "ERROR: Cannot reach Agamemnon at ${AGAMEMNON_URL}" >&2
         echo "  Is Agamemnon running? Check your ProjectAgamemnon deployment." >&2
         return 1
@@ -232,9 +243,13 @@ _agamemnon_curl_retry() {
 
     while [[ $attempt -le $max_attempts ]]; do
         tmpfile="$(mktemp)"
+        local _had_xtrace=0
+        if [[ "$-" == *x* ]]; then _had_xtrace=1; fi
+        { set +x; } 2>/dev/null
         http_code="$(curl -s --max-time "${AGAMEMNON_TIMEOUT:-10}" -w "%{http_code}" -o "$tmpfile" \
             "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" "$@" 2>/dev/null)"
         curl_exit=$?
+        if [[ $_had_xtrace -eq 1 ]]; then set -x; fi
         response="$(cat "$tmpfile")"
         rm -f "$tmpfile"
 
