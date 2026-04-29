@@ -17,11 +17,13 @@ jobs:
   apply:
     name: Reconcile Desired State
     runs-on: ubuntu-latest
-    # Skip reconciliation when no reachable Agamemnon endpoint is configured.
-    # Set AGAMEMNON_URL repository secret to a reachable endpoint to enable.
-    if: ${{ secrets.AGAMEMNON_URL != '' }}
+    # Gate on vars.AGAMEMNON_URL (repository variable, not secret) — the URL
+    # is not sensitive and secrets context is unavailable in job-level if:.
+    # Set AGAMEMNON_URL as a repository *variable* (Settings > Variables) and
+    # AGAMEMNON_API_KEY as a repository *secret* to enable reconciliation.
+    if: ${{ vars.AGAMEMNON_URL != '' }}
     env:
-      AGAMEMNON_URL: ${{ secrets.AGAMEMNON_URL }}
+      AGAMEMNON_URL: ${{ vars.AGAMEMNON_URL }}
       AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
     steps:
       - name: Mask secrets

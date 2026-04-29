@@ -69,17 +69,20 @@ jobs:
 
       # pip-audit: scan Python dependencies for known vulnerabilities
       - name: pip-audit
-        run: pip install --quiet pip-audit && pip-audit || true
+        run: |
+          pip install --quiet pip-audit
+          pip-audit || true
 
       # Trivy filesystem scan (non-blocking; informational)
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.30.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          exit-code: "0"
-          severity: HIGH,CRITICAL
-          format: table
+        env:
+          TV_VER: "0.61.0"
+        run: |
+          base="https://github.com/aquasecurity/trivy/releases/download"
+          curl -sSfL \
+            "${base}/v${TV_VER}/trivy_${TV_VER}_Linux-64bit.tar.gz" \
+            | tar -xz -C /usr/local/bin trivy
+          trivy fs --severity HIGH,CRITICAL --exit-code 0 . || true
 
   security-secrets-scan:
     name: security/secrets-scan
@@ -224,10 +227,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-pixi
-
-      # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
-      - name: Install dependencies (locked)
-        run: pixi install --locked
 
       # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
       - name: Install dependencies (locked)
