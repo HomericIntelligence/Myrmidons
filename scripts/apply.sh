@@ -176,20 +176,6 @@ record_failure() {
     FAILED_AGENT_MESSAGES+=("$error_message")
 }
 
-# Write failed agent names to .myrmidons/failed-agents.txt for use by 'just retry'.
-# This file is self-managing (issue #269):
-# - Truncated before writing (: > ...), so contains only agents that failed THIS run.
-# - On partial retry success: updated with only agents still failing (previously-succeeded agents removed).
-# - On full retry success: cleared by the explicit block at end of main().
-# Operators do not need to manually delete or manage this file.
-write_failed_agents_file() {
-    mkdir -p "${MYRMIDONS_STATE_DIR}"
-    : > "${FAILED_AGENTS_FILE}"
-    for name in "${FAILED_AGENT_NAMES[@]}"; do
-        echo "$name" >> "${FAILED_AGENTS_FILE}"
-    done
-}
-
 # Print a detailed per-agent error summary.
 print_error_summary() {
     echo ""
