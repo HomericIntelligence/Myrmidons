@@ -153,8 +153,15 @@ check: lint test
 # Hooks
 # =============================================================================
 
-# Install the pre-commit hook into .git/hooks/
+# Install all git hooks: copies the dangerous-flags hook AND registers the pre-commit framework
 install-hooks:
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    @echo "pre-commit hook installed."
+    pixi run pre-commit install
+    @echo "Hooks installed: dangerous-flags hook + pre-commit framework (.pre-commit-config.yaml)."
+
+# Legacy: install only the dangerous-flags hook script (no pre-commit framework)
+install-hooks-legacy:
+    cp hooks/pre-commit .git/hooks/pre-commit
+    chmod +x .git/hooks/pre-commit
+    @echo "Legacy hook installed (dangerous-flags only, no pre-commit framework)."
