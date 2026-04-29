@@ -298,7 +298,7 @@ confirm_destructive() {
     local total_changes="$1"
 
     # Non-interactive or --yes: skip prompt
-    if [[ $YES -eq 1 ]] || [[ ! -t 0 ]]; then
+    if [[ $YES -eq 1 ]] || [[ "${MYRMIDONS_YES:-}" == "true" ]] || [[ ! -t 0 ]]; then
         return 0
     fi
 
@@ -310,7 +310,7 @@ confirm_destructive() {
     echo "Pending changes: ${total_changes} total, ${_DESTRUCTIVE_COUNT} destructive (WAKE/HIBERNATE/CREATE/PRUNE)"
     printf "Apply %d change(s) to %s? [y/N] " "${total_changes}" "${AGAMEMNON_URL}"
     local reply
-    read -r reply
+    read -t 30 -r reply || reply="N"
     case "$reply" in
         [Yy]|[Yy][Ee][Ss])
             return 0
@@ -476,12 +476,17 @@ main() {
         log_warn "fleets/ directory not found — reconciling agents only"
     fi
 
-    # Confirmation prompt when --prune is set and stdout is a TTY (unless --yes)
-    if [[ $PRUNE -eq 1 && $YES -eq 0 && -t 0 ]]; then
-        echo "WARNING: --prune will hibernate and delete agents not in YAML."
-        printf 'Continue? [y/N] '
+    # Confirmation prompt when --prune is set (unless --yes or MYRMIDONS_YES=true)
+    if [[ $PRUNE -eq 1 && $YES -eq 0 && "${MYRMIDONS_YES:-}" != "true" ]]; then
         local reply
-        read -r reply
+        if [[ ! -t 0 ]]; then
+            # Non-TTY stdin (CI pipe, /dev/null) — default-deny
+            reply="N"
+        else
+            echo "WARNING: --prune will hibernate and delete agents not in YAML."
+            printf 'Continue? [y/N] '
+            read -t 30 -r reply || reply="N"
+        fi
         if [[ "${reply,,}" != "y" && "${reply,,}" != "yes" ]]; then
             echo "Aborted."
             exit 0
