@@ -57,6 +57,10 @@ OUTPUT_FORMAT="text"   # "text" | "json"
 WEBHOOK_URL=""
 AIM_LOCK_FILE="${AIM_LOCK_FILE:-.myrmidons.lock}"
 AIM_LOCK_TIMEOUT="${AIM_LOCK_TIMEOUT:-60}"
+# Seconds to wait after hibernating an unmanaged agent before issuing DELETE.
+# Allows the Agamemnon API to record the state transition before DELETE arrives.
+# Override via env var: HIBERNATE_SETTLE_SECONDS=0 ./scripts/apply.sh --prune
+HIBERNATE_SETTLE_SECONDS="${HIBERNATE_SETTLE_SECONDS:-2}"
 SNAPSHOT_DIR=""
 SNAPSHOT_KEEP="${SNAPSHOT_KEEP:-10}"
 # File descriptor used for flock (9)
@@ -919,7 +923,7 @@ handle_unmanaged() {
                     echo "    Hibernating first..."
                 fi
                 agamemnon_hibernate_agent "$agent_id" > /dev/null || true
-                sleep 2
+                sleep "$HIBERNATE_SETTLE_SECONDS"
                 if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                     echo "    Deleting..."
                 fi
