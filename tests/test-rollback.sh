@@ -393,6 +393,21 @@ test_apply_snapshot_dir_flag() {
         "Unknown argument" "$output"
 }
 
+# ── Test: default snapshot dir uses REPO_ROOT not root (issue #370) ───────────
+
+test_default_snapshot_dir_uses_repo_root() {
+    echo ""
+    echo "=== default snapshot dir resolves to REPO_ROOT, not / ==="
+
+    # Grep apply.sh directly: the default must reference REPO_ROOT (uppercase),
+    # not repo_root (lowercase undefined variable). Under set -u the lowercase
+    # form fatally aborts; when set -u is absent it silently expands to ""
+    # producing /.myrmidons/snapshots (a root-filesystem write attempt).
+    local occurrences
+    occurrences="$(grep -c '\${repo_root}' "${REPO_ROOT}/scripts/apply.sh" || true)"
+    assert_eq "no lowercase repo_root reference in apply.sh (issue #370)" "0" "$occurrences"
+}
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 run_all_tests() {
@@ -409,6 +424,7 @@ run_all_tests() {
     test_rollback_invalid_json_snapshot
     test_rollback_specific_snapshot_file
     test_apply_snapshot_dir_flag
+    test_default_snapshot_dir_uses_repo_root
 
     echo ""
     echo "================================================"
