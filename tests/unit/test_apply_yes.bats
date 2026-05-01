@@ -350,3 +350,101 @@ MOCK_NOTT
     [[ "${retry_flags[*]}" == *"--retry"* ]]
     [[ "${retry_flags[*]}" != *"--fail-fast"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test: read timeout — #378 — non-TTY stdin defaults to deny
+# ---------------------------------------------------------------------------
+
+# Helper: create a mock that mirrors the updated --prune prompt logic
+_create_timeout_mock() {
+    local mock="$1"
+    cat > "$mock" << 'MOCK_TIMEOUT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+YES=0
+PRUNE=0
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --yes|-y) YES=1; shift ;;
+            --prune)  PRUNE=1; shift ;;
+            *)        shift ;;
+        esac
+    done
+}
+
+parse_args "$@"
+
+if [[ $PRUNE -eq 1 && $YES -eq 0 && "${MYRMIDONS_YES:-}" != "true" ]]; then
+    reply=""
+    if [[ ! -t 0 ]]; then
+        reply="N"
+    else
+        echo "WARNING: --prune will hibernate and delete agents not in YAML."
+        printf 'Continue? [y/N] '
+        read -t 30 -r reply || reply="N"
+    fi
+    if [[ "${reply,,}" != "y" && "${reply,,}" != "yes" ]]; then
+        echo "Aborted."
+        exit 0
+    fi
+fi
+
+echo "APPLIED"
+exit 0
+MOCK_TIMEOUT
+    chmod +x "$mock"
+}
+
+@test "timeout-mock: non-TTY stdin with --prune defaults to deny (aborts)" {
+    local mock="${TEMP_TEST_DIR}/apply_timeout.sh"
+    _create_timeout_mock "$mock"
+
+    # Pipe empty stdin — non-TTY, should default-deny
+    run bash -c "echo '' | '$mock' --prune"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Aborted"* ]]
+    [[ "$output" != *"APPLIED"* ]]
+}
+
+@test "timeout-mock: MYRMIDONS_YES=true bypasses --prune prompt" {
+    local mock="${TEMP_TEST_DIR}/apply_timeout.sh"
+    _create_timeout_mock "$mock"
+
+    run bash -c "MYRMIDONS_YES=true '$mock' --prune"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"APPLIED"* ]]
+    [[ "$output" != *"Aborted"* ]]
+}
+
+@test "timeout-mock: MYRMIDONS_YES=false still requires confirmation (piped y applies)" {
+    local mock="${TEMP_TEST_DIR}/apply_timeout.sh"
+    _create_timeout_mock "$mock"
+
+    run bash -c "echo y | MYRMIDONS_YES=false '$mock' --prune"
+    [[ "$status" -eq 0 ]]
+    # Non-TTY stdin → default deny even when piping 'y' (guard fires before read)
+    [[ "$output" == *"Aborted"* ]]
+    [[ "$output" != *"APPLIED"* ]]
+}
+
+@test "timeout-mock: piped 'y' to --prune is rejected by non-TTY default-deny guard" {
+    local mock="${TEMP_TEST_DIR}/apply_timeout.sh"
+    _create_timeout_mock "$mock"
+
+    # The non-TTY guard fires before read, so piped 'y' has no effect
+    run bash -c "echo y | '$mock' --prune"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Aborted"* ]]
+}
+
+@test "timeout-mock: --yes still bypasses prompt regardless of MYRMIDONS_YES" {
+    local mock="${TEMP_TEST_DIR}/apply_timeout.sh"
+    _create_timeout_mock "$mock"
+
+    run bash -c "'$mock' --prune --yes"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"APPLIED"* ]]
+}
