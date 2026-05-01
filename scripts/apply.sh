@@ -316,7 +316,7 @@ confirm_destructive() {
 # confirm desired == actual. Reports any that did not converge.
 # Returns 1 if any agent failed to converge (caller should increment ERRORS).
 verify_convergence() {
-    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 ]]; then
+    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 && ${#_PRUNED_NAMES[@]} -eq 0 ]]; then
         return 0
     fi
 
@@ -379,6 +379,20 @@ verify_convergence() {
             failed=$((failed + 1))
         fi
     done
+
+    # Verify pruned agents are gone from the API
+    if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+        for pruned_name in "${_PRUNED_NAMES[@]}"; do
+            local still_exists
+            still_exists="$(echo "$agents_json_fresh" | jq -r --arg n "$pruned_name" '.[] | select(.name == $n) | .name')"
+            if [[ -n "$still_exists" ]]; then
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "  [!] ${pruned_name}: pruned but still present in API (convergence failed)"
+                fi
+                failed=$((failed + 1))
+            fi
+        done
+    fi
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo "Convergence: ${verified} converged, ${failed} failed."
