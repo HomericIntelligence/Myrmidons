@@ -161,9 +161,9 @@ The reconciler compares these fields between desired YAML state and actual Agame
 | `spec.owner` | ✓ |
 | `spec.role` | ✓ |
 | `spec.desiredState` | ✓ (drives WAKE/HIBERNATE) |
-| `spec.deployment.type` | ✓ |
+| `spec.deployment.type` | — (not tracked; see below) |
 
-Fields NOT currently tracked (no drift detection): `spec.model`, `spec.deployment.docker.*`
+Fields NOT currently tracked (no drift detection): `spec.model`, `spec.deployment.type`, `spec.deployment.docker.*`
 
 ## Pull Request Process
 
