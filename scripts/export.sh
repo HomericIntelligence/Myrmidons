@@ -8,6 +8,10 @@
 #   ./scripts/export.sh hermes
 #   ./scripts/export.sh                # defaults to "hermes"
 #
+# Environment:
+#   MYRMIDONS_DEFAULT_OWNER  Fallback owner written to exported agent YAMLs when
+#                            the Agamemnon API returns no owner. Defaults to $(whoami).
+#
 # This is the bootstrap script. Run it once to seed Myrmidons
 # from the current Agamemnon state.
 
@@ -34,6 +38,9 @@ main() {
 
     check_jq
     agamemnon_check_connection
+
+    local effective_owner="${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}"
+    log_debug "Default owner for exported agents: ${effective_owner}"
 
     log_info "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
     log_info ""
@@ -110,7 +117,7 @@ export_agent() {
     workdir="$(echo "$agent_json" | jq -r '.workingDirectory // ""')"
     args="$(echo "$agent_json" | jq -r '.programArgs // ""')"
     desc="$(echo "$agent_json" | jq -r '.taskDescription // ""')"
-    owner="$(echo "$agent_json" | jq -r '.owner // "mvillmow"')"
+    owner="$(echo "$agent_json" | jq -r --arg default_owner "${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}" '.owner // $default_owner')"
     role="$(echo "$agent_json" | jq -r '.role // "member"')"
     status="$(echo "$agent_json" | jq -r '.status // "offline"')"
     deployment_type="$(echo "$agent_json" | jq -r '.deployment.type // "local"')"
