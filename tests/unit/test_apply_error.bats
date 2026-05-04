@@ -500,3 +500,32 @@ APPLY_RETRY_MISSING
     [[ -f "$failed_file" ]]
     [[ $(grep -c "fail:agent" "$failed_file") -eq 2 ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test: Symbol visibility — write_failed_agents_file must not be public
+# ---------------------------------------------------------------------------
+
+@test "write_failed_agents_file: public symbol must not exist after sourcing apply.sh" {
+    local script
+    script="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../../scripts/apply.sh"
+
+    # Source apply.sh in a subshell, stripping lines that execute at source-time
+    # (library sources, load_config call, and the main "$@" invocation) so we
+    # can inspect only function definitions.
+    run bash -c "
+        stripped=\"\$(grep -v \
+            -e '^#!/' \
+            -e '^set -' \
+            -e 'SCRIPT_DIR=' \
+            -e 'REPO_ROOT=' \
+            -e '# shellcheck' \
+            -e '^source ' \
+            -e '^load_config$' \
+            -e '^main \"\\\$@\"$' \
+            \"$script\")\"
+        eval \"\$stripped\" 2>/dev/null
+        declare -f write_failed_agents_file
+    "
+
+    [ "$status" -ne 0 ]
+}
