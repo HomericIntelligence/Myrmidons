@@ -368,6 +368,8 @@ verify_convergence() {
             if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                 echo "  [!] ${agent_name}: NOT FOUND in Agamemnon after apply (convergence failed)"
             fi
+            report_add_convergence "$agent_name" "$desired" "not_found" 0 \
+                "not found in Agamemnon after apply"
             failed=$((failed + 1))
             continue
         fi
@@ -376,31 +378,41 @@ verify_convergence() {
 
         # Map desired state to expected runtime status
         local converged=0
+        local reason=""
         if [[ "$desired" == "active" ]]; then
             # After a WAKE/CREATE, status should be active or online (not offline)
             if [[ "$actual_status" == "active" || "$actual_status" == "online" || \
                   "$actual_status" == "starting" ]]; then
                 converged=1
+                reason="status=${actual_status}"
+            else
+                reason="desired=active but actual_status=${actual_status}"
             fi
         elif [[ "$desired" == "hibernated" ]]; then
             # After HIBERNATE, status should be offline or hibernated
             if [[ "$actual_status" == "offline" || "$actual_status" == "hibernated" ]]; then
                 converged=1
+                reason="status=${actual_status}"
+            else
+                reason="desired=hibernated but actual_status=${actual_status}"
             fi
         else
             # For UPDATE actions (field changes only), treat as converged if agent exists
             converged=1
+            reason="update applied; status=${actual_status}"
         fi
 
         if [[ $converged -eq 1 ]]; then
             if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                 echo "  [ok] ${agent_name}: converged (status=${actual_status})"
             fi
+            report_add_convergence "$agent_name" "$desired" "$actual_status" 1 "$reason"
             verified=$((verified + 1))
         else
             if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                 echo "  [!] ${agent_name}: NOT converged (desired=${desired}, actual_status=${actual_status})"
             fi
+            report_add_convergence "$agent_name" "$desired" "$actual_status" 0 "$reason"
             failed=$((failed + 1))
         fi
     done
@@ -414,12 +426,16 @@ verify_convergence() {
                 if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                     echo "  [!] ${pruned_name}: pruned but still present in API (convergence failed)"
                 fi
+                report_add_convergence "$pruned_name" "pruned" "present" 0 \
+                    "pruned but still present in Agamemnon API"
                 failed=$((failed + 1))
             else
                 if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                     echo "  [ok] ${pruned_name}: confirmed absent (pruned)"
                 fi
                 pruned_verified=$((pruned_verified + 1))
+                report_add_convergence "$pruned_name" "pruned" "absent" 1 \
+                    "pruned and confirmed absent from Agamemnon API"
             fi
         done
     fi

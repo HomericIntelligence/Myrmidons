@@ -28,7 +28,21 @@
 #       "error":   "<message or null>"
 #     }
 #   ],
-#   "unmanaged": [ "<name>", ... ]
+#   "unmanaged": [ "<name>", ... ],
+#   "convergence": {
+#     "checked":  N,
+#     "verified": N,
+#     "failed":   N,
+#     "agents": [
+#       {
+#         "name":          "<agent>",
+#         "desired":       "active|hibernated",
+#         "actual_status": "<status or 'not_found'>",
+#         "converged":     true|false,
+#         "reason":        "<description>"
+#       }
+#     ]
+#   }
 # }
 
 set -euo pipefail
@@ -40,6 +54,7 @@ set -euo pipefail
 # Temporary file that accumulates per-agent JSON objects (one per line, NDJSON).
 _REPORT_AGENTS_TMP=""
 _REPORT_UNMANAGED_TMP=""
+_REPORT_CONVERGENCE_TMP=""
 
 # Initialise the report state.  Call once at the start of a reconciliation run.
 # Usage: report_init [host]
@@ -49,6 +64,7 @@ report_init() {
     _REPORT_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     _REPORT_AGENTS_TMP="$(mktemp)"
     _REPORT_UNMANAGED_TMP="$(mktemp)"
+    _REPORT_CONVERGENCE_TMP="$(mktemp)"
 }
 
 # Append one agent entry to the in-progress report.
@@ -98,6 +114,33 @@ report_add_unmanaged() {
     echo "$name" >> "$_REPORT_UNMANAGED_TMP"
 }
 
+# Append one convergence result entry for an agent.
+# Usage: report_add_convergence <name> <desired> <actual_status> <converged_bool> <reason>
+#   converged_bool — 0 for false, 1 for true
+report_add_convergence() {
+    local name="$1"
+    local desired="$2"
+    local actual_status="$3"
+    local converged_bool="$4"
+    local reason="$5"
+
+    local converged_json
+    if [[ "$converged_bool" == "1" ]]; then
+        converged_json="true"
+    else
+        converged_json="false"
+    fi
+
+    jq -n \
+        --arg name "$name" \
+        --arg desired "$desired" \
+        --arg actual_status "$actual_status" \
+        --argjson converged "$converged_json" \
+        --arg reason "$reason" \
+        '{name: $name, desired: $desired, actual_status: $actual_status,
+          converged: $converged, reason: $reason}' >> "$_REPORT_CONVERGENCE_TMP"
+}
+
 # Assemble and print the final JSON report to stdout.
 # Usage: report_emit <created> <updated> <woken> <hibernated> <unchanged> <pruned> <errors>
 report_emit() {
@@ -121,6 +164,16 @@ report_emit() {
         unmanaged_json="$(jq -Rn '[inputs]' < "$_REPORT_UNMANAGED_TMP")"
     fi
 
+    # Build convergence JSON object from NDJSON temp file.
+    local convergence_agents_json="[]"
+    if [[ -s "$_REPORT_CONVERGENCE_TMP" ]]; then
+        convergence_agents_json="$(jq -s '.' "$_REPORT_CONVERGENCE_TMP")"
+    fi
+    local conv_checked conv_verified conv_failed
+    conv_checked="$(echo "$convergence_agents_json" | jq 'length')"
+    conv_verified="$(echo "$convergence_agents_json" | jq '[.[] | select(.converged == true)] | length')"
+    conv_failed="$(echo "$convergence_agents_json" | jq '[.[] | select(.converged == false)] | length')"
+
     jq -n \
         --arg timestamp "$_REPORT_TIMESTAMP" \
         --arg host "${_REPORT_HOST:-all}" \
@@ -134,6 +187,10 @@ report_emit() {
         --argjson errors "$errors" \
         --argjson agents "$agents_json" \
         --argjson unmanaged "$unmanaged_json" \
+        --argjson conv_checked "$conv_checked" \
+        --argjson conv_verified "$conv_verified" \
+        --argjson conv_failed "$conv_failed" \
+        --argjson conv_agents "$convergence_agents_json" \
         '{
             timestamp:     $timestamp,
             host:          $host,
@@ -148,7 +205,13 @@ report_emit() {
                 errors:     $errors
             },
             agents:    $agents,
-            unmanaged: $unmanaged
+            unmanaged: $unmanaged,
+            convergence: {
+                checked:  $conv_checked,
+                verified: $conv_verified,
+                failed:   $conv_failed,
+                agents:   $conv_agents
+            }
         }'
 }
 
@@ -216,6 +279,7 @@ report_webhook() {
 report_cleanup() {
     [[ -n "${_REPORT_AGENTS_TMP:-}" && -f "$_REPORT_AGENTS_TMP" ]] && rm -f "$_REPORT_AGENTS_TMP"
     [[ -n "${_REPORT_UNMANAGED_TMP:-}" && -f "$_REPORT_UNMANAGED_TMP" ]] && rm -f "$_REPORT_UNMANAGED_TMP"
+    [[ -n "${_REPORT_CONVERGENCE_TMP:-}" && -f "$_REPORT_CONVERGENCE_TMP" ]] && rm -f "$_REPORT_CONVERGENCE_TMP"
 }
 
 # ---------------------------------------------------------------------------
