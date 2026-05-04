@@ -131,6 +131,7 @@ Example: `./scripts/apply.sh hermes --output json | jq .summary`
 | `LOG_FORMAT` | `text` | Log output format: text or json |
 | `AIM_LOCK_FILE` | `.myrmidons.lock` | Path to the apply lock file (use workspace-scoped path in parallel CI) |
 | `MYRMIDONS_DEFAULT_OWNER` | `$(whoami)` | Fallback owner written to exported agent YAMLs when the Agamemnon API returns no owner |
+| `MYRMIDONS_YES` | _(unset)_ | Set to `true` to skip all interactive confirmation prompts (equivalent to `--yes`); useful in CI pipelines where stdin is not a TTY |
 
 ## Authentication
 

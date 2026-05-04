@@ -148,6 +148,7 @@ hooks/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
+| `MYRMIDONS_YES` | _(unset)_ | Set to `true` to skip all interactive confirmation prompts (equivalent to `--yes`); useful in CI pipelines where stdin is not a TTY |
 
 ## Configuration
 
