@@ -327,6 +327,7 @@ verify_convergence() {
 
     local failed=0
     local verified=0
+    local pruned_verified=0
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo ""
@@ -398,12 +399,21 @@ verify_convergence() {
                     echo "  [!] ${pruned_name}: pruned but still present in API (convergence failed)"
                 fi
                 failed=$((failed + 1))
+            else
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "  [ok] ${pruned_name}: confirmed absent (pruned)"
+                fi
+                pruned_verified=$((pruned_verified + 1))
             fi
         done
     fi
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-        echo "Convergence: ${verified} converged, ${failed} failed."
+        if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+            echo "Convergence: ${verified} converged, ${pruned_verified} pruned, ${failed} failed."
+        else
+            echo "Convergence: ${verified} converged, ${failed} failed."
+        fi
     fi
 
     if [[ $failed -gt 0 ]]; then

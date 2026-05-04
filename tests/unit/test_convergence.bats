@@ -63,6 +63,7 @@ verify_convergence_impl() {
 
     local failed=0
     local verified=0
+    local pruned_verified=0
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo ""
@@ -117,11 +118,18 @@ verify_convergence_impl() {
             if [[ -n "$still_exists" ]]; then
                 echo "  [!] ${pruned_name}: pruned but still present in API (convergence failed)"
                 failed=$((failed + 1))
+            else
+                echo "  [ok] ${pruned_name}: confirmed absent (pruned)"
+                pruned_verified=$((pruned_verified + 1))
             fi
         done
     fi
 
-    echo "Convergence: ${verified} converged, ${failed} failed."
+    if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+        echo "Convergence: ${verified} converged, ${pruned_verified} pruned, ${failed} failed."
+    else
+        echo "Convergence: ${verified} converged, ${failed} failed."
+    fi
 
     if [[ $failed -gt 0 ]]; then
         return 1
@@ -336,4 +344,65 @@ teardown() {
     run verify_convergence_impl
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Verifying 2 pruned agent(s) are absent"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# #407: pruned_verified counter and conditional summary line
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: prune-only run increments pruned_verified, returns 0" {
+    _MODIFIED_NAMES=()
+    _MODIFIED_DESIRED=()
+    _PRUNED_NAMES=("agent-x" "agent-y" "agent-z")
+
+    agamemnon_list_agents() {
+        echo '[]'
+    }
+
+    run verify_convergence_impl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"3 pruned"* ]]
+    [[ "$output" == *"0 failed"* ]]
+}
+
+@test "verify_convergence: prune-only run summary reads '0 converged, 3 pruned, 0 failed.'" {
+    _MODIFIED_NAMES=()
+    _MODIFIED_DESIRED=()
+    _PRUNED_NAMES=("agent-x" "agent-y" "agent-z")
+
+    agamemnon_list_agents() {
+        echo '[]'
+    }
+
+    run verify_convergence_impl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Convergence: 0 converged, 3 pruned, 0 failed."* ]]
+}
+
+@test "verify_convergence: pruned agent confirmed absent emits ok line" {
+    _MODIFIED_NAMES=()
+    _MODIFIED_DESIRED=()
+    _PRUNED_NAMES=("gone-agent")
+
+    agamemnon_list_agents() {
+        echo '[]'
+    }
+
+    run verify_convergence_impl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"[ok] gone-agent: confirmed absent (pruned)"* ]]
+}
+
+@test "verify_convergence: no-prune run summary does not contain 'pruned'" {
+    _MODIFIED_NAMES=("my-agent")
+    _MODIFIED_DESIRED=("active")
+    _PRUNED_NAMES=()
+
+    agamemnon_list_agents() {
+        echo '[{"name":"my-agent","status":"active"}]'
+    }
+
+    run verify_convergence_impl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *" pruned"* ]]
 }
