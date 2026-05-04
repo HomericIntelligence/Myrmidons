@@ -484,7 +484,13 @@ main() {
     if [[ $PRUNE -eq 1 && $YES -eq 0 && "${MYRMIDONS_YES:-}" != "true" ]]; then
         local reply
         if [[ ! -t 0 ]]; then
-            # Non-TTY stdin (CI pipe, /dev/null) — default-deny
+            # Non-TTY stdin (CI pipe, /dev/null) → default-deny the prune confirmation.
+            # This is intentional CI safety introduced in #378: piped answers (e.g.
+            # `echo y | ./apply.sh --prune`) are explicitly unsupported because the
+            # pipe is indistinguishable from an unattended CI run that should never
+            # silently delete agents.  For non-interactive automation use:
+            #   ./scripts/apply.sh --prune --yes               (flag)
+            #   MYRMIDONS_YES=true ./scripts/apply.sh --prune  (env var)
             reply="N"
         else
             echo "WARNING: --prune will hibernate and delete agents not in YAML."
