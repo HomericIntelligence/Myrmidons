@@ -125,3 +125,11 @@ repos:
         entry: scripts/lint-agents-md.sh
         files: ^AGENTS\.md$
         pass_filenames: false
+
+      - id: myrmidons-no-bare-read
+        name: No bare read without timeout in scripts
+        language: script
+        entry: scripts/check-bare-read.sh
+        types: [shell]
+        files: '^scripts/.*\.sh$'
+        pass_filenames: false
