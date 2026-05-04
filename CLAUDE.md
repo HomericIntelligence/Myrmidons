@@ -231,6 +231,40 @@ The justification must describe:
 
 To run manually: `./scripts/check-dangerous-flags.sh`
 
+### Gitleaks allowlist
+
+`gitleaks` scans every PR for secrets. False positives (e.g. test fixtures, documentation
+examples, placeholder tokens) must be suppressed via `.gitleaks.toml` — **not** by adding
+`continue-on-error: true` to the CI step.
+
+**Correct approach — add an entry to `.gitleaks.toml`:**
+
+```toml
+[allowlist]
+description = "Test fixtures and documentation examples"
+regexes = [
+  '''your-placeholder-token''',   # gitleaks-allowlist: doc example in CLAUDE.md, not a real credential
+]
+paths = [
+  '''tests/.*''',                 # gitleaks-allowlist: test fixtures contain intentional fake secrets
+]
+```
+
+Every new allowlist entry **must** include an inline comment `# gitleaks-allowlist: <justification>`
+that describes:
+- Why the match is a false positive
+- Where the value appears (file, section, or purpose)
+
+**Wrong approach:** setting `continue-on-error: true` on the scan step silently swallows
+real leaks. Never do this — if you encounter it in the workflow, fix the allowlist instead.
+
+The CI step in `.github/workflows/_required.yml` always passes `--config .gitleaks.toml`
+so allowlist entries are applied automatically. To verify locally before pushing:
+
+```bash
+gitleaks detect --source . --config .gitleaks.toml --no-git -v
+```
+
 ## Known Gotchas
 
 ### jq 1.6: `label` is a reserved keyword
