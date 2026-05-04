@@ -71,3 +71,10 @@ repos:
         entry: scripts/check-adr-index.sh
         pass_filenames: false
         files: ^docs/adr/.*\.md$
+
+      - id: myrmidons-doc-drift
+        name: Documentation drift check
+        language: script
+        entry: tests/detect-doc-drift.sh
+        pass_filenames: false
+        files: '(^(Architecture|README|CLAUDE|CONTRIBUTING)\.md$|^tests/detect-doc-drift\.sh$|^docs/(?!adr/).*\.md$)'
