@@ -99,6 +99,23 @@ YAML
     [[ "$output" == *"HIBERNATE_SETTLE_SECONDS"* ]]
 }
 
+# ── status.sh --help ──────────────────────────────────────────────────────────
+
+@test "status.sh --help: exits 0" {
+    run "${SCRIPT_DIR}/scripts/status.sh" --help
+    [[ "$status" -eq 0 ]]
+}
+
+@test "status.sh --help: prints usage information" {
+    run "${SCRIPT_DIR}/scripts/status.sh" --help
+    [[ "$output" == *"Usage"* ]]
+}
+
+@test "status.sh --help: lists MYRMIDONS_DEFAULT_OWNER in environment section" {
+    run "${SCRIPT_DIR}/scripts/status.sh" --help
+    [[ "$output" == *"MYRMIDONS_DEFAULT_OWNER"* ]]
+}
+
 # ── plan.sh --help ────────────────────────────────────────────────────────────
 
 @test "plan.sh --help: exits 0" {
@@ -109,6 +126,11 @@ YAML
 @test "plan.sh --help: prints usage information" {
     run "${SCRIPT_DIR}/scripts/plan.sh" --help
     [[ "$output" == *"Usage"* ]]
+}
+
+@test "plan.sh --help: lists MYRMIDONS_DEFAULT_OWNER in environment section" {
+    run "${SCRIPT_DIR}/scripts/plan.sh" --help
+    [[ "$output" == *"MYRMIDONS_DEFAULT_OWNER"* ]]
 }
 
 # ── apply.sh --dry-run delegates to plan.sh ──────────────────────────────────
