@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - C++ hello-world example wired into build system (#445)
 - CI: markdownlint, pixi, justfile, and symlink lint jobs (#364)
 - CLAUDE.md: `--dangerously-skip-permissions` policy — prohibited by default, suppression annotation with justification required (#147)
+- `pygrep` pre-commit hook `changelog-unreleased-url` catches broken `[Unreleased]` compare links in `CHANGELOG.md`, enforcing `compare/vX.Y.Z...HEAD` format and preventing the regression where both sides resolve to HEAD (#453)
 - CI ↔ pre-commit parity architecture: `.pre-commit-config.yaml` is now the single source of truth for all linting; CI runs `pre-commit run --all-files` to eliminate drift
 - actionlint pre-commit hook added (v1.7.7) so GitHub Actions workflow lint failures are caught locally before push
 - gitleaks pre-commit hook added (v8.24.3, unlicensed binary mode) so secret scanning matches CI
