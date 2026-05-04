@@ -73,7 +73,6 @@ HIBERNATED=0
 UNCHANGED=0
 PRUNED=0
 ERRORS=0
-FAILED_AGENTS=()   # names of agents that encountered errors
 _PRUNED_NAMES=()   # names of agents pruned during this run (for convergence check)
 
 # Per-agent error tracking: parallel arrays of (agent_name, http_status, error_message)
@@ -635,14 +634,6 @@ main() {
         echo "================================================"
         echo "Summary: created=${CREATED} updated=${UPDATED} woken=${WOKEN} hibernated=${HIBERNATED} unchanged=${UNCHANGED} pruned=${PRUNED} errors=${ERRORS}"
 
-        if [[ ${#FAILED_AGENTS[@]} -gt 0 ]]; then
-            echo ""
-            echo "Failed agents (${#FAILED_AGENTS[@]}):"
-            for fa in "${FAILED_AGENTS[@]}"; do
-                echo "  - ${fa}"
-            done
-        fi
-
         # Always save a report file (silently) so report_save is useful even in text mode
         local report_json
         report_json="$(report_emit "$CREATED" "$UPDATED" "$WOKEN" "$HIBERNATED" \
@@ -677,15 +668,15 @@ main() {
     fi
 }
 
-# Write FAILED_AGENTS array to failed-agents.txt (one name per line)
+# Write FAILED_AGENT_NAMES array to failed-agents.txt (one name per line)
 _write_failed_agents_file() {
     local failed_file="${RETRY_FILE:-failed-agents.txt}"
-    if [[ ${#FAILED_AGENTS[@]} -gt 0 ]]; then
+    if [[ ${#FAILED_AGENT_NAMES[@]} -gt 0 ]]; then
         : > "$failed_file"
-        for agent_name in "${FAILED_AGENTS[@]}"; do
+        for agent_name in "${FAILED_AGENT_NAMES[@]}"; do
             echo "$agent_name" >> "$failed_file"
         done
-        log_warn "Wrote ${#FAILED_AGENTS[@]} failed agent(s) to ${failed_file}"
+        log_warn "Wrote ${#FAILED_AGENT_NAMES[@]} failed agent(s) to ${failed_file}"
     fi
 }
 
@@ -760,7 +751,6 @@ apply_agent() {
                 echo "    ERROR creating ${name}: ${err_msg}" >&2
             fi
             record_failure "$name" "$http_status" "$err_msg"
-            FAILED_AGENTS+=("$name")
             report_add_agent "$name" "$agent_host" "ERROR" "$desired_state" "unknown" "[]" "create failed: ${err_msg}"
         fi
         return
@@ -891,7 +881,6 @@ apply_agent() {
                     echo "    ERROR updating ${name}: ${err_msg}" >&2
                 fi
                 record_failure "$name" "$http_status" "Failed to update fields [${changed_fields}]: ${err_msg}"
-                FAILED_AGENTS+=("$name")
                 report_add_agent "$name" "$agent_host" "ERROR" "$desired_state" "$actual_status" "$drift_json" "update failed: ${err_msg}"
             fi
             ;;

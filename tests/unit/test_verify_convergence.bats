@@ -35,6 +35,17 @@ APPLY_SH="${SCRIPT_DIR}/scripts/apply.sh"
     [[ "$count" -eq 0 ]]
 }
 
+@test "F-06 regression: bare FAILED_AGENTS array declaration is not present in apply.sh" {
+    # The unified FAILED_AGENT_NAMES/STATUSES/MESSAGES arrays replaced FAILED_AGENTS.
+    # Verify neither the declaration nor a direct append to the bare array exists.
+    local decl_count
+    decl_count=$(grep -cE '^FAILED_AGENTS=\(\)' "$APPLY_SH" || true)
+    [[ "$decl_count" -eq 0 ]]
+    local append_count
+    append_count=$(grep -cE 'FAILED_AGENTS\+=\(' "$APPLY_SH" || true)
+    [[ "$append_count" -eq 0 ]]
+}
+
 # ---------------------------------------------------------------------------
 # Functional tests — source a stripped-down harness that exports the function
 # ---------------------------------------------------------------------------
