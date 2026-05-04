@@ -11,7 +11,8 @@
 #
 # What is NOT tested (and is intentionally out of scope):
 #   - "export AGAMEMNON_API_KEY=..." in caller scripts — that is caller responsibility.
-#   - The variable init line in api.sh itself — it carries no header value.
+#
+# Source-time variable init (issue #429) is covered by tests/test-api-xtrace-init.sh.
 #
 # Usage:
 #   ./tests/test-api-xtrace.sh
