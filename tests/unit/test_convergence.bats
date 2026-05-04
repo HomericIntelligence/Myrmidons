@@ -63,6 +63,15 @@ verify_convergence_impl() {
 
     local failed=0
     local verified=0
+
+    if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+        echo ""
+        echo "Verifying convergence for ${#_MODIFIED_NAMES[@]} modified agent(s)..."
+        if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+            echo "Verifying ${#_PRUNED_NAMES[@]} pruned agent(s) are absent..."
+        fi
+    fi
+
     local agents_json_fresh
     agents_json_fresh="$(agamemnon_list_agents)"
 
@@ -309,4 +318,22 @@ teardown() {
 
     run verify_convergence_impl
     [[ "$status" -eq 0 ]]
+}
+
+# ---------------------------------------------------------------------------
+# Issue #408: prune-only run prints prune-specific header
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: prune-only run prints 'Verifying N pruned agent(s) are absent' header" {
+    _MODIFIED_NAMES=()
+    _MODIFIED_DESIRED=()
+    _PRUNED_NAMES=("old-agent" "gone-agent")
+
+    agamemnon_list_agents() {
+        echo '[]'
+    }
+
+    run verify_convergence_impl
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Verifying 2 pruned agent(s) are absent"* ]]
 }
