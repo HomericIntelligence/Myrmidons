@@ -171,6 +171,28 @@ Examples:
 EOF
 }
 
+# Guard against writing snapshots to a dangerous or out-of-tree path (#391).
+# Args: <dir> <"set"|""> — second arg non-empty means SNAPSHOT_DIR was explicitly set.
+_guard_snapshot_dir() {
+    local dir="$1"
+    local explicitly_set="${2:-}"
+
+    # Always block the known dangerous fallback regardless of how it was derived.
+    if [[ "$dir" == "/.myrmidons/snapshots" ]]; then
+        echo "ERROR: snapshot dir resolved to '/.myrmidons/snapshots'." >&2
+        echo "  This usually means REPO_ROOT is empty or unset." >&2
+        echo "  Set SNAPSHOT_DIR explicitly or ensure REPO_ROOT is defined." >&2
+        exit 1
+    fi
+
+    # Block derived out-of-repo paths (only when SNAPSHOT_DIR was not explicitly set).
+    if [[ -z "$explicitly_set" && "$dir" != "${REPO_ROOT}"/* ]]; then
+        echo "ERROR: snapshot dir '${dir}' is outside the repo tree '${REPO_ROOT}'." >&2
+        echo "  REPO_ROOT may be empty or unset. Set SNAPSHOT_DIR explicitly to override." >&2
+        exit 1
+    fi
+}
+
 # Record a per-agent failure and increment error counter.
 # Usage: record_failure <agent_name> <http_status> <error_message>
 record_failure() {
@@ -525,6 +547,8 @@ main() {
 
     # Capture pre-apply snapshot (#228: includes context fields user/branch/host/timestamp)
     local effective_snapshot_dir="${SNAPSHOT_DIR:-${REPO_ROOT}/.myrmidons/snapshots}"
+    # Guard: abort if snapshot dir is dangerous or outside repo tree (#391)
+    _guard_snapshot_dir "$effective_snapshot_dir" "${SNAPSHOT_DIR:+set}"
     local snap_file
     snap_file="$(snapshot_write "$agents_json" "$effective_snapshot_dir" "${HOST:-all}")"
     snapshot_prune "$effective_snapshot_dir" "$SNAPSHOT_KEEP"
