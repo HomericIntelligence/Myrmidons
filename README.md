@@ -150,6 +150,12 @@ hooks/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
+| `AGAMEMNON_API_KEY` | _(unset)_ | Bearer token / API key for authenticating requests |
+| `AGAMEMNON_TIMEOUT` | `10` | HTTP request timeout in seconds for all API calls |
+| `LOG_LEVEL` | `INFO` | Log verbosity: DEBUG, INFO, WARN, ERROR |
+| `LOG_FORMAT` | `text` | Log output format: text or json |
+| `AIM_LOCK_FILE` | `.myrmidons.lock` | Path to the apply lock file (use workspace-scoped path in parallel CI) |
+| `MYRMIDONS_DEFAULT_OWNER` | `$(whoami)` | Fallback owner written to exported agent YAMLs when the Agamemnon API returns no owner |
 | `MYRMIDONS_YES` | _(unset)_ | Set to `true` to skip all interactive confirmation prompts (equivalent to `--yes`); useful in CI pipelines where stdin is not a TTY |
 
 ## Configuration
