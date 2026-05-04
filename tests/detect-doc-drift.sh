@@ -30,8 +30,8 @@ FORBIDDEN_PHRASES=(
     "Nomad.*currently supported|implies Nomad is currently supported"
     "spec\.model.*reconcil|implies spec.model changes are reconciled by apply.sh"
     "spec\.deployment\.type.*reconcil|implies spec.deployment.type changes are reconciled"
-    "spec\.model.*tracked|implies spec.model is tracked for drift"
-    "spec\.deployment\.type.*tracked|implies spec.deployment.type is tracked for drift (it is not)"
+    "spec\.model.*✓|implies spec.model is tracked for drift (table row with checkmark)"
+    "spec\.deployment\.type.*✓|implies spec.deployment.type is tracked for drift (table row with checkmark)"
 )
 
 # Files and directories to scan (relative to repo root).
@@ -41,7 +41,7 @@ DOC_FILES=()
 while IFS= read -r -d '' f; do
     DOC_FILES+=("$f")
 done < <(find "${REPO_ROOT}" \
-    \( -name "Architecture.md" -o -name "README.md" -o -name "CLAUDE.md" \) \
+    \( -name "Architecture.md" -o -name "README.md" -o -name "CLAUDE.md" -o -name "CONTRIBUTING.md" \) \
     -print0 2>/dev/null)
 
 while IFS= read -r -d '' f; do
