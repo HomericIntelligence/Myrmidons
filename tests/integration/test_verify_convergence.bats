@@ -173,3 +173,46 @@ teardown() {
 
     [[ "$output" == *"pruned but still present in API (convergence failed)"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test 4b: apply.sh exits non-zero when convergence fails (F-08)
+#
+# Routes design (convergence-routes-fail.json):
+#   All GET /api/v1/agents  → agent offline  (desired=active, triggers WAKE)
+#   PATCH /api/v1/agents/*  → 200 offline    (wake API call succeeds but agent stays offline)
+#
+# Expected: apply.sh must exit non-zero because verify_convergence detects that
+# the agent did not converge after the WAKE action.
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: apply.sh exits non-zero when agent does not converge" {
+    _start_mock_server_routes "${FIXTURES_DIR}/convergence-routes-fail.json"
+
+    run bash "$APPLY_SH" "$_CONV_TEST_HOST" --yes \
+        --snapshot-dir "$_CONV_SNAPSHOT_DIR" 2>&1
+
+    [[ "$status" -ne 0 ]]
+}
+
+# ---------------------------------------------------------------------------
+# Test 5: verify_convergence is actually invoked — log line proves it (F-08)
+#
+# Routes design (convergence-routes-twophase.json):
+#   All GET /api/v1/agents  → agent offline  (desired=active, triggers WAKE)
+#   PATCH /api/v1/agents/*  → 200 offline    (WAKE call made, agent stays offline)
+#
+# Two distinct HTTP calls are made: one during the apply loop (returns offline,
+# triggers WAKE) and one during verify_convergence's re-fetch (still offline).
+# The "Verifying convergence for" log line proves verify_convergence was called,
+# not short-circuited; "NOT converged" proves the re-fetch path was reached.
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: invoked by apply.sh — 'Verifying convergence' log line appears" {
+    _start_mock_server_routes "${FIXTURES_DIR}/convergence-routes-twophase.json"
+
+    run bash "$APPLY_SH" "$_CONV_TEST_HOST" --yes \
+        --snapshot-dir "$_CONV_SNAPSHOT_DIR" 2>&1 || true
+
+    [[ "$output" == *"Verifying convergence for"* ]]
+    [[ "$output" == *"NOT converged"* ]]
+}
