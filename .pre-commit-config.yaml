@@ -33,11 +33,12 @@ repos:
         args: [-d, relaxed]
         files: '\.ya?ml$'
 
-  # Secret scanning (binary mode, no license required)
+  # Secret scanning — uses system-installed gitleaks binary (avoids Go build)
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.3
+    rev: v8.30.1
     hooks:
-      - id: gitleaks
+      - id: gitleaks-system
+        pass_filenames: false
 
   # Myrmidons schema validation
   - repo: local
