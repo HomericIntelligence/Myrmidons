@@ -105,6 +105,11 @@ ignored** by the reconciler and will NOT be applied to the running agent:
 > file, `apply.sh` will not detect drift for those fields. The running agent will keep
 > its current values until manually recreated.
 
+> **Adding a new tracked field:** Follow the lockstep checklist in
+> [ADR-009 §How to extend](docs/adr/ADR-009-compute-drift-positional-parameters.md).
+> `scripts/check-compute-drift-callers.sh` (wired as a pre-commit hook) will catch
+> any caller that was not updated.
+
 ## Scripts
 
 | Script | Purpose |
