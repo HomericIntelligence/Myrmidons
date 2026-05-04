@@ -127,10 +127,14 @@ _source_apply_functions() {
     local apply_sh="${REPO_ROOT}/scripts/apply.sh"
 
     # Source the lib dependencies directly with their real paths.
+    # shellcheck source=scripts/lib/config.sh
+    source "${REPO_ROOT}/scripts/lib/config.sh"
     # shellcheck source=scripts/lib/api.sh
     source "${REPO_ROOT}/scripts/lib/api.sh"
     # shellcheck source=scripts/lib/reconcile.sh
     source "${REPO_ROOT}/scripts/lib/reconcile.sh"
+    # shellcheck source=scripts/lib/report.sh
+    source "${REPO_ROOT}/scripts/lib/report.sh"
 
     # Eval apply.sh stripping lines that would re-source libs or run main.
     # Also strip SCRIPT_DIR/REPO_ROOT setup (already set) and shebang/set lines.
