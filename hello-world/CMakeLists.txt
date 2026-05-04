@@ -23,10 +23,11 @@ set_directory_properties(PROPERTIES COMPILE_OPTIONS "")
 FetchContent_MakeAvailable(nats_c)
 set_directory_properties(PROPERTIES COMPILE_OPTIONS "${_saved_compile_options}")
 
+set(NLOHMANN_JSON_VERSION "v3.11.3" CACHE STRING "nlohmann/json version tag")
 FetchContent_Declare(
   nlohmann_json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG v3.11.3
+  GIT_TAG ${NLOHMANN_JSON_VERSION}
   GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(nlohmann_json)
