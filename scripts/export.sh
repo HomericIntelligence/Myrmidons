@@ -40,6 +40,7 @@ main() {
     agamemnon_check_connection
 
     local effective_owner="${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}"
+    export MYRMIDONS_DEFAULT_OWNER="$effective_owner"
     log_debug "Default owner for exported agents: ${effective_owner}"
 
     log_info "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
