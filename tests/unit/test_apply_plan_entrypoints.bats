@@ -94,6 +94,11 @@ YAML
     [[ "$output" == *"Usage"* ]]
 }
 
+@test "apply.sh --help: mentions HIBERNATE_SETTLE_SECONDS" {
+    run "${SCRIPT_DIR}/scripts/apply.sh" --help
+    [[ "$output" == *"HIBERNATE_SETTLE_SECONDS"* ]]
+}
+
 # ── plan.sh --help ────────────────────────────────────────────────────────────
 
 @test "plan.sh --help: exits 0" {

@@ -37,6 +37,22 @@ _assert_eq() {
     fi
 }
 
+# ── test: --help output documents HIBERNATE_SETTLE_SECONDS ───────────────────
+
+test_help_documents_hibernate_settle_seconds() {
+    echo ""
+    echo "Test: --help output mentions HIBERNATE_SETTLE_SECONDS"
+
+    local found
+    found="$(grep -c 'HIBERNATE_SETTLE_SECONDS' "$APPLY_SH" || true)"
+    _assert_eq "HIBERNATE_SETTLE_SECONDS appears in apply.sh" "1" "$([ "$found" -ge 1 ] && echo 1 || echo 0)"
+
+    # Verify it appears specifically in the usage() function body
+    local in_usage
+    in_usage="$(awk '/^usage\(\)/{found=1} found && /HIBERNATE_SETTLE_SECONDS/{print; exit}' "$APPLY_SH")"
+    _assert_eq "HIBERNATE_SETTLE_SECONDS documented in usage()" "1" "$([ -n "$in_usage" ] && echo 1 || echo 0)"
+}
+
 # ── test: static grep — confirm sleep uses the variable, not a literal ────────
 
 test_no_hardcoded_sleep_2() {
@@ -223,6 +239,7 @@ echo "================================================"
 echo "HIBERNATE_SETTLE_SECONDS tests (issue #373)"
 echo "================================================"
 
+test_help_documents_hibernate_settle_seconds
 test_no_hardcoded_sleep_2
 test_sleep_uses_variable
 test_default_value_is_2
