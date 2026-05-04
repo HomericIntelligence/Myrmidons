@@ -16,10 +16,12 @@ Container images are built separately in [AchaeanFleet](../AchaeanFleet).
 # Install dependencies (yq, jq, just, pre-commit)
 pixi install   # or: apt install jq && curl -fsSL .../yq_linux_amd64 -o /usr/local/bin/yq
 
-# Install pre-commit hooks (runs automatically on every commit)
-just install-hooks   # uses pre-commit framework
-# Alternatively, for backward compatibility without pre-commit:
-# just install-hooks-legacy
+# Install pre-commit hooks (runs the full pre-commit framework on every commit)
+just install-hooks
+
+# If the pre-commit framework is not installed or not desired (e.g., minimal CI,
+# glibc-incompatible environments), use the legacy hook instead (dangerous-flags check only):
+just install-hooks-legacy
 
 # Bootstrap: export current Agamemnon state to YAML (run once)
 just export hermes
