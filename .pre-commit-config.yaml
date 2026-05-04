@@ -65,7 +65,6 @@ repos:
         files: '\.sh$'
         pass_filenames: false
 
-<<<<<<< HEAD
       - id: check-adr-index
         name: ADR README index completeness
         language: script
@@ -87,6 +86,7 @@ repos:
         types: [shell]
         pass_filenames: false
 
+<<<<<<< HEAD
       - id: myrmidons-validate-fleet-refs
         name: Fleet ref validation
         language: system
@@ -101,3 +101,11 @@ repos:
         files: '^(CLAUDE\.md|AGENTS\.md)$'
         pass_filenames: false
 >>>>>>> 3d0f827 (feat(lint): enforce AGENTS.md cross-reference presence in CLAUDE.md)
+=======
+      - id: myrmidons-schema-hints
+        name: Myrmidons yaml-language-server hint check
+        language: system
+        entry: scripts/check-schema-hints.sh
+        pass_filenames: true
+        files: ^(agents|fleets)/.*\.ya?ml$
+>>>>>>> 5293dc0 (feat(lint): add yaml-language-server schema hint check (#384))
