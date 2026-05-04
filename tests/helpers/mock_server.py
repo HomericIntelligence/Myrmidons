@@ -7,6 +7,8 @@ Reads response configuration from:
        JSON array: [{"method": "GET", "path": "/api/v1/agents", "status": 200, "body": {...}}, ...]
        JSON object: {"routes": [...], "default_status": 200, "default_body": {}}
      Routes are matched in order; first match wins.
+     Add "once": true to a route to consume it after the first match; subsequent
+     requests fall through to the next matching route or default_body.
      Paths support a trailing wildcard segment: "/api/v1/agents/*" matches
      "/api/v1/agents/foo" and "/api/v1/agents/abc123".
   2. Environment variables (fallback):
@@ -142,17 +144,17 @@ class Handler(BaseHTTPRequestHandler):
         """Get response status and body for the given method and path.
 
         If routes config is available, match by method+path (wildcard-aware).
+        Routes with ``"once": true`` are consumed (removed) after the first
+        match and subsequent requests fall through to the next route or the
+        default_body, enabling stateful request sequencing (e.g. first GET
+        returns data, subsequent GETs return empty list).
         Otherwise fall back to env vars.
-
-        Routes with "once": true are removed after their first match, enabling
-        stateful request sequencing (e.g. first GET returns data, subsequent
-        GETs return empty list).
         """
         if ROUTES_CONFIG is None:
             return STATUS, BODY
 
-        # Try to find a matching route (first match wins)
         routes = ROUTES_CONFIG.get("routes", [])
+        # Try to find a matching route (first match wins)
         for i, route in enumerate(routes):
             route_method = route.get("method", "").upper()
             route_path = route.get("path", "")
