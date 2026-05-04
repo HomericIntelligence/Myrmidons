@@ -104,8 +104,7 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
 
       - name: Scan for secrets (gitleaks)
-        run: gitleaks detect --source . --no-git -v
-        continue-on-error: true
+        run: gitleaks detect --source . --config .gitleaks.toml --no-git -v
 
   build:
     name: build
