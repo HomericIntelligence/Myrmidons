@@ -18,7 +18,12 @@
 set -euo pipefail
 
 AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
+_aim_had_xtrace=0
+if [[ "$-" == *x* ]]; then _aim_had_xtrace=1; fi
+{ set +x; } 2>/dev/null
 AGAMEMNON_API_KEY="${AGAMEMNON_API_KEY:-}"
+if [[ $_aim_had_xtrace -eq 1 ]]; then set -x; fi
+unset _aim_had_xtrace
 
 # Validate that AGAMEMNON_URL is a safe http/https URL.
 #
