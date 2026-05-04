@@ -89,6 +89,9 @@ FAILED_AGENTS_FILE="${MYRMIDONS_STATE_DIR}/failed-agents.txt"
 _MODIFIED_NAMES=()
 _MODIFIED_DESIRED=()
 
+# Set by apply_agent on successful CREATE; cleared at the top of each apply_agent call.
+_LAST_CREATED_AGENT_JSON=""
+
 # Counts of destructive operations pending — used by confirmation prompt (#48)
 _DESTRUCTIVE_COUNT=0
 
@@ -696,6 +699,8 @@ apply_agent() {
     local yaml_file="$1"
     local agents_json="$2"
 
+    _LAST_CREATED_AGENT_JSON=""
+
     # Parse YAML fields into local variables
     local name label program workdir args desc tags owner role model deploy_type desired_state
     name="$(yq eval '.metadata.name' "$yaml_file")"
@@ -733,6 +738,7 @@ apply_agent() {
                 echo "    Created: id=${new_id}"
             fi
             CREATED=$((CREATED + 1))
+            _LAST_CREATED_AGENT_JSON="$result"
 
             local woke_status="created"
             # Wake if desired
