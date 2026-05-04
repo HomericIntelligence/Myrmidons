@@ -336,6 +336,9 @@ verify_convergence() {
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo ""
         echo "Verifying convergence for ${#_MODIFIED_NAMES[@]} modified agent(s)..."
+        if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+            echo "Verifying ${#_PRUNED_NAMES[@]} pruned agent(s) are absent..."
+        fi
     fi
 
     # Refresh agent list once for all convergence checks
