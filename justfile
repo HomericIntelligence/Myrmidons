@@ -164,10 +164,26 @@ build-hello-world:
 
 # Install all git hooks: copies the dangerous-flags hook AND registers the pre-commit framework
 install-hooks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v pixi &>/dev/null; then
+        printf 'ERROR: pixi is not installed.\n'
+        printf '  Install it: curl -fsSL https://pixi.sh/install.sh | bash\n'
+        printf '  Then re-run: just install-hooks\n'
+        printf '  See CONTRIBUTING.md for full setup instructions.\n'
+        exit 1
+    fi
+    if ! pixi run --environment lint pre-commit --version &>/dev/null; then
+        printf 'ERROR: pre-commit is not available in the pixi lint environment.\n'
+        printf '  Run: pixi install --environment lint\n'
+        printf '  Then re-run: just install-hooks\n'
+        printf '  See CONTRIBUTING.md for full setup instructions.\n'
+        exit 1
+    fi
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    pixi run pre-commit install
-    @echo "Hooks installed: dangerous-flags hook + pre-commit framework (.pre-commit-config.yaml)."
+    pixi run --environment lint pre-commit install
+    printf 'Hooks installed: dangerous-flags hook + pre-commit framework (.pre-commit-config.yaml).\n'
 
 # Legacy: install only the dangerous-flags hook script (no pre-commit framework)
 install-hooks-legacy:
