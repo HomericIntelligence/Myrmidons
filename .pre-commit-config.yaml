@@ -56,3 +56,10 @@ repos:
         entry: pixi run test-schema
         pass_filenames: false
         files: '^(agents|fleets|schemas|tests)/'
+
+      - id: check-xtrace-exposure
+        name: Check for unguarded xtrace auth exposure in curl calls
+        language: script
+        entry: scripts/check-xtrace-exposure.sh
+        files: '\.sh$'
+        pass_filenames: false

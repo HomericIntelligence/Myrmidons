@@ -190,10 +190,14 @@ report_webhook() {
     local webhook_url="$2"
 
     local http_code
+    local _had_xtrace=0
+    if [[ "$-" == *x* ]]; then _had_xtrace=1; fi
+    { set +x; } 2>/dev/null
     http_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
         -X POST "$webhook_url" \
         -H 'Content-Type: application/json' \
         -d "$json" 2>/dev/null)" || http_code="0"
+    if [[ $_had_xtrace -eq 1 ]]; then set -x; fi
 
     local status
     if [[ "$http_code" =~ ^2 ]]; then
