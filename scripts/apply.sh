@@ -146,9 +146,12 @@ Options:
   -h, --help                 Show this help
 
 Environment variables:
-  AIM_LOCK_FILE        Path to the apply lock file (default: .myrmidons.lock).
-                       Set to a workspace-scoped path in parallel CI environments.
-  AIM_LOCK_TIMEOUT     Lock acquisition timeout in seconds (default: 60).
+  AIM_LOCK_FILE              Path to the apply lock file (default: .myrmidons.lock).
+                             Set to a workspace-scoped path in parallel CI environments.
+  AIM_LOCK_TIMEOUT           Lock acquisition timeout in seconds (default: 60).
+  HIBERNATE_SETTLE_SECONDS   Seconds to wait after hibernating an unmanaged agent before
+                             issuing DELETE (default: 2). Set to 0 to skip the wait in CI:
+                             HIBERNATE_SETTLE_SECONDS=0 ./scripts/apply.sh --prune
 
 Examples:
   $0                              # Reconcile everything
