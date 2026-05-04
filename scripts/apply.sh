@@ -689,7 +689,13 @@ main() {
     fi
 }
 
-# Write FAILED_AGENT_NAMES array to failed-agents.txt (one name per line)
+# Write FAILED_AGENT_NAMES array to failed-agents.txt (one name per line).
+# FAILED_AGENT_NAMES holds metadata.name strings (e.g. "odyssey-mainline-analysis"), NOT
+# yaml_file paths. Do not confuse with FAILED_AGENT_STATUSES/FAILED_AGENT_MESSAGES (also
+# metadata.name strings, but used only for error-summary display in print_error_summary).
+# The FAILED_AGENTS_FILE written inline at line 583 uses yaml_file paths for --retry
+# resolution; this function writes to RETRY_FILE (default: failed-agents.txt) for a
+# different consumer. See #371.
 _write_failed_agents_file() {
     local failed_file="${RETRY_FILE:-failed-agents.txt}"
     if [[ ${#FAILED_AGENT_NAMES[@]} -gt 0 ]]; then
