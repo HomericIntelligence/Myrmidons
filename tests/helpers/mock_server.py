@@ -143,16 +143,25 @@ class Handler(BaseHTTPRequestHandler):
 
         If routes config is available, match by method+path (wildcard-aware).
         Otherwise fall back to env vars.
+
+        Routes with "once": true are removed after their first match, enabling
+        stateful request sequencing (e.g. first GET returns data, subsequent
+        GETs return empty list).
         """
         if ROUTES_CONFIG is None:
             return STATUS, BODY
 
         # Try to find a matching route (first match wins)
-        for route in ROUTES_CONFIG.get("routes", []):
+        routes = ROUTES_CONFIG.get("routes", [])
+        for i, route in enumerate(routes):
             route_method = route.get("method", "").upper()
             route_path = route.get("path", "")
             if route_method == method and _path_matches(route_path, self.path):
-                return route.get("status", 200), route.get("body", "{}")
+                status = route.get("status", 200)
+                body = route.get("body", "{}")
+                if route.get("once", False):
+                    routes.pop(i)
+                return status, body
 
         # Fall back to default_status/default_body from config, or env vars
         default_status = ROUTES_CONFIG.get("default_status", STATUS)
