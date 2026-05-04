@@ -13,6 +13,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  GITLEAKS_VERSION: "8.24.3"
+
 jobs:
   lint:
     name: lint
@@ -95,12 +98,10 @@ jobs:
 
       # Use the unlicensed gitleaks binary — no GITLEAKS_LICENSE required.
       - name: Install gitleaks
-        env:
-          GL_VERSION: "8.24.3"
         run: |
           url="https://github.com/gitleaks/gitleaks/releases/download"
           curl -sSfL \
-            "${url}/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
+            "${url}/v${{ env.GITLEAKS_VERSION }}/gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
 
       - name: Scan for secrets (gitleaks)
