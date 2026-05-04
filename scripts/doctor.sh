@@ -21,6 +21,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/lib/config.sh"
 load_config
 
+# shellcheck source=scripts/lib/api.sh
+source "${SCRIPT_DIR}/lib/api.sh"
+
 # MYRM_AIM_HOST is populated by load_config; fall back to env/default for safety.
 AGAMEMNON_URL="${AGAMEMNON_URL:-${MYRM_AIM_HOST:-http://localhost:8080}}"
 
@@ -146,10 +149,17 @@ check_connectivity() {
         return 0
     fi
 
-    # Health endpoint
+    # Health endpoint — guard xtrace so AGAMEMNON_API_KEY does not leak if set
+    _agamemnon_auth_headers
     local http_code
+    local _had_xtrace=0
+    if [[ "$-" == *x* ]]; then _had_xtrace=1; fi
+    { set +x; } 2>/dev/null
     http_code="$(curl -s --max-time 5 -o /dev/null -w "%{http_code}" \
+        "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
+        "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" \
         "${AGAMEMNON_URL}/v1/health" 2>/dev/null)" || http_code="000"
+    if [[ $_had_xtrace -eq 1 ]]; then set -x; fi
 
     if [[ "$http_code" == "200" ]]; then
         pass "Agamemnon reachable at ${AGAMEMNON_URL}" "HTTP ${http_code}"
@@ -163,10 +173,16 @@ check_connectivity() {
         return
     fi
 
-    # List agents endpoint (API functional check)
+    # List agents endpoint (API functional check) — same xtrace guard
     local agents_code
+    _had_xtrace=0
+    if [[ "$-" == *x* ]]; then _had_xtrace=1; fi
+    { set +x; } 2>/dev/null
     agents_code="$(curl -s --max-time 5 -o /dev/null -w "%{http_code}" \
+        "${_AGAMEMNON_TLS_FLAGS[@]+"${_AGAMEMNON_TLS_FLAGS[@]}"}" \
+        "${_AUTH_HEADERS[@]+"${_AUTH_HEADERS[@]}"}" \
         "${AGAMEMNON_URL}/v1/agents" 2>/dev/null)" || agents_code="000"
+    if [[ $_had_xtrace -eq 1 ]]; then set -x; fi
 
     if [[ "${agents_code:0:1}" == "2" ]]; then
         pass "Agamemnon API responding" "GET /v1/agents → HTTP ${agents_code}"
