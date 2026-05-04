@@ -235,6 +235,7 @@ If `actionlint` is not installed when you run `pre-commit`, it will fail with an
 
 - **On PR:** `.github/workflows/validate.yml` validates all YAML schemas and checks for dangerous flags
 - **On merge to main:** `.github/workflows/apply.yml` auto-applies to target host
+- **Branch protection:** Required status checks and restore runbook → `docs/branch-protection.md`
 
 Requires GitHub secret: `AGAMEMNON_URL`
 
