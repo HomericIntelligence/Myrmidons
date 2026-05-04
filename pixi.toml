@@ -25,9 +25,18 @@ shellcheck = "0.10.0.*"
 yamllint   = ">=1.35,<2"
 pre-commit = ">=3.0,<5"
 
+[feature.cpp.dependencies]
+cmake        = ">=3.20"
+ninja        = ">=1.11"
+cxx-compiler = ">=1.0"
+
+[feature.cpp.tasks]
+build-hello-world = "just build-hello-world"
+
 [environments]
 default = { solve-group = "default" }
 lint    = { features = ["lint"], solve-group = "lint" }
+cpp     = { features = ["cpp"], solve-group = "default" }
 
 [tasks]
 status        = "just status"
