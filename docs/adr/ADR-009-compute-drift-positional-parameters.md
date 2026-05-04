@@ -1,7 +1,8 @@
 # ADR-009: compute_drift Positional Parameter Interface
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-28
+**Accepted:** 2026-05-03
 **Author:** mvillmow
 
 ---

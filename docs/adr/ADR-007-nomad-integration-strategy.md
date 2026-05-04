@@ -1,7 +1,8 @@
 # ADR-007: Nomad Integration Strategy for Multi-Host Deployments
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-10
+**Accepted:** 2026-05-03
 **Author:** mvillmow
 
 ---

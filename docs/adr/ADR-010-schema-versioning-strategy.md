@@ -1,7 +1,8 @@
 # ADR-010: Schema Versioning Strategy (myrmidons/v1)
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-28
+**Accepted:** 2026-05-03
 **Author:** mvillmow
 
 ---
