@@ -53,7 +53,16 @@ void ensure_stream(jsCtx* js, const char* name, const char** subjects, int subje
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            std::cout << "usage: hello_myrmidon [--help]\n"
+                      << "  Connects to NATS (NATS_URL env) and processes hi.myrmidon.hello.> tasks.\n";
+            return 0;
+        }
+    }
+
     // Disable stdout/stderr buffering for container logging
     std::cout.setf(std::ios::unitbuf);
     std::cerr.setf(std::ios::unitbuf);
