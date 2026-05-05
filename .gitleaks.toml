@@ -15,5 +15,6 @@ paths = [
   '''tests/.*''',
   '''README\.md''',
   '''CLAUDE\.md''',
+  '''CHANGELOG\.md''',
   '''docs/.*''',
 ]
