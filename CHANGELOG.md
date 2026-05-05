@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- AGENTS.md: agent safety boundary document defining permitted tool use and authorization requirements (#385)
+- ADR-008, ADR-009, ADR-010: architecture decision records for fleet-ref resolution, `compute_drift`, and schema versioning (#437)
+- Agent manifests and fleet configs for Myrmidon swarm multi-agent reconciliation (#69, #22)
+- README repo grade badge (B+) (#35)
+- `plan.sh`: `--output json` flag emits machine-readable JSON summary to `reports/last-reconciliation.json` (#85a94a7)
+- C++ hello-world example wired into build system (#445)
+- CI: markdownlint, pixi, justfile, and symlink lint jobs (#364)
+- CLAUDE.md: `--dangerously-skip-permissions` policy — prohibited by default, suppression annotation with justification required (#147)
 - CI ↔ pre-commit parity architecture: `.pre-commit-config.yaml` is now the single source of truth for all linting; CI runs `pre-commit run --all-files` to eliminate drift
 - actionlint pre-commit hook added (v1.7.7) so GitHub Actions workflow lint failures are caught locally before push
 - gitleaks pre-commit hook added (v8.24.3, unlicensed binary mode) so secret scanning matches CI
@@ -101,7 +109,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial repo scaffolding: justfile, pixi.toml, README, scripts
 - `.gitignore` covering ProjectMnemosyne/ and build/
 
-[Unreleased]: https://github.com/HomericIntelligence/Myrmidons/compare/HEAD...HEAD
+[Unreleased]: https://github.com/HomericIntelligence/Myrmidons/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/HomericIntelligence/Myrmidons/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/HomericIntelligence/Myrmidons/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/HomericIntelligence/Myrmidons/releases/tag/v0.1.0
