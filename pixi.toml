@@ -54,8 +54,9 @@ test-schema      = "./tests/validate-schemas.sh"
 test-doc-drift   = "./tests/detect-doc-drift.sh"
 test-api-retry   = "./tests/test-api-retry.sh"
 test-rollback    = "./tests/test-rollback.sh"
+test-xtrace      = "bash tests/test-check-xtrace-guards.sh"
 test-standalone  = { depends-on = ["test-api-retry", "test-rollback"] }
-test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-standalone"] }
+test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-standalone", "test-xtrace"] }
 build-hello-world = "just build-hello-world"
 
 [feature.lint.tasks]
