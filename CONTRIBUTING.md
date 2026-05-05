@@ -68,6 +68,25 @@ Agent manifests are YAML files that describe desired agent state. Reference exis
 as examples for the expected schema. Key fields typically include agent type, resource limits,
 NATS subject subscriptions, and container image references.
 
+### ADR Lifecycle
+
+ADRs in `docs/adr/` follow this lifecycle:
+
+- **Proposed** — The decision is under active discussion. The ADR file has been
+  written but the team has not yet reached consensus.
+- **Accepted** — The team has reviewed and agreed to the decision. Update
+  `**Status:**` from `Proposed` to `Accepted` and add an `**Accepted:**` date
+  line immediately after the existing `**Date:**` line. Also update the status
+  column in `docs/adr/README.md`.
+- **Deprecated** — The decision is no longer in effect but was not replaced by
+  another ADR. Update status to `Deprecated`.
+- **Superseded** — The decision has been replaced. Update status to `Superseded`
+  and add a `**Superseded by:**` line referencing the new ADR.
+
+To accept an ADR: open a PR that changes the status field, adds the accepted
+date, and updates the index table. No special approval process is required
+beyond the normal PR review.
+
 ## Development Workflow
 
 ### 1. Find or Create an Issue
