@@ -173,3 +173,49 @@ teardown() {
 
     [[ "$output" == *"pruned but still present in API (convergence failed)"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test 5: WAKE convergence using once route (issue #433)
+#
+# Routes design (convergence-routes-wake-once.json):
+#   First GET /api/v1/agents (once) → agent offline  (triggers WAKE)
+#   PATCH /api/v1/agents/*          → 200 active
+#   All subsequent GET              → agent active  (default_body)
+#
+# The once route drives WAKE on the first list. The re-fetch after WAKE
+# hits the default_body and sees status=active, so verify_convergence
+# reports "[ok] converged" — without any label-drift workaround.
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: WAKE — once route drives offline→active state transition, reports [ok]" {
+    _start_mock_server_routes "${FIXTURES_DIR}/convergence-routes-wake-once.json"
+
+    run bash "$APPLY_SH" "$_CONV_TEST_HOST" --yes \
+        --snapshot-dir "$_CONV_SNAPSHOT_DIR" 2>&1 || true
+
+    [[ "$output" == *"[ok] convergence-agent: converged"* ]]
+    [[ "$output" != *"NOT converged"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Test 6: CREATE convergence using once route (issue #433)
+#
+# Routes design (convergence-routes-create-once.json):
+#   First GET /api/v1/agents (once) → []  (agent absent — triggers CREATE)
+#   POST /api/v1/agents             → 201 active
+#   All subsequent GET              → agent active  (default_body)
+#
+# The once route makes the first list return empty, forcing a CREATE.
+# The re-fetch after CREATE hits the default_body and sees status=active,
+# so verify_convergence reports "[ok] converged".
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: CREATE — once route drives absent→active state transition, reports [ok]" {
+    _start_mock_server_routes "${FIXTURES_DIR}/convergence-routes-create-once.json"
+
+    run bash "$APPLY_SH" "$_CONV_TEST_HOST" --yes \
+        --snapshot-dir "$_CONV_SNAPSHOT_DIR" 2>&1 || true
+
+    [[ "$output" == *"[ok] convergence-agent: converged"* ]]
+    [[ "$output" != *"NOT converged"* ]]
+}

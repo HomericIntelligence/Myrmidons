@@ -176,6 +176,89 @@ teardown() {
 # Multi-step workflow test (the core use-case from issue #192)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Use-once route support (issue #433)
+# ---------------------------------------------------------------------------
+
+@test "mock_server: once route — first GET returns once-route body, second falls through to default_body" {
+    _start_mock_with_routes '{
+        "routes":[
+            {"method":"GET","path":"/api/v1/agents","status":200,"body":[{"status":"offline"}],"once":true}
+        ],
+        "default_status":200,
+        "default_body":[{"status":"active"}]
+    }'
+    body1="$(_curl_get_body /api/v1/agents)"
+    status1="$(echo "$body1" | jq -r '.[0].status')"
+    body2="$(_curl_get_body /api/v1/agents)"
+    status2="$(echo "$body2" | jq -r '.[0].status')"
+    [[ "$status1" == "offline" ]]
+    [[ "$status2" == "active" ]]
+}
+
+@test "mock_server: once route — once consumed, next explicit route matches on second call" {
+    _start_mock_with_routes '[
+        {"method":"GET","path":"/api/v1/agents","status":200,"body":{"hit":"first"},"once":true},
+        {"method":"GET","path":"/api/v1/agents","status":200,"body":{"hit":"second"}}
+    ]'
+    body1="$(_curl_get_body /api/v1/agents)"
+    hit1="$(echo "$body1" | jq -r '.hit')"
+    body2="$(_curl_get_body /api/v1/agents)"
+    hit2="$(echo "$body2" | jq -r '.hit')"
+    body3="$(_curl_get_body /api/v1/agents)"
+    hit3="$(echo "$body3" | jq -r '.hit')"
+    [[ "$hit1" == "first" ]]
+    [[ "$hit2" == "second" ]]
+    # third call still matches the non-once second route
+    [[ "$hit3" == "second" ]]
+}
+
+@test "mock_server: non-once route — served on every call (regression guard)" {
+    _start_mock_with_routes '[
+        {"method":"GET","path":"/api/v1/agents","status":200,"body":{"stable":true}}
+    ]'
+    for _ in 1 2 3; do
+        body="$(_curl_get_body /api/v1/agents)"
+        val="$(echo "$body" | jq -r '.stable')"
+        [[ "$val" == "true" ]]
+    done
+}
+
+@test "mock_server: once route — works on POST method, not just GET" {
+    _start_mock_with_routes '{
+        "routes":[
+            {"method":"POST","path":"/api/v1/agents","status":201,"body":{"created":true},"once":true}
+        ],
+        "default_status":200,
+        "default_body":{"created":false}
+    }'
+    body1="$(curl -sf -X POST -H "Content-Type: application/json" -d '{}' \
+        "http://127.0.0.1:${MOCK_PORT}/api/v1/agents")"
+    created1="$(echo "$body1" | jq -r '.created')"
+    body2="$(curl -sf -X POST -H "Content-Type: application/json" -d '{}' \
+        "http://127.0.0.1:${MOCK_PORT}/api/v1/agents")"
+    created2="$(echo "$body2" | jq -r '.created')"
+    [[ "$created1" == "true" ]]
+    [[ "$created2" == "false" ]]
+}
+
+@test "mock_server: multiple once routes — each consumed in order" {
+    _start_mock_with_routes '{
+        "routes":[
+            {"method":"GET","path":"/api/v1/agents","status":200,"body":[{"seq":1}],"once":true},
+            {"method":"GET","path":"/api/v1/agents","status":200,"body":[{"seq":2}],"once":true}
+        ],
+        "default_status":200,
+        "default_body":[{"seq":3}]
+    }'
+    seq1="$(_curl_get_body /api/v1/agents | jq -r '.[0].seq')"
+    seq2="$(_curl_get_body /api/v1/agents | jq -r '.[0].seq')"
+    seq3="$(_curl_get_body /api/v1/agents | jq -r '.[0].seq')"
+    [[ "$seq1" == "1" ]]
+    [[ "$seq2" == "2" ]]
+    [[ "$seq3" == "3" ]]
+}
+
 @test "mock_server: multi-step workflow — list then get then update use single server" {
     # Simulates a workflow that: lists agents, fetches one by ID, then patches it.
     _start_mock_with_routes '[
