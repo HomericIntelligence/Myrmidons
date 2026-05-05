@@ -64,3 +64,10 @@ repos:
         entry: scripts/check-xtrace-exposure.sh
         files: '\.sh$'
         pass_filenames: false
+
+      - id: check-adr-index
+        name: ADR README index completeness
+        language: script
+        entry: scripts/check-adr-index.sh
+        pass_filenames: false
+        files: ^docs/adr/.*\.md$

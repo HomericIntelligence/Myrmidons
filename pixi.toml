@@ -46,6 +46,7 @@ validate      = "just validate"
 export        = "just export"
 lint-names    = "bash scripts/lint-names.sh"
 lint-shell    = "bash scripts/lint-shell.sh"
+check-adr-index = "bash scripts/check-adr-index.sh"
 
 test-unit        = "bats tests/unit/"
 test-integration = "bats tests/integration/"
