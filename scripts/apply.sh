@@ -75,10 +75,9 @@ PRUNED=0
 ERRORS=0
 _PRUNED_NAMES=()   # names of agents pruned during this run (for convergence check)
 
-# Per-agent error tracking: parallel arrays of (agent_name, http_status, error_message)
-FAILED_AGENT_NAMES=()
-FAILED_AGENT_STATUSES=()
-FAILED_AGENT_MESSAGES=()
+# Per-agent error tracking: structured entries "name\x01http_status\x01message"
+# Uses ASCII unit separator (0x01) as delimiter — safe against agent names, HTTP codes, and error messages.
+FAILED_AGENTS_INFO=()
 
 # Directory for state files
 MYRMIDONS_STATE_DIR="${REPO_ROOT}/.myrmidons"
@@ -179,10 +178,9 @@ record_failure() {
     local http_status="$2"
     local error_message="$3"
 
+    local _sep=$'\x01'
     ERRORS=$((ERRORS + 1))
-    FAILED_AGENT_NAMES+=("$agent_name")
-    FAILED_AGENT_STATUSES+=("$http_status")
-    FAILED_AGENT_MESSAGES+=("$error_message")
+    FAILED_AGENTS_INFO+=("${agent_name}${_sep}${http_status}${_sep}${error_message}")
 }
 
 # Print a detailed per-agent error summary.
@@ -191,11 +189,9 @@ print_error_summary() {
     echo "================================================"
     echo "FAILED AGENTS (${ERRORS}):"
     echo ""
-    local i
-    for i in "${!FAILED_AGENT_NAMES[@]}"; do
-        local agent_name="${FAILED_AGENT_NAMES[$i]}"
-        local http_status="${FAILED_AGENT_STATUSES[$i]}"
-        local error_msg="${FAILED_AGENT_MESSAGES[$i]}"
+    local entry agent_name http_status error_msg
+    for entry in "${FAILED_AGENTS_INFO[@]}"; do
+        IFS=$'\x01' read -r agent_name http_status error_msg <<< "$entry"
         echo "  [FAIL] ${agent_name}"
         if [[ -n "$http_status" ]]; then
             echo "         HTTP status: ${http_status}"
