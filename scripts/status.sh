@@ -51,6 +51,11 @@ Options:
   --output json  Emit a JSON drift report to stdout
   -h, --help     Show this help
 
+Environment:
+  AGAMEMNON_URL            Agamemnon base URL (default: http://localhost:8080)
+  AGAMEMNON_API_KEY        Bearer token for Agamemnon API authentication
+  MYRMIDONS_DEFAULT_OWNER  Fallback owner used when the API returns no owner
+
 Examples:
   $0                         # Human-readable table
   $0 hermes                  # Filter to hermes host
