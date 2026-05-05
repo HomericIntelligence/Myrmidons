@@ -62,6 +62,25 @@ just status
 - **Pre-commit hooks** — Git hook improvements in `hooks/`
 - **Documentation** — README updates, manifest format guides
 
+### CLAUDE.md vs AGENTS.md
+
+This repository ships two context files with distinct audiences:
+
+- **`CLAUDE.md`** — targets human developers and the Claude Code CLI. It documents naming
+  conventions, YAML format, drift detection, environment variables, and the quick-start
+  workflow. Update this file when you change anything a developer needs to know to work
+  with the repository day-to-day.
+
+- **`AGENTS.md`** — targets AI agent runtimes (Claude Code loop agents, fleet
+  orchestrators). It defines safety boundaries: permitted actions, prohibited actions,
+  escalation rules, and the `--dangerously-skip-permissions` policy. Update this file
+  when you add a new operation that agents should or should not perform, or when
+  escalation thresholds change.
+
+When adding a new script or policy, ask: does this change what a developer needs to
+know? Update `CLAUDE.md`. Does it change what an agent is allowed to do? Update
+`AGENTS.md`. Many changes require updating both.
+
 ### YAML Manifest Format
 
 Agent manifests are YAML files that describe desired agent state. Reference existing manifests
