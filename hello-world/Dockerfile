@@ -4,7 +4,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt main.cpp ./
+ARG NLOHMANN_JSON_VERSION=3.11.3
 RUN cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DNLOHMANN_JSON_VERSION="v${NLOHMANN_JSON_VERSION}" \
     && cmake --build build
 
 FROM ubuntu:24.04
