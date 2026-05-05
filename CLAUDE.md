@@ -299,3 +299,22 @@ Rules:
 The `lint-shell` task in `pixi.toml` / `scripts/lint-shell.sh` covers `*.sh`, `*.bats`,
 and `hooks/pre-commit`. Keep it in sync with the pre-commit shellcheck hook's `files:`
 pattern.
+
+### Piped input to `--prune` is rejected (non-TTY default-deny)
+
+`apply.sh` detects non-TTY stdin and **default-denies** the prune confirmation.
+This means `echo y | ./scripts/apply.sh --prune` will always abort — the piped
+`y` is never read.
+
+**Why:** Introduced in #378 as a CI safety guard. A pipe is indistinguishable
+from an unattended job that should never silently hibernate or delete agents.
+
+**What to do instead:**
+
+```bash
+# Explicit opt-in flag
+./scripts/apply.sh --prune --yes
+
+# Or via environment variable
+MYRMIDONS_YES=true ./scripts/apply.sh --prune
+```
