@@ -180,6 +180,7 @@ The reconciler compares these fields between desired YAML state and actual Agame
 | `spec.owner` | ✓ |
 | `spec.role` | ✓ |
 | `spec.desiredState` | ✓ (drives WAKE/HIBERNATE) |
+| `spec.model` | — (not tracked; Agamemnon manages model selection at runtime) |
 | `spec.deployment.type` | — (not tracked; see below) |
 
 Fields NOT currently tracked (no drift detection): `spec.model`, `spec.deployment.type`, `spec.deployment.docker.*`
