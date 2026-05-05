@@ -16,12 +16,16 @@ permissions:
 jobs:
   apply:
     name: Reconcile Desired State
-    runs-on: ubuntu-latest
+    # Self-hosted runner required: Agamemnon is on the local network and is not
+    # reachable from GitHub-hosted runners. Register a runner on the same host
+    # (or LAN segment) as Agamemnon. See docs/self-hosted-runner.md for setup.
+    runs-on: [self-hosted, linux]
     # Gate on vars.AGAMEMNON_URL (repository variable, not secret) — the URL
     # is not sensitive and secrets context is unavailable in job-level if:.
     # Set AGAMEMNON_URL as a repository *variable* (Settings > Variables) and
     # AGAMEMNON_API_KEY as a repository *secret* to enable reconciliation.
     if: ${{ vars.AGAMEMNON_URL != '' }}
+    timeout-minutes: 15
     env:
       AGAMEMNON_URL: ${{ vars.AGAMEMNON_URL }}
       AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
@@ -33,6 +37,18 @@ jobs:
           fi
 
       - uses: actions/checkout@v4
+
+      - name: Configure TLS
+        if: ${{ secrets.AGAMEMNON_CA_CERT_B64 != '' }}
+        run: |
+          echo "${{ secrets.AGAMEMNON_CA_CERT_B64 }}" | base64 -d > /tmp/agamemnon-ca.pem
+          echo "AGAMEMNON_CA_CERT=/tmp/agamemnon-ca.pem" >> "$GITHUB_ENV"
+          if [[ -n "${{ secrets.AGAMEMNON_CLIENT_CERT_B64 }}" ]]; then
+            echo "${{ secrets.AGAMEMNON_CLIENT_CERT_B64 }}" | base64 -d > /tmp/agamemnon-client.pem
+            echo "${{ secrets.AGAMEMNON_CLIENT_KEY_B64 }}" | base64 -d > /tmp/agamemnon-client.key
+            echo "AGAMEMNON_CLIENT_CERT=/tmp/agamemnon-client.pem" >> "$GITHUB_ENV"
+            echo "AGAMEMNON_CLIENT_KEY=/tmp/agamemnon-client.key" >> "$GITHUB_ENV"
+          fi
 
       - name: Set up pixi
         # jq and yq (go-yq) versions are pinned in pixi.lock:
