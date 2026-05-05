@@ -147,3 +147,29 @@ teardown() {
 
     [[ "$output" == *"NOT converged"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test 4: prune-convergence path — pruned agent still present in API
+#
+# Routes design (convergence-routes-prune.json):
+#   All GET /api/v1/agents  → two agents: convergence-agent (managed, active)
+#                             and unmanaged-prune-agent (unmanaged, active)
+#   PATCH /api/v1/agents/*  → 200 offline  (hibernate succeeds)
+#   DELETE /api/v1/agents/* → 200          (delete appears to succeed)
+#   default_body            → still returns both agents (delete had no effect)
+#
+# With --prune, apply.sh calls handle_unmanaged for unmanaged-prune-agent,
+# which hibernates then deletes it. The mock DELETE returns 200 but the
+# subsequent GET still returns the agent. verify_convergence checks
+# _PRUNED_NAMES and finds unmanaged-prune-agent still present, reporting
+# "pruned but still present in API (convergence failed)".
+# ---------------------------------------------------------------------------
+
+@test "verify_convergence: detects pruned agent still present in API — reports convergence failed" {
+    _start_mock_server_routes "${FIXTURES_DIR}/convergence-routes-prune.json"
+
+    run bash "$APPLY_SH" "$_CONV_TEST_HOST" --prune --yes \
+        --snapshot-dir "$_CONV_SNAPSHOT_DIR" 2>&1 || true
+
+    [[ "$output" == *"pruned but still present in API (convergence failed)"* ]]
+}
