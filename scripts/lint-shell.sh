@@ -36,7 +36,7 @@ echo ""
 find "${REPO_ROOT}/scripts" "${REPO_ROOT}/tests" "${REPO_ROOT}/hooks" \
     \( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \) \
     | sort \
-    | xargs "$SHELLCHECK_CMD" --severity=warning
+    | xargs "$SHELLCHECK_CMD" --severity=warning --enable=SC2154
 
 echo ""
 echo "Shell script linting complete."
