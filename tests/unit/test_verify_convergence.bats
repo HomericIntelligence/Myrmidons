@@ -65,6 +65,7 @@ set -uo pipefail
 OUTPUT_FORMAT="text"
 _MODIFIED_NAMES=()
 _MODIFIED_DESIRED=()
+_PRUNED_NAMES=()
 
 # Stub agamemnon_list_agents — returns the value of _STUB_AGENTS_JSON
 agamemnon_list_agents() {
@@ -73,12 +74,13 @@ agamemnon_list_agents() {
 
 # ---- paste verify_convergence body inline ----
 verify_convergence() {
-    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 ]]; then
+    if [[ ${#_MODIFIED_NAMES[@]} -eq 0 && ${#_PRUNED_NAMES[@]} -eq 0 ]]; then
         return 0
     fi
 
     local failed=0
     local verified=0
+    local pruned_verified=0
 
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
         echo ""
@@ -132,8 +134,30 @@ verify_convergence() {
         fi
     done
 
+    if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+        for pruned_name in "${_PRUNED_NAMES[@]}"; do
+            local still_exists
+            still_exists="$(echo "$agents_json_fresh" | jq -r --arg n "$pruned_name" '.[] | select(.name == $n) | .name')"
+            if [[ -n "$still_exists" ]]; then
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "  [!] ${pruned_name}: pruned but still present in API (convergence failed)"
+                fi
+                failed=$((failed + 1))
+            else
+                if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+                    echo "  [ok] ${pruned_name}: confirmed absent (pruned)"
+                fi
+                pruned_verified=$((pruned_verified + 1))
+            fi
+        done
+    fi
+
     if [[ "$OUTPUT_FORMAT" != "json" ]]; then
-        echo "Convergence: ${verified} converged, ${failed} failed."
+        if [[ ${#_PRUNED_NAMES[@]} -gt 0 ]]; then
+            echo "Convergence: ${verified} converged, ${pruned_verified} pruned, ${failed} failed."
+        else
+            echo "Convergence: ${verified} converged, ${failed} failed."
+        fi
     fi
 
     if [[ $failed -gt 0 ]]; then
@@ -273,5 +297,74 @@ HARNESS
         verify_convergence
     "
     [[ "$status" -eq 1 ]]
+    rm -f "$harness"
+}
+
+@test "verify_convergence: prune-only run returns 0 and shows pruned count" {
+    local harness
+    harness="$(_source_verify_convergence)"
+
+    run bash -c "
+        source '${harness}'
+        _MODIFIED_NAMES=()
+        _MODIFIED_DESIRED=()
+        _PRUNED_NAMES=(\"a\" \"b\" \"c\")
+        _STUB_AGENTS_JSON='[]'
+        verify_convergence
+    "
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"3 pruned"* ]]
+    rm -f "$harness"
+}
+
+@test "verify_convergence: pruned agent still present returns 1" {
+    local harness
+    harness="$(_source_verify_convergence)"
+
+    run bash -c "
+        source '${harness}'
+        _MODIFIED_NAMES=()
+        _MODIFIED_DESIRED=()
+        _PRUNED_NAMES=(\"ghost\")
+        _STUB_AGENTS_JSON='[{\"name\":\"ghost\",\"status\":\"offline\"}]'
+        verify_convergence
+    "
+    [[ "$status" -eq 1 ]]
+    rm -f "$harness"
+}
+
+@test "verify_convergence: prune-only summary reads '0 converged, 3 pruned, 0 failed.'" {
+    local harness
+    harness="$(_source_verify_convergence)"
+
+    run bash -c "
+        source '${harness}'
+        _MODIFIED_NAMES=()
+        _MODIFIED_DESIRED=()
+        _PRUNED_NAMES=(\"a\" \"b\" \"c\")
+        _STUB_AGENTS_JSON='[]'
+        verify_convergence
+    "
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"Convergence: 0 converged, 3 pruned, 0 failed."* ]]
+    rm -f "$harness"
+}
+
+@test "verify_convergence: no-prune summary does not contain ' pruned'" {
+    local harness
+    harness="$(_source_verify_convergence)"
+
+    local agents_json='[{"name":"test-agent","status":"active"}]'
+
+    run bash -c "
+        source '${harness}'
+        _MODIFIED_NAMES=(\"test-agent\")
+        _MODIFIED_DESIRED=(\"active\")
+        _PRUNED_NAMES=()
+        _STUB_AGENTS_JSON='${agents_json}'
+        verify_convergence
+    "
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *" pruned"* ]]
     rm -f "$harness"
 }
