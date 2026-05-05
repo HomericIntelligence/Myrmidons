@@ -36,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - CHANGELOG.md update validation in PR CI workflow — PRs must update CHANGELOG.md or include `[skip changelog]` to bypass (#126, #127)
 - Doctor dependency check (`scripts/doctor.sh --skip-connectivity`) added to validate.yml CI (#244)
 - `compute_drift` now accepts `owner`, `role`, and `deploy_type` parameters for deeper configuration drift detection (#330)
-- pre-commit hook: dangerous-flags lint guard calls `check-dangerous-flags.sh` on staged agent/fleet YAMLs (#147)
+- `scripts/check-dangerous-flags.sh`: dangerous-flags lint guard scans agent/fleet YAMLs for unsuppressed `--dangerously-skip-permissions`; integrated as a pre-commit hook on staged files and run in CI on all agent/fleet YAMLs on every PR (#147, #382)
 - `apply.sh`: lock file support via `AIM_LOCK_FILE` / `AIM_LOCK_TIMEOUT` prevents concurrent reconcile runs (#54)
 - `apply.sh`: interactive confirmation prompt for destructive operations; `--yes`/`-y` skips it in CI (#48)
 - `apply.sh`: `verify_convergence` re-checks all modified agents after apply to detect drift (#41)
