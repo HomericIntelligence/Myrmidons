@@ -19,11 +19,12 @@ repos:
         args: [--severity=warning, --enable=SC2154]
         files: '\.(sh|bats)$|(^|/)pre-commit$'
 
-  # GitHub Actions workflow linting
+  # GitHub Actions workflow linting — system-installed binary to support Go <1.16 hosts
+  # See CLAUDE.md for installation instructions
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
     hooks:
-      - id: actionlint
+      - id: actionlint-system
 
   # YAML linting — all YAML files across the repo
   - repo: https://github.com/adrienverge/yamllint
@@ -86,26 +87,23 @@ repos:
         types: [shell]
         pass_filenames: false
 
-<<<<<<< HEAD
       - id: myrmidons-validate-fleet-refs
         name: Fleet ref validation
         language: system
         entry: tests/validate-fleet-refs.sh
         pass_filenames: false
         files: '^(agents|fleets)/.*\.ya?ml$'
-=======
+
       - id: docs-crossref
         name: CLAUDE.md → AGENTS.md cross-reference check
         language: script
         entry: scripts/check-docs-crossref.sh
         files: '^(CLAUDE\.md|AGENTS\.md)$'
         pass_filenames: false
->>>>>>> 3d0f827 (feat(lint): enforce AGENTS.md cross-reference presence in CLAUDE.md)
-=======
+
       - id: myrmidons-schema-hints
         name: Myrmidons yaml-language-server hint check
         language: system
         entry: scripts/check-schema-hints.sh
         pass_filenames: true
         files: ^(agents|fleets)/.*\.ya?ml$
->>>>>>> 5293dc0 (feat(lint): add yaml-language-server schema hint check (#384))
