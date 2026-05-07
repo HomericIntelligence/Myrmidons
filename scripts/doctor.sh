@@ -54,9 +54,9 @@ if [[ -t 1 ]]; then
     red()    { printf '\033[0;31m%s\033[0m' "$*"; }
     yellow() { printf '\033[1;33m%s\033[0m' "$*"; }
 else
-    green()  { printf '%s' "$*"; }
-    red()    { printf '%s' "$*"; }
-    yellow() { printf '%s' "$*"; }
+    green()  { printf '%s' "$*"; }  # allow-duplicate-function: if/else TTY vs plain-text branch
+    red()    { printf '%s' "$*"; }  # allow-duplicate-function: if/else TTY vs plain-text branch
+    yellow() { printf '%s' "$*"; }  # allow-duplicate-function: if/else TTY vs plain-text branch
 fi
 
 pass() {
