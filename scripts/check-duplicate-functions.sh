@@ -27,7 +27,7 @@ FILES_CHECKED=0
 if [[ $# -gt 0 ]]; then
     mapfile -t FILES < <(printf '%s\n' "$@")
 else
-    mapfile -t FILES < <(find "${REPO_ROOT}/scripts" -name "*.sh" | sort)
+    mapfile -t FILES < <(find "${REPO_ROOT}/scripts" "${REPO_ROOT}/hooks" -name "*.sh" | sort)
 fi
 
 for file in "${FILES[@]}"; do

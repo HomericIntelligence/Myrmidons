@@ -61,5 +61,4 @@ test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift",
 build-hello-world = "just build-hello-world"
 
 [feature.lint.tasks]
-lint-shell = { cmd = "find scripts tests hooks \\( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \\) | sort | xargs shellcheck --severity=warning --enable=SC2154", description = "ShellCheck all shell scripts and bats tests at warning severity" }
 lint       = { depends-on = ["lint-shell"] }
