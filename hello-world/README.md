@@ -29,12 +29,19 @@ sudo apt-get install -y cmake ninja-build g++ libssl-dev git
 brew install cmake ninja openssl git
 ```
 
-**Windows (winget)**
+**Windows (winget + vcpkg)**
 
 ```powershell
 winget install Kitware.CMake Ninja-build.Ninja Git.Git
-# OpenSSL: download the Win32/Win64 installer from slproweb.com or use vcpkg
+
+# Install OpenSSL using vcpkg
+vcpkg install openssl:x64-windows
+# Set CMAKE_TOOLCHAIN_FILE to the vcpkg toolchain when building:
+# cmake -S hello-world -B build/hello-world -G Ninja `
+#   -DCMAKE_TOOLCHAIN_FILE=<path-to-vcpkg>/scripts/buildsystems/vcpkg.cmake
 ```
+
+Alternatively, download the Win32/Win64 OpenSSL installer from [slproweb.com](https://slproweb.com).
 
 > Windows support is less tested. A Linux build environment (WSL2 or Docker) is
 > the recommended path on Windows.
@@ -67,6 +74,12 @@ the CMake cache.
 # Custom NATS URL
 NATS_URL=nats://my-server:4222 ./build/hello-world/hello_myrmidon
 ```
+
+### Runtime environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NATS_URL` | `nats://localhost:4222` | NATS server address. Used at runtime to establish a connection to the JetStream broker. The binary will create required streams (`homeric-myrmidon`, `homeric-tasks`, `homeric-logs`) on connection if they do not exist. |
 
 You need a running NATS server with JetStream enabled. The binary creates the
 required streams (`homeric-myrmidon`, `homeric-tasks`, `homeric-logs`) on
