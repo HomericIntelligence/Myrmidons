@@ -15,7 +15,6 @@ on:
       - 'pixi.toml'
       - 'pixi.lock'
       - 'tests/**'
-      - 'docs/adr/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
@@ -83,6 +82,9 @@ jobs:
         env:
           CI: "true"
         run: pixi run test-schema
+
+      - name: Fleet ref validation
+        run: tests/validate-fleet-refs.sh
 
   doctor:
     name: Doctor — Dependency Check
