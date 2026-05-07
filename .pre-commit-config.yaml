@@ -65,6 +65,7 @@ repos:
         files: '\.sh$'
         pass_filenames: false
 
+<<<<<<< HEAD
       - id: check-adr-index
         name: ADR README index completeness
         language: script
@@ -92,3 +93,11 @@ repos:
         entry: tests/validate-fleet-refs.sh
         pass_filenames: false
         files: '^(agents|fleets)/.*\.ya?ml$'
+=======
+      - id: docs-crossref
+        name: CLAUDE.md → AGENTS.md cross-reference check
+        language: script
+        entry: scripts/check-docs-crossref.sh
+        files: '^(CLAUDE\.md|AGENTS\.md)$'
+        pass_filenames: false
+>>>>>>> 3d0f827 (feat(lint): enforce AGENTS.md cross-reference presence in CLAUDE.md)
