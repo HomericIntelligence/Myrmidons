@@ -1,3 +1,8 @@
+# Myrmidons gitleaks configuration
+# GITLEAKS_VERSION: pinned via .github/workflows/_required.yml env.GITLEAKS_VERSION
+# This config extends gitleaks' built-in rules and adds allowlist entries for documentation
+# examples and test fixtures that match secret patterns but are not real credentials.
+
 title = "Myrmidons gitleaks configuration"
 
 [extend]
@@ -6,15 +11,15 @@ useDefault = true
 [allowlist]
 description = "Test fixtures and documentation examples"
 regexes = [
-  '''your-token-here''',
-  '''fake-api-key''',
-  '''test-token''',
-  '''AGAMEMNON_API_KEY=.*example''',
+  '''your-token-here''',               # gitleaks-allowlist: placeholder token in CLAUDE.md, not a real credential
+  '''fake-api-key''',                  # gitleaks-allowlist: placeholder token in documentation examples
+  '''test-token''',                    # gitleaks-allowlist: placeholder token in test fixtures and documentation
+  '''AGAMEMNON_API_KEY=.*example''',   # gitleaks-allowlist: environment variable example in CLAUDE.md, not a real API key
 ]
 paths = [
-  '''tests/.*''',
-  '''README\.md''',
-  '''CLAUDE\.md''',
-  '''CHANGELOG\.md''',
-  '''docs/.*''',
+  '''tests/.*''',                      # gitleaks-allowlist: test fixtures contain intentional fake secrets
+  '''README\.md''',                    # gitleaks-allowlist: documentation examples with placeholder tokens
+  '''CLAUDE\.md''',                    # gitleaks-allowlist: policy documentation with example configs and tokens
+  '''CHANGELOG\.md''',                 # gitleaks-allowlist: changelog may reference example tokens in past entries
+  '''docs/.*''',                       # gitleaks-allowlist: documentation files with examples and placeholders
 ]

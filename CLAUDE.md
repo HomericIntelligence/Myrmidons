@@ -267,6 +267,14 @@ so allowlist entries are applied automatically. To verify locally before pushing
 gitleaks detect --source . --config .gitleaks.toml --no-git -v
 ```
 
+### Gitleaks version pinning
+
+The gitleaks binary version is pinned in `.github/workflows/_required.yml` via the `GITLEAKS_VERSION` environment variable.
+This pin ensures all CI runs use the same gitleaks ruleset, preventing drift in secret detection between PR checks and merges.
+
+**How rev is chosen:** New versions are adopted after manual testing confirms no new false positives on the current allowlist.
+The pinned version in `_required.yml` is the source of truth; `.gitleaks.toml` comments document this relationship.
+
 ## Known Gotchas
 
 ### jq 1.6: `label` is a reserved keyword
