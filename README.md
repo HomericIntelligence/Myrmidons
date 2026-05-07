@@ -152,9 +152,14 @@ hooks/
 | `AGAMEMNON_URL` | `http://localhost:8080` | ProjectAgamemnon base URL |
 | `AGAMEMNON_API_KEY` | _(unset)_ | Bearer token / API key for authenticating requests |
 | `AGAMEMNON_TIMEOUT` | `10` | HTTP request timeout in seconds for all API calls |
+| `AGAMEMNON_CA_CERT` | _(unset)_ | Path to a PEM CA certificate file for TLS server verification |
+| `AGAMEMNON_CLIENT_CERT` | _(unset)_ | Path to a PEM client certificate file for mTLS authentication |
+| `AGAMEMNON_CLIENT_KEY` | _(unset)_ | Path to a PEM client key file for mTLS authentication |
+| `AGAMEMNON_TLS_VERIFY` | `true` | Set to `false` to skip TLS verification (not recommended for production) |
 | `LOG_LEVEL` | `INFO` | Log verbosity: DEBUG, INFO, WARN, ERROR |
 | `LOG_FORMAT` | `text` | Log output format: text or json |
 | `AIM_LOCK_FILE` | `.myrmidons.lock` | Path to the apply lock file (use workspace-scoped path in parallel CI) |
+| `HIBERNATE_SETTLE_SECONDS` | `2` | Seconds to wait after hibernating an agent before continuing (set to `0` in CI to skip the settle delay) |
 | `MYRMIDONS_DEFAULT_OWNER` | `$(whoami)` | Fallback owner written to exported agent YAMLs when the Agamemnon API returns no owner |
 | `MYRMIDONS_YES` | _(unset)_ | Set to `true` to skip all interactive confirmation prompts (equivalent to `--yes`); useful in CI pipelines where stdin is not a TTY |
 
