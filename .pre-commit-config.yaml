@@ -65,7 +65,6 @@ repos:
         files: '\.sh$'
         pass_filenames: false
 
-<<<<<<< HEAD
       - id: check-adr-index
         name: ADR README index completeness
         language: script
@@ -79,11 +78,17 @@ repos:
         entry: tests/detect-doc-drift.sh
         pass_filenames: false
         files: '(^(Architecture|README|CLAUDE|CONTRIBUTING)\.md$|^tests/detect-doc-drift\.sh$|^docs/(?!adr/).*\.md$)'
-=======
+
       - id: check-duplicate-functions
         name: Check for duplicate shell function definitions
         entry: scripts/check-duplicate-functions.sh
         language: script
         types: [shell]
         pass_filenames: false
->>>>>>> 48c78ca (feat(lint): add duplicate shell function definition guard)
+
+      - id: myrmidons-validate-fleet-refs
+        name: Fleet ref validation
+        language: system
+        entry: tests/validate-fleet-refs.sh
+        pass_filenames: false
+        files: '^(agents|fleets)/.*\.ya?ml$'
