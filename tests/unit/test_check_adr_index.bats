@@ -33,6 +33,13 @@ _write_adr() {
 }
 
 # Helper: run the checker against TMP_DIR's docs/adr/ by overriding REPO_ROOT
+#
+# TODO(#643): This helper duplicates the logic from scripts/check-adr-index.sh
+# (lines 16–62). The duplication exists because we need hermetic, isolated test
+# dirs that don't touch the real repo. A better approach would be to refactor
+# check-adr-index.sh to export a reusable checker function that both the script
+# and the test can call. For now, keep both in sync: if check-adr-index.sh
+# changes, mirror the changes in the inlined logic below.
 _run_checker() {
     # The script derives ADR_DIR as ${REPO_ROOT}/docs/adr.
     # We symlink the script into TMP_DIR so SCRIPT_DIR resolution works,

@@ -100,9 +100,13 @@ unambiguous.
 
 ## Future Work
 
+**Note:** ADR-008 (Fleet ref Resolution by Filename Stem) has been accepted. Future
+Nomad integration work should be covered in a subsequent ADR after the necessary
+design is completed.
+
 When multi-host scheduling work begins:
-1. Write ADR-008 covering the Nomad integration design.
+1. Write a new ADR covering the Nomad integration design.
 2. Add `spec.deployment.type: nomad` to the agent schema.
 3. Update `apply.sh` to generate Nomad job files and call the Nomad API.
 4. Update `tests/validate-schemas.sh` to accept `nomad` as a valid deployment type.
-5. Update this ADR status to `Superseded by ADR-008`.
+5. Update this ADR status to `Superseded by ADR-<N>`.
