@@ -92,9 +92,9 @@ echo "Checked: ${CHECKED} files, Errors: ${ERRORS}"
 
 if [[ $ERRORS -gt 0 ]]; then
     echo "" >&2
-    echo "Documentation drift detected. If Nomad integration has been implemented," >&2
-    echo "update this test to reflect the new reality. If not, remove the overclaiming" >&2
-    echo "language from the documentation files listed above." >&2
+    echo "Documentation drift detected. Review the patterns that matched above:" >&2
+    echo "  - If an implementation has been completed, update this test to reflect the new reality." >&2
+    echo "  - If no implementation exists, remove the overclaiming language from the docs." >&2
     echo "See docs/adr/ADR-007-nomad-integration-strategy.md for context." >&2
     exit 1
 fi

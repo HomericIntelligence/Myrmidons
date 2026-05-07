@@ -76,7 +76,9 @@ This design is intentional: filenames are label-derived for human readability; `
 
 ### Drift detection
 
-The reconciler detects changes to these fields and applies them automatically on `apply`:
+The reconciler detects changes to these fields and applies them automatically on `apply`.
+The `compute_drift` function in `scripts/lib/reconcile.sh` compares desired state (YAML)
+against actual state (Agamemnon API). See [ADR-009: compute_drift Positional Parameter Interface](docs/adr/ADR-009-compute-drift-positional-parameters.md) for extension guidance.
 
 | Field | Drift action |
 |-------|-------------|
@@ -201,7 +203,28 @@ To connect to Agamemnon over HTTPS, set these environment variables:
 - `yq` — YAML parser
 - `jq` — JSON processor
 - `curl` — HTTP client
+- `actionlint` — GitHub Actions workflow linter (required for pre-commit; must be installed as a system binary to support Go <1.16 hosts)
 - ProjectAgamemnon running at `$AGAMEMNON_URL`
+
+### Installing actionlint (Go <1.16 systems)
+
+The `actionlint` pre-commit hook is configured to use the system-installed binary to ensure compatibility with Go 1.15 and earlier. Pre-commit will not compile it from source.
+
+**Installation options:**
+
+```bash
+# macOS (via Homebrew)
+brew install actionlint
+
+# Linux (via pre-built binary)
+curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_linux_amd64.tar.gz | tar xz
+# Move the binary to your PATH, e.g. /usr/local/bin/
+
+# Or via conda (if using conda/pixi environments)
+conda install -c conda-forge actionlint
+```
+
+If `actionlint` is not installed when you run `pre-commit`, it will fail with an error like `Executable 'actionlint' not found`. Install it using one of the methods above.
 
 ## CI/CD
 
@@ -267,6 +290,14 @@ so allowlist entries are applied automatically. To verify locally before pushing
 gitleaks detect --source . --config .gitleaks.toml --no-git -v
 ```
 
+### Gitleaks version pinning
+
+The gitleaks binary version is pinned in `.github/workflows/_required.yml` via the `GITLEAKS_VERSION` environment variable.
+This pin ensures all CI runs use the same gitleaks ruleset, preventing drift in secret detection between PR checks and merges.
+
+**How rev is chosen:** New versions are adopted after manual testing confirms no new false positives on the current allowlist.
+The pinned version in `_required.yml` is the source of truth; `.gitleaks.toml` comments document this relationship.
+
 ## Known Gotchas
 
 ### jq 1.6: `label` is a reserved keyword
@@ -282,6 +313,12 @@ Scripts use inline shellcheck directives where needed:
 - `# shellcheck source=scripts/lib/api.sh` — instructs shellcheck to follow relative sourced files by path, suppressing SC1091 (can't follow dynamic source paths like `source "${SCRIPT_DIR}/lib/api.sh"`)
 - `# shellcheck disable=SC2034` — suppresses "unused variable" warnings for variables exported for subprocesses
 - `# shellcheck disable=SC2086` — suppresses unquoted variable warnings where intentional word-splitting is used
+- `# shellcheck disable=SC2154` — suppresses "variable referenced but not assigned" warnings for variables sourced from a library file. Use this pattern when sourcing a lib file:
+  ```bash
+  # shellcheck source=scripts/lib/mylib.sh
+  source "${SCRIPT_DIR}/lib/mylib.sh"
+  # Now $MY_VAR (defined in mylib.sh) can be used without SC2154 warnings
+  ```
 
 Run shellcheck locally: `pixi run --environment lint lint-shell`
 
@@ -299,6 +336,22 @@ Rules:
 The `lint-shell` task in `pixi.toml` / `scripts/lint-shell.sh` covers `*.sh`, `*.bats`,
 and `hooks/pre-commit`. Keep it in sync with the pre-commit shellcheck hook's `files:`
 pattern.
+
+### The `|| true` antipattern in test helpers
+
+Test helpers (e.g. `tests/test-*.sh`) use `command || true` to suppress exit codes when testing
+error paths or verifying retry behavior. This is intentional and **not** a bug. Example:
+
+```bash
+# Test case: verify retry behavior even when all attempts fail
+output="$(_agamemnon_curl_retry 'http://...')" || true
+# ^ suppress exit code so the test assertion can run (we want to test failure behavior)
+```
+
+Suppress SC2015 warnings on these lines with:
+```bash
+command || true  # shellcheck disable=SC2015 — intentional exit-code suppression for test scenario
+```
 
 ### Piped input to `--prune` is rejected (non-TTY default-deny)
 

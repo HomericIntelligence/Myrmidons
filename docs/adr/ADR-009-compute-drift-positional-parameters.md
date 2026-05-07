@@ -117,6 +117,33 @@ same file). It also adds I/O for every drift computation.
 
 ---
 
+## How to Extend (Adding New Fields)
+
+If a new field needs drift tracking:
+
+1. **Update the function signature:** Add a new parameter to the end of the
+   `compute_drift` parameter list in `scripts/lib/reconcile.sh:335-349`.
+   Update the header comment to document the new parameter's position and meaning.
+
+2. **Update all three callers** in lockstep: `scripts/apply.sh`, `scripts/plan.sh`,
+   and `scripts/status.sh`. Each caller must pass the new desired field value at
+   the correct position.
+
+3. **Add drift comparison logic** in `scripts/lib/reconcile.sh:369-427`:
+   extract the actual field from the JSON blob, normalize it if needed
+   (e.g., sort tags), and compare it against the desired value.
+
+4. **Update `CLAUDE.md` drift-detection table** to document whether the field is
+   tracked or not, and why.
+
+5. **Update this ADR** to reflect the new parameter count and implementation scope.
+
+**Caution:** This is inherently fragile due to the positional nature. Consider
+proposing a higher-level refactor (e.g., a structured parameter format) if you
+find yourself adding a fourth or fifth extension.
+
+---
+
 ## Implementation Scope (this ADR)
 
 | File | Role |
