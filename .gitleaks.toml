@@ -20,6 +20,5 @@ paths = [
   '''tests/.*''',                      # gitleaks-allowlist: test fixtures contain intentional fake secrets
   '''README\.md''',                    # gitleaks-allowlist: documentation examples with placeholder tokens
   '''CLAUDE\.md''',                    # gitleaks-allowlist: policy documentation with example configs and tokens
-  '''CHANGELOG\.md''',                 # gitleaks-allowlist: changelog may reference example tokens in past entries
   '''docs/.*''',                       # gitleaks-allowlist: documentation files with examples and placeholders
 ]
