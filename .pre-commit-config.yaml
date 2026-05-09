@@ -118,3 +118,10 @@ repos:
         entry: python scripts/check-changelog-gaps.py
         pass_filenames: false
         always_run: true
+
+      - id: myrmidons-lint-agents-md
+        name: AGENTS.md required sections
+        language: script
+        entry: scripts/lint-agents-md.sh
+        files: ^AGENTS\.md$
+        pass_filenames: false
