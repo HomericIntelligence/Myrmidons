@@ -107,3 +107,10 @@ repos:
         entry: scripts/check-schema-hints.sh
         pass_filenames: true
         files: ^(agents|fleets)/.*\.ya?ml$
+
+      - id: myrmidons-changelog-gaps
+        name: Changelog gap detection
+        language: python
+        entry: python scripts/check-changelog-gaps.py
+        pass_filenames: false
+        always_run: true
