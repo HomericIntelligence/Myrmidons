@@ -33,7 +33,7 @@ load_config
 
 HOST=""
 FLEET_NAME=""
-OUTPUT_FORMAT="text"   # "text" | "json"
+OUTPUT_FORMAT="text"   # "text" | "json" (#179)
 PRUNE=0
 
 # Counters for JSON output
