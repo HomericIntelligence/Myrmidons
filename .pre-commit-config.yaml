@@ -100,6 +100,10 @@ repos:
         entry: scripts/check-docs-crossref.sh
         files: '^(CLAUDE\.md|AGENTS\.md)$'
         pass_filenames: false
+        # Trade-off: `files:` scopes incremental runs to CLAUDE.md/AGENTS.md changes, but
+        # `pre-commit run --all-files` (used in CI parity) always triggers all hooks
+        # regardless of file filters. The hook is fast (two greps), so the CI overhead is
+        # acceptable. always_run is intentionally omitted (defaults to false).
 
       - id: myrmidons-schema-hints
         name: Myrmidons yaml-language-server hint check
