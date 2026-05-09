@@ -25,6 +25,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TEMPLATES_DIR="${REPO_ROOT}/agents/_templates"
 
+# shellcheck source=scripts/lib/prompt.sh
+source "${SCRIPT_DIR}/lib/prompt.sh"
+
 # ---------------------------------------------------------------------------
 # Colour helpers (same convention as other scripts)
 # ---------------------------------------------------------------------------
@@ -157,15 +160,23 @@ select_template() {
 # ---------------------------------------------------------------------------
 # Interactive prompts
 # ---------------------------------------------------------------------------
+
+# prompt_field and prompt_enum collect free-text / enum data from the user.
+# They use bare `read -r -p` (no timeout) intentionally: a timeout would
+# silently corrupt required field values with an empty default. These are
+# data-entry reads, not yes/no confirmations. Use confirm_with_timeout() for
+# any confirmation prompt that should default-deny after a timeout.
 prompt_field() {
     local prompt="$1"
     local default="$2"
     local result=""
     if [[ -n "$default" ]]; then
+        # data-entry read — no timeout intentional (free-text input, not y/n)
         read -r -p "$(echo -e "${BOLD}${prompt}${RESET} [${default}]: ")" result
         echo "${result:-$default}"
     else
         while [[ -z "$result" ]]; do
+            # data-entry read — no timeout intentional (required field)
             read -r -p "$(echo -e "${BOLD}${prompt}${RESET}: ")" result
             if [[ -z "$result" ]]; then
                 warn "  This field is required."
@@ -185,9 +196,11 @@ prompt_enum() {
     local result=""
     while true; do
         if [[ -n "$default" ]]; then
+            # data-entry read — no timeout intentional (enum selection)
             read -r -p "$(echo -e "${BOLD}${prompt}${RESET} (${joined}) [${default}]: ")" result
             result="${result:-$default}"
         else
+            # data-entry read — no timeout intentional (required enum)
             read -r -p "$(echo -e "${BOLD}${prompt}${RESET} (${joined}): ")" result
         fi
         for valid in "${options[@]}"; do
@@ -255,14 +268,8 @@ collect_fields() {
             break
         fi
         # Offer to create the directory
-        local create_host=""
         warn "Directory agents/${host}/ does not exist."
-        if $NON_INTERACTIVE; then
-            read -r -p "Create it? [y/N]: " create_host
-        else
-            read -r -p "$(echo -e "${BOLD}Create agents/${host}/?${RESET} [y/N]: ")" create_host
-        fi
-        if [[ "${create_host,,}" == "y" || "${create_host,,}" == "yes" ]]; then
+        if confirm_with_timeout "Create agents/${host}/? [y/N]"; then
             mkdir -p "$host_dir"
             info "Created agents/${host}/"
             break
@@ -329,6 +336,7 @@ collect_fields() {
     # Tags
     local tags_input="${OPT_TAGS}"
     if [[ -z "$tags_input" ]] && ! $NON_INTERACTIVE; then
+        # data-entry read — no timeout intentional (optional free-text field)
         read -r -p "$(echo -e "${BOLD}Tags${RESET} (comma-separated, optional): ")" tags_input
     fi
 

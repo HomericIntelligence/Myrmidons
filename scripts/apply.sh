@@ -42,6 +42,8 @@ source "${SCRIPT_DIR}/lib/api.sh"
 source "${SCRIPT_DIR}/lib/reconcile.sh"
 # shellcheck source=scripts/lib/report.sh
 source "${SCRIPT_DIR}/lib/report.sh"
+# shellcheck source=scripts/lib/prompt.sh
+source "${SCRIPT_DIR}/lib/prompt.sh"
 
 load_config
 
@@ -321,18 +323,10 @@ confirm_destructive() {
 
     echo ""
     echo "Pending changes: ${total_changes} total, ${_DESTRUCTIVE_COUNT} destructive (WAKE/HIBERNATE/CREATE/PRUNE)"
-    printf "Apply %d change(s) to %s? [y/N] " "${total_changes}" "${AGAMEMNON_URL}"
-    local reply
-    read -t 30 -r reply || reply="N"
-    case "$reply" in
-        [Yy]|[Yy][Ee][Ss])
-            return 0
-            ;;
-        *)
-            echo "Aborted."
-            exit 0
-            ;;
-    esac
+    if ! confirm_with_timeout "Apply ${total_changes} change(s) to ${AGAMEMNON_URL}? [y/N]"; then
+        echo "Aborted."
+        exit 0
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -518,22 +512,8 @@ main() {
 
     # Confirmation prompt when --prune is set (unless --yes or MYRMIDONS_YES=true)
     if [[ $PRUNE -eq 1 && $YES -eq 0 && "${MYRMIDONS_YES:-}" != "true" ]]; then
-        local reply
-        if [[ ! -t 0 ]]; then
-            # Non-TTY stdin (CI pipe, /dev/null) → default-deny the prune confirmation.
-            # This is intentional CI safety introduced in #378: piped answers (e.g.
-            # `echo y | ./apply.sh --prune`) are explicitly unsupported because the
-            # pipe is indistinguishable from an unattended CI run that should never
-            # silently delete agents.  For non-interactive automation use:
-            #   ./scripts/apply.sh --prune --yes               (flag)
-            #   MYRMIDONS_YES=true ./scripts/apply.sh --prune  (env var)
-            reply="N"
-        else
-            echo "WARNING: --prune will hibernate and delete agents not in YAML."
-            printf 'Continue? [y/N] '
-            read -t 30 -r reply || reply="N"
-        fi
-        if [[ "${reply,,}" != "y" && "${reply,,}" != "yes" ]]; then
+        echo "WARNING: --prune will hibernate and delete agents not in YAML."
+        if ! confirm_with_timeout "Continue? [y/N]"; then
             echo "Aborted."
             exit 0
         fi
