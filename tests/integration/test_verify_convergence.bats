@@ -56,9 +56,10 @@ _stop_mock_server() {
 # Uses Python's json decoder which stops at the end of the first valid object.
 _extract_json_block() {
     local text="$1"
-    echo "$text" | python3 - <<'PYEOF' 2>/dev/null || true
-import sys, json
-data = sys.stdin.read()
+    # Pass text via env var to avoid SC2259 (pipe + heredoc conflict).
+    TEXT="$text" python3 - <<'PYEOF' 2>/dev/null || true
+import sys, json, os
+data = os.environ.get("TEXT", "")
 idx = data.find('{')
 if idx < 0:
     sys.exit(0)
