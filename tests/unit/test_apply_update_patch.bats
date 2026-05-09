@@ -158,7 +158,7 @@ apply_agent() {
 
     local action
     action="$(compute_drift "$name" "$desired_state" "$actual_json" \
-        "$label" "$program" "$workdir" "$args" "$desc" "$tags")"
+        "$label" "$program" "$workdir" "$args" "$desc" "$tags" "" "" "" "local")"
 
     case "$action" in
         UNCHANGED)

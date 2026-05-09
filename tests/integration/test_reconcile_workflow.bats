@@ -104,6 +104,9 @@ teardown() {
         --arg workingDirectory "${fields[workingDirectory]}" \
         --arg programArgs "${fields[programArgs]}" \
         --arg taskDescription "${fields[taskDescription]}" \
+        --arg owner "${fields[owner]}" \
+        --arg role "${fields[role]}" \
+        --arg model "${fields[model]}" \
         '{
             status: "active",
             label: $lbl,
@@ -111,7 +114,11 @@ teardown() {
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,
             taskDescription: $taskDescription,
-            tags: ["ci","testing"]
+            tags: ["testing","ci"],
+            owner: $owner,
+            role: $role,
+            model: $model,
+            deployment: {type: "local"}
         }')"
 
     result="$(compute_drift \
@@ -123,7 +130,11 @@ teardown() {
         "${fields[workingDirectory]}" \
         "${fields[programArgs]}" \
         "${fields[taskDescription]}" \
-        "${fields[tags]}")"
+        "${fields[tags]}" \
+        "${fields[model]:-}" \
+        "${fields[owner]:-}" \
+        "${fields[role]:-}" \
+        "${fields[deploymentType]:-local}")"
 
     [[ "$result" == "UNCHANGED" ]]
 }
@@ -145,6 +156,9 @@ teardown() {
         --arg workingDirectory "${fields[workingDirectory]}" \
         --arg programArgs "${fields[programArgs]}" \
         --arg taskDescription "${fields[taskDescription]}" \
+        --arg owner "${fields[owner]}" \
+        --arg role "${fields[role]}" \
+        --arg model "${fields[model]}" \
         '{
             status: "offline",
             label: $lbl,
@@ -152,7 +166,11 @@ teardown() {
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,
             taskDescription: $taskDescription,
-            tags: ["ci","testing"]
+            tags: ["testing","ci"],
+            owner: $owner,
+            role: $role,
+            model: $model,
+            deployment: {type: "local"}
         }')"
 
     result="$(compute_drift \
@@ -164,7 +182,11 @@ teardown() {
         "${fields[workingDirectory]}" \
         "${fields[programArgs]}" \
         "${fields[taskDescription]}" \
-        "${fields[tags]}")"
+        "${fields[tags]}" \
+        "${fields[model]:-}" \
+        "${fields[owner]:-}" \
+        "${fields[role]:-}" \
+        "${fields[deploymentType]:-local}")"
 
     [[ "$result" == "WAKE" ]]
 }
@@ -191,6 +213,9 @@ teardown() {
         --arg workingDirectory "${fields[workingDirectory]}" \
         --arg programArgs "${fields[programArgs]}" \
         --arg taskDescription "${fields[taskDescription]}" \
+        --arg owner "${fields[owner]}" \
+        --arg role "${fields[role]}" \
+        --arg model "${fields[model]}" \
         '{
             status: "active",
             label: $lbl,
@@ -198,7 +223,11 @@ teardown() {
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,
             taskDescription: $taskDescription,
-            tags: ["hibernated"]
+            tags: ["hibernated"],
+            owner: $owner,
+            role: $role,
+            model: $model,
+            deployment: {type: "local"}
         }')"
 
     result="$(compute_drift \
@@ -210,7 +239,11 @@ teardown() {
         "${fields[workingDirectory]}" \
         "${fields[programArgs]}" \
         "${fields[taskDescription]}" \
-        "${fields[tags]}")"
+        "${fields[tags]}" \
+        "${fields[model]:-}" \
+        "${fields[owner]:-}" \
+        "${fields[role]:-}" \
+        "${fields[deploymentType]:-local}")"
 
     [[ "$result" == "HIBERNATE" ]]
 }
@@ -237,6 +270,9 @@ teardown() {
         --arg workingDirectory "${fields[workingDirectory]}" \
         --arg programArgs "${fields[programArgs]}" \
         --arg taskDescription "${fields[taskDescription]}" \
+        --arg owner "${fields[owner]}" \
+        --arg role "${fields[role]}" \
+        --arg model "${fields[model]}" \
         '{
             status: "active",
             label: "Stale Label",
@@ -244,7 +280,11 @@ teardown() {
             workingDirectory: $workingDirectory,
             programArgs: $programArgs,
             taskDescription: $taskDescription,
-            tags: ["ci","testing"]
+            tags: ["testing","ci"],
+            owner: $owner,
+            role: $role,
+            model: $model,
+            deployment: {type: "local"}
         }')"
 
     result="$(compute_drift \
@@ -256,7 +296,11 @@ teardown() {
         "${fields[workingDirectory]}" \
         "${fields[programArgs]}" \
         "${fields[taskDescription]}" \
-        "${fields[tags]}")"
+        "${fields[tags]}" \
+        "${fields[model]:-}" \
+        "${fields[owner]:-}" \
+        "${fields[role]:-}" \
+        "${fields[deploymentType]:-local}")"
 
     [[ "$result" == UPDATE:* ]]
     [[ "$result" == *"label"* ]]

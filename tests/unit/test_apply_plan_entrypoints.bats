@@ -388,7 +388,7 @@ plan_agent() {
     if [[ -z "\$actual_json" ]]; then return 1; fi
     local action
     action="\$(compute_drift "\$name" "\$desired_state" "\$actual_json" \
-        "\$label" "\$program" "\$workdir" "\$args" "\$desc" "\$tags")"
+        "\$label" "\$program" "\$workdir" "\$args" "\$desc" "\$tags" "" "" "" "local")"
     [[ "\$action" == "UNCHANGED" ]]
 }
 

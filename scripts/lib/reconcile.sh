@@ -348,6 +348,10 @@ build_create_json() {
 #   $12 desired_role
 #   $13 desired_deploy_type
 compute_drift() {
+    if [[ $# -ne 13 ]]; then
+        echo "compute_drift requires exactly 13 arguments, got $#" >&2
+        return 1
+    fi
     local name="$1"
     local desired_state="$2"    # "active" | "hibernated"
     local actual_json="$3"      # Full agent JSON from API

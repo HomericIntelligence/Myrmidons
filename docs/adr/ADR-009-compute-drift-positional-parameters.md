@@ -117,26 +117,45 @@ same file). It also adds I/O for every drift computation.
 
 ---
 
-## How to Extend (Adding New Fields)
+## How to extend compute_drift (lockstep checklist)
 
-If a new field needs drift tracking:
+Adding a new drifted field requires updating the function **and** all three
+callers in lockstep. Missing any step produces a silent wrong-value bug because
+shell positional parameters bind by position, not name.
 
-1. **Update the function signature:** Add a new parameter to the end of the
-   `compute_drift` parameter list in `scripts/lib/reconcile.sh:335-349`.
-   Update the header comment to document the new parameter's position and meaning.
+1. **Add the parameter to `compute_drift`** (`scripts/lib/reconcile.sh`):
+   - Append `$14` (or the next slot) to the function body with a `local` binding.
+   - Update the header comment's parameter table (lines 335–349).
+   - Add a drift comparison line (e.g. `[[ "$actual_foo" != "$desired_foo" ]] && drifted_fields+=("foo")`).
 
-2. **Update all three callers** in lockstep: `scripts/apply.sh`, `scripts/plan.sh`,
-   and `scripts/status.sh`. Each caller must pass the new desired field value at
-   the correct position.
+2. **Bump the arity guard**: change the `13` in `[[ $# -ne 13 ]]` to the new
+   count. This is the authoritative number that `check-compute-drift-callers.sh`
+   reads.
 
-3. **Add drift comparison logic** in `scripts/lib/reconcile.sh:369-427`:
-   extract the actual field from the JSON blob, normalize it if needed
-   (e.g., sort tags), and compare it against the desired value.
+3. **Update all three callers** (`apply.sh`, `plan.sh`, `status.sh`) to pass
+   the new argument in the matching position. All three call sites must change
+   together — a partial update causes a positional shift for every argument that
+   follows.
 
-4. **Update `CLAUDE.md` drift-detection table** to document whether the field is
-   tracked or not, and why.
+4. **Add a row to the drift-detection table in CLAUDE.md** so operators know
+   the field is tracked.
 
-5. **Update this ADR** to reflect the new parameter count and implementation scope.
+5. **Write a new UPDATE test** in `tests/unit/test_drift_owner_role_tags.bats`
+   (or a new test file) asserting that drift is detected when the new field
+   changes and is absent from the result when the field is unchanged.
+
+6. **Run the caller consistency check** — must exit 0 before committing:
+   ```bash
+   ./scripts/check-compute-drift-callers.sh
+   ```
+   This script is also wired as a pre-commit hook and fires automatically
+   whenever `reconcile.sh` or any of the three callers is staged.
+
+7. **Run the full unit test suite** — all drift tests (including the arity
+   guard tests) must pass:
+   ```bash
+   pixi run test-unit
+   ```
 
 **Caution:** This is inherently fragile due to the positional nature. Consider
 proposing a higher-level refactor (e.g., a structured parameter format) if you
@@ -148,7 +167,9 @@ find yourself adding a fourth or fifth extension.
 
 | File | Role |
 |------|------|
-| `scripts/lib/reconcile.sh:335-427` | `compute_drift` definition and parameter comment block |
+| `scripts/lib/reconcile.sh:335-431` | `compute_drift` definition, parameter comment block, and arity guard |
 | `scripts/apply.sh` | Primary caller — passes all 13 parameters |
 | `scripts/plan.sh` | Caller — dry-run drift check |
 | `scripts/status.sh` | Caller — status table drift column |
+| `scripts/check-compute-drift-callers.sh` | Pre-commit / CI arity consistency check |
+| `tests/unit/test_compute_drift_arity.bats` | Arity guard unit tests |
