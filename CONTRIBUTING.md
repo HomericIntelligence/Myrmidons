@@ -36,7 +36,8 @@ cd Myrmidons
 # Activate the Pixi environment
 pixi shell
 
-# Install all git hooks (dangerous-flags hook + pre-commit framework)
+# Install all git hooks (pre-commit framework including dangerous-flags lint guard;
+# see CLAUDE.md § Security for the single canonical policy description)
 just install-hooks
 
 # List available recipes
