@@ -240,6 +240,7 @@ The `main` branch is protected. All changes must go through pull requests.
 - **Agent types** — Are agent type names consistent with existing conventions?
 - **Privilege levels** — Is the agent requesting minimum necessary privileges?
 - **Resource limits** — Are CPU/memory limits reasonable?
+- **AGENTS.md** — Does this change affect agent permissions or safety boundaries? Update `AGENTS.md` if so.
 
 ### Responding to Review Comments
 
