@@ -256,6 +256,32 @@ The justification must describe:
 
 To run manually: `./scripts/check-dangerous-flags.sh`
 
+### `yaml-language-server` schema hint policy
+
+Every agent and fleet YAML file must begin with a `yaml-language-server` schema hint comment so
+editors can provide schema-aware autocompletion and validation:
+
+```yaml
+# yaml-language-server: $schema=../../schemas/agent.schema.json
+```
+
+**Suppression format:** If a file legitimately cannot carry a schema hint (e.g. a generated
+stub, a template documenting the format itself), add a suppression annotation on line 1:
+
+```yaml
+# schema-hint-skip: <justification>
+```
+
+The justification must explain why the hint is absent. Template files in `agents/_templates/`
+are automatically exempt and do not need a suppression annotation.
+
+**Lint guard:** `scripts/check-schema-hints.sh` enforces this policy. It runs:
+
+- As a pre-commit hook (`myrmidons-schema-hints`) on staged agent/fleet YAMLs
+- In CI on every PR (all agent/fleet YAMLs)
+
+To run manually: `./scripts/check-schema-hints.sh`
+
 ### Gitleaks allowlist
 
 `gitleaks` scans every PR for secrets. False positives (e.g. test fixtures, documentation
