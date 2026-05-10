@@ -26,6 +26,10 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  GITLEAKS_VERSION: "8.24.3"
+  ACTIONLINT_VERSION: "1.7.7"
+
 jobs:
   # Single source-of-truth lint job: runs every hook in .pre-commit-config.yaml.
   # Adding a linter? Add it to .pre-commit-config.yaml — it auto-runs here.
@@ -41,6 +45,20 @@ jobs:
       - uses: ./.github/actions/setup-pixi
         with:
           environment: lint
+
+      - name: Install gitleaks (required by gitleaks-system pre-commit hook)
+        run: |
+          url="https://github.com/gitleaks/gitleaks/releases/download"
+          curl -sSfL \
+            "${url}/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+
+      - name: Install actionlint (required by actionlint-system pre-commit hook)
+        run: |
+          url="https://github.com/rhysd/actionlint/releases/download"
+          curl -sSfL \
+            "${url}/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin actionlint
 
       - name: Run pre-commit on all files
         run: |

@@ -29,6 +29,9 @@ jobs:
     env:
       AGAMEMNON_URL: ${{ vars.AGAMEMNON_URL }}
       AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
+      AGAMEMNON_CA_CERT_B64: ${{ secrets.AGAMEMNON_CA_CERT_B64 }}
+      AGAMEMNON_CLIENT_CERT_B64: ${{ secrets.AGAMEMNON_CLIENT_CERT_B64 }}
+      AGAMEMNON_CLIENT_KEY_B64: ${{ secrets.AGAMEMNON_CLIENT_KEY_B64 }}
     steps:
       - name: Mask secrets
         run: |
@@ -39,13 +42,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure TLS
-        if: ${{ secrets.AGAMEMNON_CA_CERT_B64 != '' }}
+        if: ${{ env.AGAMEMNON_CA_CERT_B64 != '' }}
         run: |
-          echo "${{ secrets.AGAMEMNON_CA_CERT_B64 }}" | base64 -d > /tmp/agamemnon-ca.pem
+          echo "$AGAMEMNON_CA_CERT_B64" | base64 -d > /tmp/agamemnon-ca.pem
           echo "AGAMEMNON_CA_CERT=/tmp/agamemnon-ca.pem" >> "$GITHUB_ENV"
-          if [[ -n "${{ secrets.AGAMEMNON_CLIENT_CERT_B64 }}" ]]; then
-            echo "${{ secrets.AGAMEMNON_CLIENT_CERT_B64 }}" | base64 -d > /tmp/agamemnon-client.pem
-            echo "${{ secrets.AGAMEMNON_CLIENT_KEY_B64 }}" | base64 -d > /tmp/agamemnon-client.key
+          if [[ -n "$AGAMEMNON_CLIENT_CERT_B64" ]]; then
+            echo "$AGAMEMNON_CLIENT_CERT_B64" | base64 -d > /tmp/agamemnon-client.pem
+            echo "$AGAMEMNON_CLIENT_KEY_B64" | base64 -d > /tmp/agamemnon-client.key
             echo "AGAMEMNON_CLIENT_CERT=/tmp/agamemnon-client.pem" >> "$GITHUB_ENV"
             echo "AGAMEMNON_CLIENT_KEY=/tmp/agamemnon-client.key" >> "$GITHUB_ENV"
           fi

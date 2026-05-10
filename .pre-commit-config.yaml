@@ -133,3 +133,10 @@ repos:
         types: [shell]
         files: '^scripts/.*\.sh$'
         pass_filenames: false
+
+      - id: no-gitleaks-continue-on-error
+        name: gitleaks step must not have continue-on-error
+        language: script
+        entry: scripts/check-gitleaks-coe.sh
+        files: '^\.github/workflows/.*\.yml$'
+        pass_filenames: true
