@@ -16,7 +16,7 @@ set -euo pipefail
 
 files=("$@")
 if [[ ${#files[@]} -eq 0 ]]; then
-    mapfile -t files < <(find .github/workflows -name '*.yml' | sort)
+    mapfile -t files < <(find "${REPO_ROOT:-.}/.github/workflows" -name '*.yml' | sort)
 fi
 
 rc=0
