@@ -80,6 +80,7 @@ _PRUNED_NAMES=()   # names of agents pruned during this run (for convergence che
 # Per-agent error tracking: structured entries "name\x01http_status\x01message"
 # Uses ASCII unit separator (0x01) as delimiter — safe against agent names, HTTP codes, and error messages.
 FAILED_AGENTS_INFO=()
+FAILED_AGENT_NAMES=()  # agent names (metadata.name) that failed; written to RETRY_FILE by _write_failed_agents_file
 
 # Directory for state files
 MYRMIDONS_STATE_DIR="${REPO_ROOT}/.myrmidons"

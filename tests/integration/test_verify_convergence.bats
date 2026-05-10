@@ -310,7 +310,7 @@ teardown() {
     if [[ -n "$full_json" ]]; then
         local conv_failed agent_converged
         conv_failed="$(echo "$full_json" | jq -r '.convergence.failed // empty' 2>/dev/null || echo "")"
-        agent_converged="$(echo "$full_json" | jq -r '.convergence.agents[0].converged // empty' 2>/dev/null || echo "")"
+        agent_converged="$(echo "$full_json" | jq -r '.convergence.agents[0].converged | if . == null then "" else tostring end' 2>/dev/null || echo "")"
 
         [[ "$conv_failed" == "1" ]]
         [[ "$agent_converged" == "false" ]]
