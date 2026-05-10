@@ -23,16 +23,16 @@ rc=0
 for f in "${files[@]}"; do
     # Look for a line containing 'gitleaks detect' immediately followed by
     # a line containing 'continue-on-error'.
-    if grep -n 'gitleaks detect' "$f" | while IFS=: read -r lineno _; do
+    # Use grep -c to avoid pipefail from grep returning 1 (no match).
+    if ! grep -qn 'gitleaks detect' "$f" 2>/dev/null; then
+        continue
+    fi
+    while IFS=: read -r lineno _; do
         nextline=$(sed -n "$((lineno + 1))p" "$f")
         if echo "$nextline" | grep -q 'continue-on-error'; then
             echo "ERROR: $f line $lineno: gitleaks detect step has continue-on-error — remove it so scan failures block CI." >&2
-            exit 1
+            rc=1
         fi
-    done; then
-        :
-    else
-        rc=1
-    fi
+    done < <(grep -n 'gitleaks detect' "$f")
 done
 exit "$rc"
