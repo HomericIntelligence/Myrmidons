@@ -254,7 +254,11 @@ acquire_lock() {
 # Called from the EXIT trap so it runs even on error exit.
 release_lock() {
     # Close the fd — flock is released automatically.
-    eval "exec ${_LOCK_FD}>&-" 2>/dev/null || true
+    # Failure to close the fd is non-fatal (the EXIT trap will be called once
+    # only, so a missing fd is safe) but should be surfaced for debugging.
+    if ! eval "exec ${_LOCK_FD}>&-" 2>/dev/null; then
+        echo "warn: failed to close lock fd ${_LOCK_FD} (already closed?)" >&2
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -967,7 +971,12 @@ handle_unmanaged() {
                     echo "[-] Pruning unmanaged: ${actual_name}"
                     echo "    Hibernating first..."
                 fi
-                agamemnon_hibernate_agent "$agent_id" > /dev/null || true
+                # Hibernate is best-effort: deleting an already-offline agent
+                # is fine. Surface a warning so transient API errors are
+                # visible in the apply log even though prune continues.
+                if ! agamemnon_hibernate_agent "$agent_id" > /dev/null; then
+                    echo "    warn: pre-delete hibernate failed for ${actual_name} (continuing to delete)" >&2
+                fi
                 sleep "$HIBERNATE_SETTLE_SECONDS"
                 if [[ "$OUTPUT_FORMAT" != "json" ]]; then
                     echo "    Deleting..."

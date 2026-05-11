@@ -175,7 +175,13 @@ test_prune_calls_sleep_with_env_value() {
     # shellcheck disable=SC2034
     HIBERNATE_SETTLE_SECONDS=7
 
-    handle_unmanaged "$agents_json" "$yaml_managed" > /dev/null 2>&1 || true
+    # We assert on the captured sleep argument, not on handle_unmanaged's rc;
+    # capture rc explicitly rather than silently swallowing it.
+    _hu_rc=0
+    handle_unmanaged "$agents_json" "$yaml_managed" > /dev/null 2>&1 || _hu_rc=$?
+    if [[ "$_hu_rc" -ne 0 ]]; then
+        echo "  (handle_unmanaged rc=${_hu_rc} — not asserted)" >&2
+    fi
 
     rm -f "$yaml_managed"
 
@@ -222,7 +228,13 @@ test_prune_zero_settle_no_wait() {
     # shellcheck disable=SC2034
     HIBERNATE_SETTLE_SECONDS=0
 
-    handle_unmanaged "$agents_json" "$yaml_managed" > /dev/null 2>&1 || true
+    # We assert on the captured sleep argument, not on handle_unmanaged's rc;
+    # capture rc explicitly rather than silently swallowing it.
+    _hu_rc=0
+    handle_unmanaged "$agents_json" "$yaml_managed" > /dev/null 2>&1 || _hu_rc=$?
+    if [[ "$_hu_rc" -ne 0 ]]; then
+        echo "  (handle_unmanaged rc=${_hu_rc} — not asserted)" >&2
+    fi
 
     rm -f "$yaml_managed"
 

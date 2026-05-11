@@ -62,8 +62,17 @@ jobs:
 
       - name: Plan — show what will change
         run: |
+          set -euo pipefail
           chmod +x scripts/plan.sh scripts/lib/api.sh scripts/lib/reconcile.sh
-          ./scripts/plan.sh || true
+          # plan.sh is advisory in this informational step — its rc carries
+          # "drift / no drift" semantics depending on the script version. Log
+          # the rc as a warning so a regression in plan.sh is visible without
+          # blocking the subsequent apply step.
+          plan_rc=0
+          ./scripts/plan.sh || plan_rc=$?
+          if [ "$plan_rc" -ne 0 ]; then
+            echo "::warning::plan.sh exited $plan_rc (informational — apply step follows)"
+          fi
 
       - name: Apply — reconcile desired state
         run: |

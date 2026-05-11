@@ -345,13 +345,17 @@ snapshot_prune() {
 
     # Only count/prune regular (non-suffixed) snapshots:
     # Suffixed snapshots (*.pre-rollback.json etc.) are retained separately.
+    # The first pass keeps stems with no dots; we use awk for the inverted
+    # match so an empty result returns rc=0 (grep -v returns 1 in that case,
+    # which would fail under `set -o pipefail`).
     local regular_snapshots=()
     mapfile -t regular_snapshots < <(
         find "$snapshot_dir" -maxdepth 1 -name "*.json" \
-            | grep -v '\.' | sort || true
+            | awk -F/ '{stem=$NF; sub(/\.json$/,"",stem); if (index(stem,".")==0) print}' \
+            | sort
         # fallback: match ISO timestamp pattern only (no dots in stem)
         find "$snapshot_dir" -maxdepth 1 -name "*T*Z.json" \
-            | grep -E '/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\.json$' \
+            | awk '/\/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\.json$/' \
             | sort
     )
 

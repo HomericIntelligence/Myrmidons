@@ -228,10 +228,14 @@ restore_agent() {
 
         if [[ $desired_active -eq 1 ]]; then
             echo "    Starting ${name}..."
-            agamemnon_wake_agent "$current_id" > /dev/null || true
+            if ! agamemnon_wake_agent "$current_id" > /dev/null; then
+                echo "    warn: wake failed for ${name} (best-effort restore continues)" >&2
+            fi
         else
             echo "    Hibernating ${name}..."
-            agamemnon_hibernate_agent "$current_id" > /dev/null || true
+            if ! agamemnon_hibernate_agent "$current_id" > /dev/null; then
+                echo "    warn: hibernate failed for ${name} (best-effort restore continues)" >&2
+            fi
         fi
     fi
 }

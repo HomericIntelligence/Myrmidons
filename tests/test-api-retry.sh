@@ -288,8 +288,12 @@ teardown_mock
 setup_mock
 mock_single 0 200
 _EQ_FILE="$(mktemp)"
-# Call the mock curl directly with --max-time=30 (equals sign) and -o <file>
-curl --max-time=30 -o "$_EQ_FILE" "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null || true
+# Call the mock curl directly with --max-time=30 (equals sign) and -o <file>.
+# The mock returns the exit code from its sequence; here we only care that the
+# body was written, so capture rc explicitly instead of suppressing it.
+_curl_rc=0
+curl --max-time=30 -o "$_EQ_FILE" "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null || _curl_rc=$?
+: "captured curl exit rc=${_curl_rc} for equals-sign --max-time test"
 eq_body="$(cat "$_EQ_FILE")"
 rm -f "$_EQ_FILE"
 assert_eq "mock curl handles --max-time=N: body written via -o" '{"ok":true}' "$eq_body"
@@ -310,7 +314,12 @@ teardown_mock
 # ── Test 9: WARN retry messages count up correctly (1/3, 2/3) ─────────────────
 setup_mock
 mock_single 7 000
-output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")" && true || true
+# Capture rc explicitly — we only assert on stderr content, not on rc, but we
+# refuse to silently swallow the value (the previous form `... && true || true`
+# was a placeholder for `ignore rc`).
+_retry_rc=0
+output="$(_agamemnon_curl_retry "http://mock.test:9999/v1/agents" 2>"$_STDERR_FILE")" || _retry_rc=$?
+: "Test 9 retry rc=${_retry_rc} (intentionally not asserted)"
 stderr_content="$(cat "$_STDERR_FILE")"
 assert_contains "WARN messages: Retry 1/3 present" "Retry 1/3" "$stderr_content"
 assert_contains "WARN messages: Retry 2/3 present" "Retry 2/3" "$stderr_content"
@@ -331,7 +340,12 @@ teardown_mock
 # the right number of times by asserting curl call counts precisely.
 setup_mock
 mock_single 0 200
-_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null || true
+# Test asserts on curl call count, not on the function's rc. Capture rc
+# explicitly so a regression in the retry function's exit-code semantics is
+# still visible in the test transcript.
+_retry_rc=0
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>/dev/null || _retry_rc=$?
+: "Test 11 retry rc=${_retry_rc} (intentionally not asserted)"
 calls=$(<"$_CALL_FILE")
 assert_eq "call-count: success on first try — curl called exactly 1 time" "1" "$calls"
 teardown_mock
@@ -339,7 +353,9 @@ teardown_mock
 # ── Test 12: Call-count — 2 transient failures then success = 3 curl calls ────
 setup_mock
 mock_sequence "7,000" "7,000" "0,200"
-_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>"$_STDERR_FILE" || true
+_retry_rc=0
+_agamemnon_curl_retry "http://mock.test:9999/v1/agents" >/dev/null 2>"$_STDERR_FILE" || _retry_rc=$?
+: "Test 12 retry rc=${_retry_rc} (intentionally not asserted)"
 calls=$(<"$_CALL_FILE")
 stderr_content="$(cat "$_STDERR_FILE")"
 assert_eq "call-count: 2 failures then success — curl called exactly 3 times" "3" "$calls"
