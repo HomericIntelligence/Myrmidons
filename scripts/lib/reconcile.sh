@@ -93,16 +93,20 @@ get_agent_files() {
     declare -A _gaf_seen
 
     # 1. Gather direct Agent YAML files from agents/
+    # `find` returns rc>0 when the search root does not exist (e.g. a host
+    # directory is removed). That is a legitimate "no files" outcome here, so
+    # we guard on existence and treat a missing root as an empty result set.
     local raw_files=()
+    local search_root
     if [[ -n "$host" ]]; then
-        mapfile -t raw_files < <(
-            find "${repo_root}/agents/${host}" -name "*.yaml" \
-                ! -path "*/_templates/*" 2>/dev/null || true
-        )
+        search_root="${repo_root}/agents/${host}"
     else
+        search_root="${repo_root}/agents"
+    fi
+    if [[ -d "$search_root" ]]; then
         mapfile -t raw_files < <(
-            find "${repo_root}/agents" -name "*.yaml" \
-                ! -path "*/_templates/*" 2>/dev/null || true
+            find "$search_root" -name "*.yaml" \
+                ! -path "*/_templates/*"
         )
     fi
 

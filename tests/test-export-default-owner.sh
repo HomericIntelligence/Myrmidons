@@ -58,7 +58,9 @@ resolve_owner() {
         MYRMIDONS_DEFAULT_OWNER="$env_var" \
             bash -c "echo '$agent_json' | jq -r --arg default_owner \"\${MYRMIDONS_DEFAULT_OWNER:-\$(whoami)}\" '.owner // \$default_owner'"
     else
-        unset MYRMIDONS_DEFAULT_OWNER 2>/dev/null || true
+        # `unset` only fails if the name is read-only or invalid; both would
+        # be bugs we want to know about, so don't suppress the rc.
+        unset MYRMIDONS_DEFAULT_OWNER
         bash -c "echo '$agent_json' | jq -r --arg default_owner \"\${MYRMIDONS_DEFAULT_OWNER:-\$(whoami)}\" '.owner // \$default_owner'"
     fi
 }

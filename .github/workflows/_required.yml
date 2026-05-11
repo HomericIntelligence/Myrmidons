@@ -17,6 +17,57 @@ env:
   GITLEAKS_VERSION: "8.24.3"
 
 jobs:
+  forbid-suppressions:
+    name: forbid-suppressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Reject silent-failure workaround in shell/YAML/Dockerfile/justfile/HCL"
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files \
+            -- \
+            '*.sh' '*.bash' '*.yml' '*.yaml' '*.hcl' \
+            'Dockerfile*' '**/Dockerfile*' \
+            'justfile' '**/justfile' 'Justfile' '**/Justfile')
+          declare -a scan_files=()
+          for f in "${files[@]}"; do
+            case "$f" in
+              # Exempt this workflow file (heredoc would otherwise self-match)
+              .github/workflows/_required.yml) continue ;;
+              # Exempt any runbook that documents the rule (if present)
+              docs/runbooks/no-silent-failures.md) continue ;;
+            esac
+            scan_files+=("$f")
+          done
+          if [ "${#scan_files[@]}" -eq 0 ]; then
+            echo "No files to scan"
+            exit 0
+          fi
+          if grep -nE '\|\|[[:space:]]*true([[:space:]]*$|[[:space:]]+#)' "${scan_files[@]}"; then
+            echo ""
+            echo '::error::Found silent-failure workarounds above. Refactor per HomericIntelligence/Odysseus#280.'
+            exit 1
+          fi
+          echo 'OK: no silent-failure workarounds found'
+
+      - name: "Reject continue-on-error workflow opt-out"
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files -- '.github/workflows/*.yml' '.github/workflows/*.yaml')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No workflow files"
+            exit 0
+          fi
+          if grep -nE '^[[:space:]]*continue-on-error:[[:space:]]*true[[:space:]]*$' "${files[@]}"; then
+            echo ""
+            echo '::error::Found "continue-on-error: true" above. Fix the root cause per HomericIntelligence/Odysseus#280.'
+            exit 1
+          fi
+          echo 'OK: no "continue-on-error: true" found'
+
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -70,22 +121,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # pip-audit: scan Python dependencies for known vulnerabilities
+      # pip-audit: scan Python dependencies for known vulnerabilities.
+      # Findings are surfaced as a workflow warning instead of failing the
+      # job — but a failure to *run* pip-audit (install error, transient
+      # network) must still fail the step.
       - name: pip-audit
         run: |
+          set -euo pipefail
           pip install --quiet pip-audit
-          pip-audit || true
+          if ! pip-audit; then
+            echo "::warning::pip-audit reported vulnerabilities — review the output above."
+          fi
 
-      # Trivy filesystem scan (non-blocking; informational)
+      # Trivy filesystem scan — informational. `--exit-code 0` already makes
+      # vulnerability findings non-fatal; install/extraction failures should
+      # still fail the step so we know when the scan stopped working.
       - name: Trivy filesystem scan
         env:
           TV_VER: "0.70.0"
         run: |
+          set -euo pipefail
           base="https://github.com/aquasecurity/trivy/releases/download"
           curl -sSfL \
             "${base}/v${TV_VER}/trivy_${TV_VER}_Linux-64bit.tar.gz" \
             | tar -xz -C /usr/local/bin trivy
-          trivy fs --severity HIGH,CRITICAL --exit-code 0 . || true
+          trivy fs --severity HIGH,CRITICAL --exit-code 0 .
 
   security-secrets-scan:
     name: security/secrets-scan
@@ -169,9 +229,16 @@ jobs:
             echo "No Python files found — skipping mypy."
             exit 0
           fi
-          # Attempt mypy on scripts/ if it exists
+          # Attempt mypy on scripts/ if it exists. Surface type errors as a
+          # workflow warning rather than failing the job (mypy on a partial
+          # codebase produces noisy results), but log the actual rc so it is
+          # visible in the build summary.
           if [ -d "scripts" ] && find scripts -name "*.py" | grep -q .; then
-            mypy --ignore-missing-imports scripts/ || true
+            mypy_rc=0
+            mypy --ignore-missing-imports scripts/ || mypy_rc=$?
+            if [ "$mypy_rc" -ne 0 ]; then
+              echo "::warning::mypy on scripts/ exited $mypy_rc — review the output above."
+            fi
           fi
           # Always run py_compile as a hard syntax check
           echo "$PY_FILES" | head -20 | xargs python -m py_compile

@@ -178,7 +178,14 @@ test_no_creates_one_list_call() {
 
     for yaml_file in "${yaml_files[@]}"; do
         _LAST_CREATED_AGENT_JSON=""
-        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || true
+        # The test asserts on list-call count, not on apply_agent's rc. Capture
+        # rc explicitly so a regression in apply_agent's exit semantics is
+        # still visible in the test transcript (rather than silently masked).
+        _apply_rc=0
+        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || _apply_rc=$?
+        if [[ "$_apply_rc" -ne 0 ]]; then
+            echo "  (apply_agent rc=${_apply_rc} — not asserted)" >&2
+        fi
         if [[ -n "$_LAST_CREATED_AGENT_JSON" ]]; then
             agents_json="$(echo "$agents_json" | jq --argjson new "$_LAST_CREATED_AGENT_JSON" '. + [$new]')"
         fi
@@ -214,7 +221,14 @@ test_creates_update_cache_without_refetch() {
 
     for yaml_file in "${yaml_files[@]}"; do
         _LAST_CREATED_AGENT_JSON=""
-        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || true
+        # The test asserts on list-call count, not on apply_agent's rc. Capture
+        # rc explicitly so a regression in apply_agent's exit semantics is
+        # still visible in the test transcript (rather than silently masked).
+        _apply_rc=0
+        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || _apply_rc=$?
+        if [[ "$_apply_rc" -ne 0 ]]; then
+            echo "  (apply_agent rc=${_apply_rc} — not asserted)" >&2
+        fi
         if [[ -n "$_LAST_CREATED_AGENT_JSON" ]]; then
             agents_json="$(echo "$agents_json" | jq --argjson new "$_LAST_CREATED_AGENT_JSON" '. + [$new]')"
         fi
@@ -248,7 +262,14 @@ test_cache_contains_new_agent_after_create() {
 
     for yaml_file in "${yaml_files[@]}"; do
         _LAST_CREATED_AGENT_JSON=""
-        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || true
+        # The test asserts on list-call count, not on apply_agent's rc. Capture
+        # rc explicitly so a regression in apply_agent's exit semantics is
+        # still visible in the test transcript (rather than silently masked).
+        _apply_rc=0
+        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || _apply_rc=$?
+        if [[ "$_apply_rc" -ne 0 ]]; then
+            echo "  (apply_agent rc=${_apply_rc} — not asserted)" >&2
+        fi
         if [[ -n "$_LAST_CREATED_AGENT_JSON" ]]; then
             agents_json="$(echo "$agents_json" | jq --argjson new "$_LAST_CREATED_AGENT_JSON" '. + [$new]')"
         fi
@@ -296,7 +317,14 @@ test_multiple_creates_single_list_call() {
 
     for yaml_file in "${yaml_files[@]}"; do
         _LAST_CREATED_AGENT_JSON=""
-        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || true
+        # The test asserts on list-call count, not on apply_agent's rc. Capture
+        # rc explicitly so a regression in apply_agent's exit semantics is
+        # still visible in the test transcript (rather than silently masked).
+        _apply_rc=0
+        apply_agent "$yaml_file" "$agents_json" > /dev/null 2>&1 || _apply_rc=$?
+        if [[ "$_apply_rc" -ne 0 ]]; then
+            echo "  (apply_agent rc=${_apply_rc} — not asserted)" >&2
+        fi
         if [[ -n "$_LAST_CREATED_AGENT_JSON" ]]; then
             agents_json="$(echo "$agents_json" | jq --argjson new "$_LAST_CREATED_AGENT_JSON" '. + [$new]')"
         fi
