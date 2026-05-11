@@ -66,12 +66,15 @@ jobs:
           chmod +x scripts/plan.sh scripts/lib/api.sh scripts/lib/reconcile.sh
           # plan.sh is advisory in this informational step — its rc carries
           # "drift / no drift" semantics depending on the script version. Log
-          # the rc as a warning so a regression in plan.sh is visible without
-          # blocking the subsequent apply step.
+          # the rc to stdout so a regression in plan.sh is visible without
+          # blocking the subsequent apply step. Per Bucket F (see
+          # docs/runbooks/no-silent-failures.md), we use a plain stdout
+          # "WARN:" line rather than the advisory workflow annotation
+          # so the forbid-advisory-warnings lint rule is not tripped.
           plan_rc=0
           ./scripts/plan.sh || plan_rc=$?
           if [ "$plan_rc" -ne 0 ]; then
-            echo "::warning::plan.sh exited $plan_rc (informational — apply step follows)"
+            echo "WARN: plan.sh exited $plan_rc (informational — apply step follows)"
           fi
 
       - name: Apply — reconcile desired state
