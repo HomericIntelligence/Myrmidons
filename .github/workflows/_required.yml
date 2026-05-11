@@ -155,11 +155,55 @@ jobs:
       # dep or add an entry to the allowlist with a tracked-issue reference
       # before merging. No advisory mode. See docs/runbooks/no-silent-failures.md
       # Bucket F.
+      #
+      # Baseline runner-image CVEs allowlisted per issue #713 (review 2026-08-08).
+      # Each --ignore-vuln below corresponds to a finding in #713 against the
+      # `ubuntu-latest` baseline Python packages (pip, setuptools, requests,
+      # cryptography, twisted, urllib3, jinja2, etc.). Myrmidons declares zero
+      # PyPI dependencies, so these come from the runner image, not our source
+      # tree — revisit and prune after each `actions/runner-images` refresh.
       - name: pip-audit
         run: |
           set -euo pipefail
           pip install --quiet pip-audit
-          pip-audit
+          pip-audit \
+            --ignore-vuln PYSEC-2024-230 \
+            --ignore-vuln CVE-2023-26112 \
+            --ignore-vuln PYSEC-2024-225 \
+            --ignore-vuln CVE-2023-50782 \
+            --ignore-vuln CVE-2024-0727 \
+            --ignore-vuln GHSA-h4gh-qq45-vh27 \
+            --ignore-vuln CVE-2026-26007 \
+            --ignore-vuln CVE-2026-34073 \
+            --ignore-vuln PYSEC-2024-60 \
+            --ignore-vuln CVE-2024-22195 \
+            --ignore-vuln CVE-2024-34064 \
+            --ignore-vuln CVE-2024-56326 \
+            --ignore-vuln CVE-2024-56201 \
+            --ignore-vuln CVE-2025-27516 \
+            --ignore-vuln CVE-2025-8869 \
+            --ignore-vuln CVE-2026-1703 \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2026-6357 \
+            --ignore-vuln CVE-2026-30922 \
+            --ignore-vuln CVE-2026-4539 \
+            --ignore-vuln CVE-2026-32597 \
+            --ignore-vuln CVE-2026-27448 \
+            --ignore-vuln CVE-2026-27459 \
+            --ignore-vuln CVE-2024-35195 \
+            --ignore-vuln CVE-2024-47081 \
+            --ignore-vuln CVE-2026-25645 \
+            --ignore-vuln PYSEC-2025-49 \
+            --ignore-vuln CVE-2024-6345 \
+            --ignore-vuln PYSEC-2024-75 \
+            --ignore-vuln CVE-2024-41671 \
+            --ignore-vuln CVE-2026-42304 \
+            --ignore-vuln CVE-2024-37891 \
+            --ignore-vuln CVE-2025-50181 \
+            --ignore-vuln CVE-2025-66418 \
+            --ignore-vuln CVE-2025-66471 \
+            --ignore-vuln CVE-2026-21441 \
+            --ignore-vuln CVE-2026-24049
 
       # Trivy filesystem scan — informational. `--exit-code 0` already makes
       # vulnerability findings non-fatal; install/extraction failures should
