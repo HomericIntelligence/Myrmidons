@@ -4,6 +4,7 @@ This document defines behavior boundaries, permitted tools, scope limitations, c
 
 **Audience:** AI agent runtimes (Claude Code, loop agents, fleet orchestrators).
 **Developer context:** See [CLAUDE.md](CLAUDE.md) for naming conventions, YAML format, drift detection, and environment variables.
+**Contributor workflow:** See [CONTRIBUTING.md](CONTRIBUTING.md) for branching, commits, PRs, and reviews.
 
 ---
 
