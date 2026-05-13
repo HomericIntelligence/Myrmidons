@@ -3,6 +3,7 @@
 GitOps agent provisioning for the HomericIntelligence mesh.
 
 > For agent safety boundaries and permitted tool use, see [AGENTS.md](AGENTS.md).
+> For contributor workflow (branching, commits, PRs, reviews), see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## What this repo is
 
