@@ -7,10 +7,34 @@ Reads response configuration from:
        JSON array: [{"method": "GET", "path": "/api/v1/agents", "status": 200, "body": {...}}, ...]
        JSON object: {"routes": [...], "default_status": 200, "default_body": {}}
      Routes are matched in order; first match wins.
-     Add "once": true to a route to consume it after the first match; subsequent
-     requests fall through to the next matching route or default_body.
      Paths support a trailing wildcard segment: "/api/v1/agents/*" matches
      "/api/v1/agents/foo" and "/api/v1/agents/abc123".
+
+     One-shot routes ("once": true):
+       Add "once": true to a route to consume it after its first match.
+       Lifecycle:
+         - On the first request that matches the route's method+path, the
+           server returns the route's status/body AND removes the route
+           from the in-memory routes list.
+         - Subsequent requests with the same method+path no longer see
+           that route; they fall through to the next matching route (in
+           definition order) or to default_status/default_body.
+         - One-shot consumption is per-process and is NOT reset on its
+           own — it only resets when the server is restarted (which
+           reloads the routes config from disk).
+       Use case: stateful request sequencing across multiple calls to
+       the same endpoint — e.g. the first GET returns a populated list
+       and subsequent GETs return an empty list, simulating a resource
+       that is drained after being read.
+       Example routes config:
+         [
+           {"method": "GET", "path": "/api/v1/agents",
+            "status": 200, "body": [{"id": "a1"}], "once": true},
+           {"method": "GET", "path": "/api/v1/agents",
+            "status": 200, "body": []}
+         ]
+       The first GET /api/v1/agents returns [{"id": "a1"}]; every later
+       GET /api/v1/agents returns [].
   2. Environment variables (fallback):
      MOCK_STATUS  — HTTP status code to return (default: 200)
      MOCK_BODY    — Response body JSON string (default: {})
