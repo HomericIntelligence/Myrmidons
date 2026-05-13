@@ -288,6 +288,39 @@ are automatically exempt and do not need a suppression annotation.
 
 To run manually: `./scripts/check-schema-hints.sh`
 
+### Duplicate shell function policy
+
+Defining the same function name twice in a single shell script silently shadows
+the earlier definition (the second wins). This was the root cause of issue #369
+(dual `verify_convergence`). Duplicate definitions are therefore **prohibited**
+in `scripts/` and `hooks/` unless a suppression annotation is present on the
+duplicate definition line documenting why the redefinition is intentional.
+
+**When the annotation is appropriate:**
+- TTY-vs-plain-text color helper branches (e.g. `green()` / `red()` defined
+  twice in an `if [[ -t 1 ]]; then ... else ... fi` block — see
+  `scripts/doctor.sh`)
+- Other deliberate if/else-scoped redefinitions where both branches cannot
+  coexist as a single function
+
+**Suppression format** (inline, on the duplicate definition line):
+
+```bash
+function_name() { # allow-duplicate-function: <justification>
+```
+
+The justification must describe:
+- Why the function is intentionally redefined (e.g. TTY vs plain-text branch,
+  platform-specific implementation)
+- Why a single definition with a conditional body is not viable
+
+**Lint guard:** `scripts/check-duplicate-functions.sh` enforces this policy.
+It runs:
+- As a pre-commit hook (`check-duplicate-functions`) on staged shell files
+- Recursively across `scripts/` and `hooks/` when invoked without arguments
+
+To run manually: `./scripts/check-duplicate-functions.sh`
+
 ### Gitleaks allowlist
 
 `gitleaks` scans every PR for secrets. False positives (e.g. test fixtures, documentation
