@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # tests/unit/test_snapshot_dir_resolution.bats
 #
 # Runtime regression test for issue #390: effective_snapshot_dir resolves to
