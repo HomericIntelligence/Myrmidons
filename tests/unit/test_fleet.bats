@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # tests/unit/test_fleet.bats — unit tests for fleet resolution (scripts/lib/reconcile.sh)
 #
 # Tests cover:
