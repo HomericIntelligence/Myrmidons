@@ -154,6 +154,22 @@ repos:
         types: [text]
         pass_filenames: true
 
+      - id: forbid-bats-run-or-true
+        name: "forbid `run ... || true` antipattern in BATS files"
+        description: >
+          In BATS, `run COMMAND` already captures COMMAND's exit code into
+          `$status`. Appending `|| true` to the `run` line wraps it in an
+          always-zero subshell, making `$status` meaningless and silently
+          neutralising any later `[ "$status" -eq N ]` assertion. The global
+          `forbid-or-true` rule excludes `.bats` files because legitimate
+          cleanup hooks (`kill ... || true`) and command substitutions
+          (`x=$(grep -c ... || true)`) are still allowed there. This narrower
+          rule targets only the dangerous form. See issue #507.
+        language: script
+        entry: scripts/check-bats-run-or-true.sh
+        files: '\.bats$'
+        pass_filenames: true
+
       - id: forbid-continue-on-error
         name: "forbid continue-on-error workflow opt-out"
         description: >
