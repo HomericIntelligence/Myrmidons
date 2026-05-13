@@ -141,6 +141,7 @@ Example: `./scripts/apply.sh hermes --output json | jq .summary`
 | `HIBERNATE_SETTLE_SECONDS` | `2` | Seconds to wait after hibernating an agent before continuing (set to `0` in CI to skip the settle delay) |
 | `MYRMIDONS_DEFAULT_OWNER` | `$(whoami)` | Fallback owner written to exported agent YAMLs when the Agamemnon API returns no owner |
 | `MYRMIDONS_YES` | _(unset)_ | Set to `true` to skip all interactive confirmation prompts (equivalent to `--yes`); useful in CI pipelines where stdin is not a TTY |
+| `SNAPSHOT_DIR` | `${REPO_ROOT}/.myrmidons/snapshots` | Directory where `apply.sh` writes pre-apply snapshots. Operators may override via env var or `--snapshot-dir DIR`. See [Snapshot directory guard](#snapshot-directory-guard) below for guardrail semantics. |
 
 ## Authentication
 
@@ -403,4 +404,38 @@ from an unattended job that should never silently hibernate or delete agents.
 
 # Or via environment variable
 MYRMIDONS_YES=true ./scripts/apply.sh --prune
+```
+
+### Snapshot directory guard
+
+`apply.sh` writes a pre-apply snapshot of agent state to `SNAPSHOT_DIR` before
+reconciling. The default is `${REPO_ROOT}/.myrmidons/snapshots`; operators may
+override it either by exporting `SNAPSHOT_DIR` or by passing `--snapshot-dir DIR`
+on the command line.
+
+`_guard_snapshot_dir` in `scripts/apply.sh` validates the resolved path before
+any write (introduced in #391):
+
+- **Always rejected:** the literal path `/.myrmidons/snapshots` — this only
+  arises when `REPO_ROOT` is empty/unset and writing to filesystem root would be
+  catastrophic. The guard aborts with a clear error.
+- **Rejected when `SNAPSHOT_DIR` is unset:** any derived path that falls outside
+  the repo tree (i.e. does not start with `${REPO_ROOT%/}/`). This catches a
+  broken `REPO_ROOT` without surprising operators who deliberately chose an
+  external location.
+- **Accepted when `SNAPSHOT_DIR` is explicitly set:** the out-of-repo check is
+  bypassed — operators take responsibility for the path. The dangerous-fallback
+  check above is **never** bypassed.
+- **Trailing-slash safe:** `REPO_ROOT` with a trailing slash (e.g. `/repo/`) is
+  normalised via `${REPO_ROOT%/}` before the prefix comparison, so legitimate
+  in-repo paths still match (fixed in #487 / PR #715).
+
+Override examples:
+
+```bash
+# Explicit env var (out-of-repo allowed)
+SNAPSHOT_DIR=/var/lib/myrmidons/snapshots ./scripts/apply.sh
+
+# CLI flag (equivalent)
+./scripts/apply.sh --snapshot-dir /var/lib/myrmidons/snapshots
 ```
