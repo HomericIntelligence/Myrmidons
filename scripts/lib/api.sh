@@ -17,7 +17,13 @@
 
 set -euo pipefail
 
-AGAMEMNON_URL="${AGAMEMNON_URL:-http://localhost:8080}"
+# Default AGAMEMNON_URL only when truly unset. Issue #513: an explicitly empty
+# exported value must reach _agamemnon_validate_url unchanged so it can be
+# rejected by the empty-string guard, rather than being silently coerced to
+# the localhost default by `:-`.
+if [[ -z "${AGAMEMNON_URL+set}" ]]; then
+    AGAMEMNON_URL="http://localhost:8080"
+fi
 _aim_had_xtrace=0
 if [[ "$-" == *x* ]]; then _aim_had_xtrace=1; fi
 { set +x; } 2>/dev/null
