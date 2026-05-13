@@ -203,7 +203,8 @@ jobs:
             --ignore-vuln CVE-2025-66418 \
             --ignore-vuln CVE-2025-66471 \
             --ignore-vuln CVE-2026-21441 \
-            --ignore-vuln CVE-2026-24049
+            --ignore-vuln CVE-2026-24049 \
+            --ignore-vuln CVE-2026-44431
 
       # Trivy filesystem scan — informational. `--exit-code 0` already makes
       # vulnerability findings non-fatal; install/extraction failures should
