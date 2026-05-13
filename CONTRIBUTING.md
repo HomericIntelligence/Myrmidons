@@ -172,6 +172,33 @@ subscription on hi.research.> and MaxAckPending=1.
 Closes #20"
 ```
 
+### Test Antipatterns to Avoid
+
+#### `run ... || true` in BATS files
+
+Never append `|| true` to a BATS `run` line:
+
+```bash
+# BAD — $status is meaningless, any subsequent assertion is silently neutered
+run some-command --foo bar || true
+[ "$status" -eq 0 ]
+
+# GOOD — `run` already captures the exit code into $status
+run some-command --foo bar
+[ "$status" -eq 0 ]
+```
+
+BATS's `run` builtin already captures the command's exit code into `$status`,
+so the command can never fail the test. Wrapping it in `|| true` puts it in an
+always-zero subshell, so `$status` is permanently 0 and any
+`[ "$status" -eq N ]` check silently passes. This antipattern shipped
+undetected in Tests 1, 2, and 3 before #398. The `forbid-bats-run-or-true`
+pre-commit hook (see `scripts/check-bats-run-or-true.sh`) blocks it.
+
+Legitimate `|| true` uses in `.bats` files remain allowed for cleanup hooks
+(`kill ... || true`) and command substitutions (`x=$(grep -c ... || true)`)
+because those do not interact with `run`'s `$status` capture.
+
 ## Validation and Testing
 
 ```bash
