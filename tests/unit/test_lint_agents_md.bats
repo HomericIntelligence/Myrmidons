@@ -5,7 +5,9 @@
 #
 # Verifies that the script passes when all six required sections are present,
 # fails with a clear error message when any section is missing, and handles
-# edge cases (missing file, partial matches).
+# edge cases (missing file, partial matches, stdin, env var).
+
+bats_require_minimum_version 1.5.0
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 LINT_SCRIPT="${SCRIPT_DIR}/scripts/lint-agents-md.sh"
@@ -183,4 +185,61 @@ EOF
     # Run from repo root so the default path resolves correctly
     run bash -c "cd '${SCRIPT_DIR}' && bash scripts/lint-agents-md.sh"
     [ "$status" -eq 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# Tests 13–18: stdin input modes
+# ---------------------------------------------------------------------------
+
+@test "lint-agents-md: stdin via '-' arg with complete content exits 0" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    run bash -c "bash '$LINT_SCRIPT' - < '${TMP_DIR}/AGENTS.md'"
+    [ "$status" -eq 0 ]
+}
+
+@test "lint-agents-md: stdin via '-' arg with missing section exits 1" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    grep -v "^## Scope" "${TMP_DIR}/AGENTS.md" > "${TMP_DIR}/AGENTS-broken.md"
+    run bash -c "bash '$LINT_SCRIPT' - < '${TMP_DIR}/AGENTS-broken.md'"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"## Scope"* ]]
+    [[ "$output" == *"<stdin>"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Tests: LINT_AGENTS_MD_FILE environment variable
+# ---------------------------------------------------------------------------
+
+@test "lint-agents-md: LINT_AGENTS_MD_FILE env var with complete file exits 0" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    LINT_AGENTS_MD_FILE="${TMP_DIR}/AGENTS.md" run bash "$LINT_SCRIPT"
+    [ "$status" -eq 0 ]
+}
+
+@test "lint-agents-md: LINT_AGENTS_MD_FILE env var with missing section exits 1" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    grep -v "^## Permitted Actions" "${TMP_DIR}/AGENTS.md" > "${TMP_DIR}/AGENTS-broken.md"
+    LINT_AGENTS_MD_FILE="${TMP_DIR}/AGENTS-broken.md" run bash "$LINT_SCRIPT"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"## Permitted Actions"* ]]
+}
+
+@test "lint-agents-md: LINT_AGENTS_MD_FILE='-' reads stdin" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    run bash -c "LINT_AGENTS_MD_FILE=- bash '$LINT_SCRIPT' < '${TMP_DIR}/AGENTS.md'"
+    [ "$status" -eq 0 ]
+}
+
+@test "lint-agents-md: positional arg takes precedence over LINT_AGENTS_MD_FILE" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    grep -v "^## Scope" "${TMP_DIR}/AGENTS.md" > "${TMP_DIR}/AGENTS-broken.md"
+    # env var points at broken file, but positional arg should win
+    LINT_AGENTS_MD_FILE="${TMP_DIR}/AGENTS-broken.md" run bash "$LINT_SCRIPT" "${TMP_DIR}/AGENTS.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "lint-agents-md: LINT_AGENTS_MD_FILE pointing to missing file exits 1" {
+    LINT_AGENTS_MD_FILE="${TMP_DIR}/does-not-exist.md" run bash "$LINT_SCRIPT"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"file not found"* ]]
 }
