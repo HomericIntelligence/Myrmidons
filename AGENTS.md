@@ -101,6 +101,9 @@ pixi run --environment lint lint-shell
 # YAML lint
 pixi run --environment lint lint-yaml
 
+# Validate required H2 sections in AGENTS.md (run before editing this file)
+pixi run --environment lint lint-agents-md
+
 # Dry-run reconciliation (requires Agamemnon running)
 ./scripts/plan.sh
 ```
