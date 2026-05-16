@@ -39,9 +39,19 @@ main() {
     check_jq
     agamemnon_check_connection
 
-    local effective_owner="${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}"
-    export MYRMIDONS_DEFAULT_OWNER="$effective_owner"
-    log_debug "Default owner for exported agents: ${effective_owner}"
+    # Resolve the effective owner once into a function-local variable with a
+    # distinct name. We deliberately do NOT `export` it: bash subshells
+    # (including the pipe-fed `while` loop below) already inherit non-exported
+    # shell variables, so `export_agent` sees the value without polluting the
+    # parent shell's environment when this script is `source`d.
+    #
+    # NB: we cannot use `local MYRMIDONS_DEFAULT_OWNER=...` here because bash
+    # keeps function locals visible to the EXIT trap when `exit` is called
+    # from inside the function — which would leak a name-collision back into
+    # the sourcing shell's trap context (see test_export_no_env_leak.bats).
+    # See issue #526 (follow-up from #404).
+    local _effective_owner="${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}"
+    log_debug "Default owner for exported agents: ${_effective_owner}"
 
     log_info "Exporting agents from Agamemnon (${AGAMEMNON_URL}) for host: ${HOST}"
     log_info ""
@@ -118,7 +128,7 @@ export_agent() {
     workdir="$(echo "$agent_json" | jq -r '.workingDirectory // ""')"
     args="$(echo "$agent_json" | jq -r '.programArgs // ""')"
     desc="$(echo "$agent_json" | jq -r '.taskDescription // ""')"
-    owner="$(echo "$agent_json" | jq -r --arg default_owner "${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}" '.owner // $default_owner')"
+    owner="$(echo "$agent_json" | jq -r --arg default_owner "${_effective_owner:-${MYRMIDONS_DEFAULT_OWNER:-$(whoami)}}" '.owner // $default_owner')"
     role="$(echo "$agent_json" | jq -r '.role // "member"')"
     status="$(echo "$agent_json" | jq -r '.status // "offline"')"
     deployment_type="$(echo "$agent_json" | jq -r '.deployment.type // "local"')"
