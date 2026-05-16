@@ -189,7 +189,14 @@ _guard_snapshot_dir() {
     fi
 
     # Block derived out-of-repo paths (only when SNAPSHOT_DIR was not explicitly set).
-    if [[ -z "$explicitly_set" && "$dir" != "${REPO_ROOT}"/* ]]; then
+    # Strip any trailing slash from REPO_ROOT (#487) so the glob below does not silently
+    # fail when REPO_ROOT is set to something like "/home/user/repo/" — the resulting
+    # pattern "/home/user/repo//*" would not match the legitimate default
+    # "/home/user/repo/.myrmidons/snapshots".
+    # NOTE: variable name avoids the lowercase "repo_root" substring (issue #370 invariant
+    # enforced by tests/unit/test_apply_sc2154.bats).
+    local REPO_ROOT_NOSLASH="${REPO_ROOT%/}"
+    if [[ -z "$explicitly_set" && "$dir" != "${REPO_ROOT_NOSLASH}"/* ]]; then
         echo "ERROR: snapshot dir '${dir}' is outside the repo tree '${REPO_ROOT}'." >&2
         echo "  REPO_ROOT may be empty or unset. Set SNAPSHOT_DIR explicitly to override." >&2
         exit 1

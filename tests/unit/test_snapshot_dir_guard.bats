@@ -40,7 +40,8 @@ _run_guard() {
                 exit 1
             fi
 
-            if [[ -z \"\$explicitly_set\" && \"\$dir\" != \"\${REPO_ROOT}\"/* ]]; then
+            local repo_root_stripped=\"\${REPO_ROOT%/}\"
+            if [[ -z \"\$explicitly_set\" && \"\$dir\" != \"\${repo_root_stripped}\"/* ]]; then
                 echo \"ERROR: snapshot dir '\${dir}' is outside the repo tree '\${REPO_ROOT}'.\" >&2
                 echo \"  REPO_ROOT may be empty or unset. Set SNAPSHOT_DIR explicitly to override.\" >&2
                 exit 1
@@ -127,4 +128,23 @@ _run_guard() {
     run _run_guard "/tmp/my-snapshots" "set" "/home/user/myrepo"
     [ "$status" -eq 0 ]
     [ -z "$output" ]
+}
+
+# ---------------------------------------------------------------------------
+# Case 5 (#487): REPO_ROOT with trailing slash must still match in-repo paths
+# ---------------------------------------------------------------------------
+
+@test "_guard_snapshot_dir: REPO_ROOT with trailing slash accepts in-repo path" {
+    # Without the ${REPO_ROOT%/} strip, the glob "/home/user/myrepo//*" would not
+    # match "/home/user/myrepo/.myrmidons/snapshots" and the guard would falsely
+    # report an out-of-repo path.
+    run _run_guard "/home/user/myrepo/.myrmidons/snapshots" "" "/home/user/myrepo/"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "_guard_snapshot_dir: REPO_ROOT with trailing slash still rejects out-of-repo path" {
+    run _run_guard "/tmp/snapshots" "" "/home/user/myrepo/"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"outside the repo tree"* ]]
 }
