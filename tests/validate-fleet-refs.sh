@@ -36,6 +36,11 @@ fi
 echo "Validating fleet ref referential integrity and inline agent definitions..."
 echo ""
 
+# Warn if fleets/ directory is missing (issue #656)
+if [[ ! -d "${REPO_ROOT}/fleets" ]]; then
+    echo "WARNING: ${REPO_ROOT}/fleets directory not found — ref validation skipped (check REPO_ROOT)" >&2
+fi
+
 # Iterate over all fleet YAML files
 while IFS= read -r -d '' fleet_file; do
     kind="$(yq eval '.kind // ""' "$fleet_file")"
