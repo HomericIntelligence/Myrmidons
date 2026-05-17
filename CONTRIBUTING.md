@@ -195,8 +195,8 @@ BATS's `run` builtin already captures the command's exit code into `$status`,
 so the command can never fail the test. Wrapping it in `|| true` puts it in an
 always-zero subshell, so `$status` is permanently 0 and any
 `[ "$status" -eq N ]` check silently passes. This antipattern shipped
-undetected in Tests 1, 2, and 3 before #398. The `forbid-bats-run-or-true`
-pre-commit hook (see `scripts/check-bats-run-or-true.sh`) blocks it.
+undetected in Tests 1, 2, and 3 before #398. The general `forbid-or-true`
+pre-commit hook blocks the antipattern repo-wide.
 
 Legitimate `|| true` uses in `.bats` files remain allowed for cleanup hooks
 (`kill ... || true`) and command substitutions (`x=$(grep -c ... || true)`)

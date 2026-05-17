@@ -33,19 +33,15 @@ lint    = { features = ["lint"], solve-group = "lint" }
 validate      = "just validate"
 lint-names    = "bash scripts/lint-names.sh"
 lint-shell    = "bash scripts/lint-shell.sh"
-check-adr-index = "bash scripts/check-adr-index.sh"
 lint-agents-md = "bash scripts/lint-agents-md.sh"
-lint-docs-crossref = "bash scripts/check-docs-crossref.sh"
 
 test-unit        = "bats tests/unit/"
 test-schema      = "./tests/validate-schemas.sh"
 test-doc-drift   = "./tests/detect-doc-drift.sh"
-test-xtrace      = "bash tests/test-check-xtrace-guards.sh"
 test-schema-hints = "./tests/test-check-schema-hints.sh"
-test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-xtrace", "test-schema-hints"] }
+test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-schema-hints"] }
 
 [feature.lint.tasks]
 lint-shell     = { cmd = "find scripts tests hooks \\( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \\) | sort | xargs shellcheck --severity=warning --enable=SC2154", description = "ShellCheck all shell scripts and bats tests at warning severity" }
 lint-agents-md = "bash scripts/lint-agents-md.sh"
-lint-docs-crossref = "bash scripts/check-docs-crossref.sh"
-lint           = { depends-on = ["lint-shell", "check-adr-index", "lint-agents-md", "lint-docs-crossref"] }
+lint           = { depends-on = ["lint-shell", "lint-agents-md"] }

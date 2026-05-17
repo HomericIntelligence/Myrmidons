@@ -61,6 +61,6 @@ Expected output includes `"security/secrets-scan"` and `"security/dependency-sca
 ## Design notes
 
 - `strict: false` — stale branches may merge without rebasing; set to `true` to require branches to be up-to-date before merging.
-- `security/secrets-scan` must **not** have `continue-on-error: true` on the gitleaks step — a regression guard pre-commit hook (`no-gitleaks-continue-on-error`) enforces this. See `scripts/check-gitleaks-coe.sh`.
+- `security/secrets-scan` must **not** have `continue-on-error: true` on the gitleaks step — the `forbid-continue-on-error` pre-commit hook (pygrep over all workflow files) enforces this repo-wide.
 - `security/dependency-scan` uses `|| true` on pip-audit and Trivy intentionally — those tools are informational. Only `security/secrets-scan` is a hard block.
 - Path-filtered workflows should not be added as required checks (they skip on unrelated PRs and would block merges incorrectly).
