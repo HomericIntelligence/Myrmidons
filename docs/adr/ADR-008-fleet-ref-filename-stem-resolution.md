@@ -5,6 +5,14 @@
 **Accepted:** 2026-05-03
 **Author:** mvillmow
 
+> **Historical note (2026-05-17):** This ADR was written while the reconciler
+> lived in Myrmidons. Concrete references below to `scripts/export.sh` and
+> `scripts/lib/reconcile.sh` are now in
+> [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon)
+> under `tools/reconciler/scripts/`. The contract (fleet `ref:` resolves by
+> filename stem) is unchanged and remains the dataset's responsibility —
+> `tests/validate-fleet-refs.sh` here enforces it.
+
 ---
 
 ## Context

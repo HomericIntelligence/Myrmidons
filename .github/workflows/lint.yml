@@ -42,6 +42,3 @@ jobs:
 
       - name: Check documentation drift
         run: pixi run test-doc-drift
-
-      - name: Run standalone test harnesses
-        run: pixi run test-standalone

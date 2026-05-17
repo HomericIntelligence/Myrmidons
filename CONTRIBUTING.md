@@ -1,9 +1,12 @@
 # Contributing to Myrmidons
 
-Thank you for your interest in contributing to Myrmidons! This is the GitOps agent
-provisioning repository for the
-[HomericIntelligence](https://github.com/HomericIntelligence) distributed agent mesh —
-agent definitions as code, reconciled against the ProjectAgamemnon API.
+Thank you for your interest in contributing to Myrmidons! This repository is
+the source-of-truth **dataset** for the
+[HomericIntelligence](https://github.com/HomericIntelligence) distributed agent
+mesh — agent and fleet definitions as YAML, plus the schemas and validators
+that keep them consistent. Consumers (notably
+[ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon))
+read this dataset and reconcile their runtime against it.
 
 For an overview of the full ecosystem, see the
 [Odysseus](https://github.com/HomericIntelligence/Odysseus) meta-repo.
@@ -47,11 +50,11 @@ just --list
 ### Verify Your Setup
 
 ```bash
-# Validate all manifest schemas
+# Validate every agent/fleet YAML against the schema
 just validate
 
-# Check agent status (requires a running Agamemnon instance)
-just status
+# Run the full validator test suite
+just test
 ```
 
 ## What You Can Contribute
@@ -202,35 +205,21 @@ because those do not interact with `run`'s `$status` capture.
 ## Validation and Testing
 
 ```bash
-# Validate all manifest schemas
+# Validate every agent/fleet YAML against the schema + name uniqueness
 just validate
 
-# Preview what would be applied (dry run)
-just plan
+# Run the full validator test suite (bats unit + schema + drift)
+just test
 
-# Apply manifests to a specific host (requires Agamemnon)
-just apply <HOST>
+# Run every linter (shellcheck, yamllint, schema-hint, dangerous-flags, ...)
+pixi run lint
 ```
 
-## Drift detection
-
-The reconciler compares these fields between desired YAML state and actual Agamemnon state:
-
-| Field | Checked for drift |
-|-------|------------------|
-| `spec.label` | ✓ |
-| `spec.program` | ✓ |
-| `spec.workingDirectory` | ✓ |
-| `spec.programArgs` | ✓ |
-| `spec.taskDescription` | ✓ |
-| `spec.tags` | ✓ (order-insensitive) |
-| `spec.owner` | ✓ |
-| `spec.role` | ✓ |
-| `spec.desiredState` | ✓ (drives WAKE/HIBERNATE) |
-| `spec.model` | — (not tracked; Agamemnon manages model selection at runtime) |
-| `spec.deployment.type` | — (not tracked; see below) |
-
-Fields NOT currently tracked (no drift detection): `spec.model`, `spec.deployment.type`, `spec.deployment.docker.*`
+Drift detection (what changes consumers should apply on the runtime side) is
+defined by the consumer of this dataset — see
+[ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon).
+This repo's job is to make sure the YAML is well-formed, schema-conformant, and
+policy-compliant. What a consumer does with it is the consumer's contract.
 
 ## Pull Request Process
 

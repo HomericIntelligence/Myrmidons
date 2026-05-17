@@ -9,7 +9,6 @@ All are defined in `.github/workflows/_required.yml`.
 |-----------------------------------|-----------------|
 | `lint` | `lint` |
 | `unit-tests` | `unit-tests` |
-| `integration-tests` | `integration-tests` |
 | `build` | `build` |
 | `typecheck` | `typecheck` |
 | `schema-validation` | `schema-validation` |

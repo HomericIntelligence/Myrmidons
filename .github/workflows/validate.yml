@@ -70,12 +70,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [pre-commit]
     timeout-minutes: 10
-    # AGAMEMNON_API_KEY: if scripts need authenticated Agamemnon API calls,
-    # set this as a GitHub Actions secret and pass it here:
-    #   env:
-    #     AGAMEMNON_API_KEY: ${{ secrets.AGAMEMNON_API_KEY }}
-    # The validate job currently runs schema checks only and does not call the
-    # Agamemnon API, so the secret is not wired in by default. (#223)
     steps:
       - uses: actions/checkout@v4
 
@@ -105,20 +99,3 @@ jobs:
 
       - name: Fleet ref validation
         run: tests/validate-fleet-refs.sh
-
-  doctor:
-    name: Doctor — Dependency Check
-    runs-on: ubuntu-latest
-    needs: [pre-commit]
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-pixi
-
-      - name: Run doctor (deps only, skip connectivity + hooks)
-        run: |
-          chmod +x scripts/doctor.sh
-          # In CI there is no real Agamemnon endpoint or installed git hooks;
-          # skip both. Doctor still validates tools, YAML, and pixi env.
-          pixi run bash scripts/doctor.sh --skip-connectivity --skip-hooks
