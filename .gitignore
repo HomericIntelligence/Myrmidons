@@ -29,3 +29,7 @@ hello-world/main.py
 
 # Reconciliation reports (runtime state, not config)
 reports/last-reconciliation.json
+
+# Transient sandboxes from hook debugging / automation runs — never commit
+_test_*/
+.issue_implementer/
