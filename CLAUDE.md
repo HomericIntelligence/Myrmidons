@@ -100,6 +100,7 @@ talk to Agamemnon or any other runtime.
 |--------|----------------|
 | `scripts/check-dangerous-flags.sh` | `--dangerously-skip-permissions` requires inline suppression with justification |
 | `scripts/check-schema-hints.sh` | Every agent/fleet YAML carries a `yaml-language-server` schema-hint comment |
+| `scripts/check-gitleaks-annotations.sh` | Every `.gitleaks.toml` allowlist entry carries a `# gitleaks-allowlist:` justification |
 | `scripts/lint-names.sh` | `metadata.name` uniqueness across all agent YAMLs |
 | `scripts/lint-agents-md.sh` | `AGENTS.md` has the required sections |
 | `scripts/lint-shell.sh` | Shellcheck over every shell file in this repo |
@@ -218,6 +219,11 @@ paths = [
 Every allowlist entry **must** include an inline comment
 `# gitleaks-allowlist: <justification>` describing why the match is a false
 positive.
+
+**Lint guard:** `scripts/check-gitleaks-annotations.sh` enforces this policy by
+scanning every entry inside an `[allowlist]` block of `.gitleaks.toml`. Runs as
+a pre-commit hook (`check-gitleaks-annotations`) and in CI via pre-commit
+parity.
 
 The CI step in `.github/workflows/_required.yml` always passes
 `--config .gitleaks.toml` so allowlist entries are applied automatically.
