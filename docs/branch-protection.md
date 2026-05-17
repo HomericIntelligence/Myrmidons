@@ -22,6 +22,8 @@ All are defined in `.github/workflows/_required.yml`.
 
 ## Restoring required checks after a protection reset
 
+> **Tip:** If only adding new required checks (not restoring after a wipe), use the incremental snippet below instead — it preserves any extras already configured.
+
 If branch protection is wiped (e.g. after a repo transfer or settings reset), run:
 
 ```bash
@@ -48,6 +50,25 @@ gh api --method PATCH \
 }
 EOF
 ```
+
+### Incrementally adding a required check
+
+When you only need to add one or more new contexts (e.g. registering
+`security/secrets-scan` and `security/dependency-scan` without disturbing
+anything else already configured), use `jq` to merge the new entries into the
+current list rather than rewriting it:
+
+```bash
+# Add security jobs without overwriting existing required checks
+gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
+  | jq '.contexts += ["security/secrets-scan", "security/dependency-scan"] | .contexts |= unique' \
+  | gh api --method PATCH \
+    repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
+    --input -
+```
+
+The `| .contexts |= unique` step makes the command idempotent — re-running it
+will not produce duplicate entries.
 
 ## Verifying current required checks
 
