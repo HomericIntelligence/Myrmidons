@@ -61,6 +61,61 @@ Expected output includes `"security/secrets-scan"` and `"security/dependency-sca
 ## Design notes
 
 - `strict: false` — stale branches may merge without rebasing; set to `true` to require branches to be up-to-date before merging.
-- `security/secrets-scan` must **not** have `continue-on-error: true` on the gitleaks step — the `forbid-continue-on-error` pre-commit hook (pygrep over all workflow files) enforces this repo-wide.
-- `security/dependency-scan` uses `|| true` on pip-audit and Trivy intentionally — those tools are informational. Only `security/secrets-scan` is a hard block.
 - Path-filtered workflows should not be added as required checks (they skip on unrelated PRs and would block merges incorrectly).
+
+## CI security scans — blocking rationale
+
+The two security required-checks behave very differently on purpose. The
+asymmetry is deliberate, not an oversight.
+
+### `security/secrets-scan` (gitleaks) — **hard block**
+
+- **What it does:** runs `gitleaks detect --source . --config .gitleaks.toml --no-git -v` over the full tree on every PR.
+- **Why it blocks:** a leaked secret in source is an immediate, irrecoverable
+  security incident — once a credential is pushed to a public-history branch it
+  must be treated as compromised even if the commit is later removed. There is
+  no acceptable "merge now, rotate later" workflow for this class of finding.
+- **No `continue-on-error` allowed.** The gitleaks step intentionally has no
+  `continue-on-error: true` and no `|| true`. Two regression guards enforce
+  this repo-wide:
+  - `forbid-continue-on-error` (pre-commit + CI) — a pygrep hook in
+    `.pre-commit-config.yaml` that blocks `continue-on-error: true` anywhere
+    under `.github/workflows/`.
+  - `forbid-advisory-warnings` (pre-commit + CI) — blocks `|| true` patterns in
+    workflow `run:` blocks so an author cannot silently downgrade gitleaks to
+    advisory mode.
+- **False positives** are handled exclusively via `.gitleaks.toml` allowlist
+  entries with `# gitleaks-allowlist: <justification>` comments. See the
+  Gitleaks allowlist section of [CLAUDE.md](../CLAUDE.md).
+
+### `security/dependency-scan` (pip-audit + Trivy) — **informational**
+
+The job is required-to-run (so the signal is visible on every PR) but the two
+scanners inside are configured to surface vulnerability findings as
+information, not as a merge block:
+
+- **`pip-audit`** runs with an explicit `--ignore-vuln <ID>` list against the
+  baseline `ubuntu-latest` runner image (issue #713). Myrmidons declares zero
+  PyPI dependencies, so every advisory pip-audit raises is in the runner image
+  itself — outside our control until `actions/runner-images` ships a refresh.
+  Blocking PRs on transient upstream runner CVEs would halt all merges with no
+  remediation available to the contributor.
+- **`Trivy filesystem scan`** runs with `--exit-code 0` (vulnerability findings
+  non-fatal). Install/extraction failures still fail the step — we want to
+  know when the scanner stops working, just not when it reports a HIGH against
+  an upstream package.
+- **Why we don't hard-block:** (a) baseline CVEs in the runner image are out
+  of our control, and (b) blocking on transient upstream advisories would
+  block every PR for reasons unrelated to the change under review.
+- **How findings are tracked:** dated allowlists in the workflow itself
+  (`--ignore-vuln` IDs with a review date — see the comment block above the
+  `pip-audit` step in `.github/workflows/_required.yml`). Each allowlisted CVE
+  carries a `review YYYY-MM-DD` marker so the list can be pruned after the
+  next runner-image refresh.
+
+### Quick reference
+
+| Job | Behaviour | Reason |
+|-----|-----------|--------|
+| `security/secrets-scan` | Hard block. Any gitleaks hit fails the PR. | Leaked secrets are irrecoverable; rotation is not a substitute for prevention. |
+| `security/dependency-scan` | Informational. `pip-audit --ignore-vuln`, `trivy --exit-code 0`. | Findings are dominated by runner-image baseline CVEs outside our control. Tracked via dated allowlists. |
