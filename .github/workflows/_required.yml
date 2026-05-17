@@ -144,12 +144,24 @@ jobs:
       # before merging. No advisory mode. See docs/runbooks/no-silent-failures.md
       # Bucket F.
       #
-      # Baseline runner-image CVEs allowlisted per issue #713 (review 2026-08-08).
-      # Each --ignore-vuln below corresponds to a finding in #713 against the
-      # `ubuntu-latest` baseline Python packages (pip, setuptools, requests,
-      # cryptography, twisted, urllib3, jinja2, etc.). Myrmidons declares zero
-      # PyPI dependencies, so these come from the runner image, not our source
-      # tree — revisit and prune after each `actions/runner-images` refresh.
+      # Baseline review schedule: 2026-08-08 (see #713)
+      #
+      # The --ignore-vuln allowlist below is the runner-image baseline captured
+      # in issue #713 against the `ubuntu-latest` baseline Python packages
+      # (certifi, configobj, cryptography, idna, jinja2, pip, pyasn1, pygments,
+      # pyjwt, pyopenssl, requests, setuptools, twisted, urllib3, wheel).
+      # Myrmidons declares zero PyPI dependencies, so these CVEs come from the
+      # GitHub runner image, not our source tree.
+      #
+      # On 2026-08-08 (or sooner if `actions/runner-images` ships a refresh):
+      #   1. Re-run pip-audit WITHOUT --ignore-vuln on a fresh runner.
+      #   2. Prune any IDs below that are no longer reported (drop the line).
+      #   3. If NEW IDs appear, open a follow-up issue rather than blind-adding.
+      #   4. Bump this review-marker date or close #713 if the list is empty.
+      #
+      # Each ID below is tracked by issue #713; the consolidated marker above
+      # is intentional (per-line tracking refs were tried in earlier iterations
+      # but break shell line-continuation with inline `# comment \` syntax).
       - name: pip-audit
         run: |
           set -euo pipefail
