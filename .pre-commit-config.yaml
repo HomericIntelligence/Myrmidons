@@ -36,7 +36,7 @@ repos:
 
   # Secret scanning — uses system-installed gitleaks binary (avoids Go build)
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.1
+    rev: v8.24.3
     hooks:
       - id: gitleaks-system
         pass_filenames: false
@@ -98,6 +98,18 @@ repos:
         entry: scripts/lint-agents-md.sh
         files: ^AGENTS\.md$
         pass_filenames: false
+
+      - id: check-gitleaks-version-skew
+        name: "check gitleaks version pin consistency"
+        description: >
+          The gitleaks binary version is pinned in three sites — the CI
+          workflow env, .gitleaks.toml header, and the pre-commit hook rev.
+          This hook fails if any drift apart. See issue #559.
+        language: system
+        entry: scripts/check-gitleaks-version-skew.sh
+        files: '^(\.gitleaks\.toml|\.github/workflows/_required\.yml|\.pre-commit-config\.yaml)$'
+        pass_filenames: false
+        always_run: true
 
       - id: forbid-or-true
         name: "forbid silent-failure workaround in shell/YAML/Dockerfile/justfile/HCL"
