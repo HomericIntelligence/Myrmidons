@@ -70,6 +70,11 @@ repos:
         name: Fleet ref validation
         language: system
         entry: tests/validate-fleet-refs.sh
+        # pass_filenames: false → the hook scans the whole dataset, not
+        # individual staged files. Combined with the single hook definition,
+        # this ensures the validator runs exactly once per `pre-commit run`
+        # invocation even when a commit touches BOTH agents/*.yaml AND
+        # fleets/*.yaml in the same commit. See issue #657.
         pass_filenames: false
         files: '^(agents|fleets)/.*\.ya?ml$'
 
