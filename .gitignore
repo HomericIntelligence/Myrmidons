@@ -24,8 +24,5 @@ tests/*.log
 ProjectMnemosyne/
 build/
 
-# Old/unused implementations
-hello-world/main.py
-
 # Reconciliation reports (runtime state, not config)
 reports/last-reconciliation.json

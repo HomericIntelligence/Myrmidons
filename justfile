@@ -150,32 +150,6 @@ lint:
 check: lint test
 
 # =============================================================================
-# C++ Examples
-# =============================================================================
-
-# Build the hello-world C++ example (requires cmake and ninja on PATH)
-# Tip: install via pixi: pixi install -e cpp && pixi shell -e cpp
-build-hello-world:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if ! command -v cmake &>/dev/null; then
-        echo "ERROR: cmake not found." >&2
-        echo "  Install via pixi: pixi install -e cpp" >&2
-        echo "  Then activate:    pixi shell -e cpp" >&2
-        echo "  Or run directly:  pixi run -e cpp build-hello-world" >&2
-        exit 1
-    fi
-    if ! command -v ninja &>/dev/null; then
-        echo "ERROR: ninja not found." >&2
-        echo "  Install via pixi: pixi install -e cpp" >&2
-        echo "  Then activate:    pixi shell -e cpp" >&2
-        echo "  Or run directly:  pixi run -e cpp build-hello-world" >&2
-        exit 1
-    fi
-    cmake -S hello-world -B build/hello-world -G Ninja -DCMAKE_BUILD_TYPE=Release
-    cmake --build build/hello-world
-
-# =============================================================================
 # Hooks
 # =============================================================================
 
