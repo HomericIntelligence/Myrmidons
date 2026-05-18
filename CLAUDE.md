@@ -228,6 +228,26 @@ parity.
 The CI step in `.github/workflows/_required.yml` always passes
 `--config .gitleaks.toml` so allowlist entries are applied automatically.
 
+### CI security scans: hard block vs informational
+
+Two required checks cover security: `security/secrets-scan` and
+`security/dependency-scan`. They are configured asymmetrically on purpose.
+
+- **`security/secrets-scan` (gitleaks) — hard block.** Any finding fails the
+  PR. Leaked secrets are an immediate, irrecoverable risk. The
+  `forbid-continue-on-error` and `forbid-advisory-warnings` pre-commit hooks
+  prevent anyone from downgrading this step to advisory mode.
+- **`security/dependency-scan` (pip-audit + Trivy) — informational.**
+  `pip-audit` runs with an explicit `--ignore-vuln` list and `trivy fs` runs
+  with `--exit-code 0`. Myrmidons has zero PyPI dependencies, so findings are
+  dominated by baseline `ubuntu-latest` runner-image CVEs we cannot fix from
+  this repo. Blocking PRs on transient upstream advisories would halt every
+  merge with no remediation path. Findings are tracked via dated allowlists
+  in the workflow itself.
+
+Full rationale and the regression-guard hook list:
+[`docs/branch-protection.md`](docs/branch-protection.md#ci-security-scans--blocking-rationale).
+
 ## Known gotchas
 
 ### jq 1.6: `label` is a reserved keyword
