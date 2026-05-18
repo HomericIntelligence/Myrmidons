@@ -80,6 +80,13 @@ repos:
         pass_filenames: true
         files: ^(agents|fleets)/.*\.ya?ml$
 
+      - id: check-gitleaks-annotations
+        name: Gitleaks allowlist justification check
+        language: system
+        entry: scripts/check-gitleaks-annotations.sh
+        pass_filenames: false
+        files: ^\.gitleaks\.toml$
+
       - id: myrmidons-lint-agents-md
         name: AGENTS.md required sections
         language: script
