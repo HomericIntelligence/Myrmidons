@@ -1,5 +1,8 @@
 # Myrmidons gitleaks configuration
-# GITLEAKS_VERSION: pinned via .github/workflows/_required.yml env.GITLEAKS_VERSION
+# Pinned version: v8.24.3 (mirrors GITLEAKS_VERSION in .github/workflows/_required.yml)
+# The workflow env var is the source of truth; this comment exists so the pre-commit hook
+# and the CI binary stay in sync. Issue #559 tracks automated skew detection between this
+# header and the workflow env var.
 # This config extends gitleaks' built-in rules and adds allowlist entries for documentation
 # examples and test fixtures that match secret patterns but are not real credentials.
 
