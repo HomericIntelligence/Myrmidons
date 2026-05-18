@@ -71,6 +71,10 @@ while IFS= read -r -d '' fleet_file; do
 
     echo "  ${fleet_rel} (${fleet_name}):"
 
+    # Track refs seen within THIS fleet so we can flag duplicates.
+    # Bash 4+ associative array; key = ref string, value = first index seen.
+    declare -A SEEN_REFS=()
+
     # Process each agent entry by index
     for (( idx=0; idx<agent_count; idx++ )); do
         ref="$(yq eval ".spec.agents[${idx}].ref // \"\"" "$fleet_file" 2>/dev/null || true)"
@@ -86,6 +90,16 @@ while IFS= read -r -d '' fleet_file; do
             else
                 echo "FAIL (agents/${ref}.yaml not found)"
                 ERRORS=$((ERRORS + 1))
+            fi
+
+            # Duplicate detection: a ref listed twice in the same fleet is an
+            # authoring error — the consumer would reconcile the agent against
+            # whichever entry it encountered last. Flag it loudly.
+            if [[ -n "${SEEN_REFS[$ref]+x}" ]]; then
+                echo "    FAIL (duplicate ref '${ref}' in ${fleet_rel}; first seen at index ${SEEN_REFS[$ref]}, repeated at index ${idx})"
+                ERRORS=$((ERRORS + 1))
+            else
+                SEEN_REFS[$ref]="$idx"
             fi
         else
             # --- inline agent: validate required fields ---
@@ -113,6 +127,7 @@ while IFS= read -r -d '' fleet_file; do
             fi
         fi
     done
+    unset SEEN_REFS
     echo ""
 
 done < <(find "${REPO_ROOT}/fleets" -name "*.yaml" -print0 2>/dev/null)

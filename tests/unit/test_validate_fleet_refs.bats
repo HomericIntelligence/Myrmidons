@@ -352,3 +352,57 @@ YAML
     [[ "$output" == *"Validating fleet ref"* ]]
     [[ "$output" != *"already ran"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test 13: fleet listing the same ref twice exits 1 with a duplicate message
+# (Issue #658)
+# ---------------------------------------------------------------------------
+
+@test "validate-fleet-refs: exits 1 when a ref is listed twice in the same fleet" {
+    cat > "${TMP_ROOT}/fleets/dup.yaml" <<YAML
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: dup-fleet
+spec:
+  agents:
+    - ref: hermes/real-agent
+    - ref: hermes/real-agent
+YAML
+
+    run _run_validate
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"duplicate ref"* ]]
+    [[ "$output" == *"hermes/real-agent"* ]]
+    [[ "$output" == *"fleets/dup.yaml"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Test 14: duplicate detection is scoped per-fleet — the same ref may appear
+# in two separate fleet files without triggering a failure (Issue #658).
+# ---------------------------------------------------------------------------
+
+@test "validate-fleet-refs: same ref in two separate fleets is not a duplicate" {
+    cat > "${TMP_ROOT}/fleets/fleet-a.yaml" <<YAML
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: fleet-a
+spec:
+  agents:
+    - ref: hermes/real-agent
+YAML
+    cat > "${TMP_ROOT}/fleets/fleet-b.yaml" <<YAML
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: fleet-b
+spec:
+  agents:
+    - ref: hermes/real-agent
+YAML
+
+    run _run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"duplicate ref"* ]]
+}
