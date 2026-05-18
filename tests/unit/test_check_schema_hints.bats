@@ -209,6 +209,48 @@ apiVersion: myrmidons/v1
 }
 
 # ---------------------------------------------------------------------------
+# Issue #465: .yml extension is also covered (parity with .yaml)
+# ---------------------------------------------------------------------------
+
+@test "check-schema-hints: .yml file with correct canonical hint exits 0" {
+    file="$(_write_yaml correct.yml '# yaml-language-server: $schema=../../schemas/agent-v1.schema.json
+apiVersion: myrmidons/v1
+kind: Agent
+')"
+    run bash "$CHECKER" "$file"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "check-schema-hints: .yml file with missing hint exits 1" {
+    file="$(_write_yaml missing.yml 'apiVersion: myrmidons/v1
+kind: Agent
+')"
+    run bash "$CHECKER" "$file"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"missing or malformed"* ]]
+    [[ "$output" == *"missing.yml"* ]]
+}
+
+@test "check-schema-hints: default scan picks up .yml fixtures under agents/" {
+    # Stage a fixture under a synthetic REPO_ROOT to verify the default
+    # `find -name "*.yaml" -o -name "*.yml"` glob in check-schema-hints.sh
+    # also reports .yml files (issue #465).
+    fake_root="${TMP_DIR}/fakerepo"
+    mkdir -p "${fake_root}/agents/hermes" "${fake_root}/fleets"
+    # Place a bad .yml file (missing hint) so the scan must surface it.
+    printf 'apiVersion: myrmidons/v1\n' > "${fake_root}/agents/hermes/bad.yml"
+    # Copy the checker to a sibling scripts/ dir so its REPO_ROOT resolution
+    # (parent of SCRIPT_DIR) lands on fake_root.
+    mkdir -p "${fake_root}/scripts"
+    cp "$CHECKER" "${fake_root}/scripts/check-schema-hints.sh"
+    run bash "${fake_root}/scripts/check-schema-hints.sh"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"bad.yml"* ]]
+    [[ "$output" == *"missing or malformed"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # Regression guard: real repo default scan exits 0
 # ---------------------------------------------------------------------------
 
