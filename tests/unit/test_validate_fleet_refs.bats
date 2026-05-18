@@ -291,6 +291,20 @@ YAML
     run _run_validate
     [ "$status" -eq 0 ]
     [[ "$output" == *"Checked: 0 refs, 0 inline agents, Errors: 0"* ]]
+    [[ "$output" != *"WARNING"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Test 13 (issue #656): warns to stderr when fleets directory is missing
+# ---------------------------------------------------------------------------
+
+@test "validate-fleet-refs: warns when fleets directory is missing" {
+    rm -rf "${TMP_ROOT}/fleets"
+
+    run _run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARNING"* ]]
+    [[ "$output" == *"fleets directory not found"* ]]
 }
 
 # ---------------------------------------------------------------------------
