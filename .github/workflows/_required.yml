@@ -15,6 +15,7 @@ permissions:
 
 env:
   GITLEAKS_VERSION: "8.24.3"
+  TV_VER: "0.70.0"
 
 jobs:
   forbid-suppressions:
@@ -198,13 +199,11 @@ jobs:
       # vulnerability findings non-fatal; install/extraction failures should
       # still fail the step so we know when the scan stopped working.
       - name: Trivy filesystem scan
-        env:
-          TV_VER: "0.70.0"
         run: |
           set -euo pipefail
           base="https://github.com/aquasecurity/trivy/releases/download"
           curl -sSfL \
-            "${base}/v${TV_VER}/trivy_${TV_VER}_Linux-64bit.tar.gz" \
+            "${base}/v${{ env.TV_VER }}/trivy_${{ env.TV_VER }}_Linux-64bit.tar.gz" \
             | tar -xz -C /usr/local/bin trivy
           trivy fs --severity HIGH,CRITICAL --exit-code 0 .
 
