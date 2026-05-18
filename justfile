@@ -1,103 +1,16 @@
-# Myrmidons justfile — operational task runner
+# Myrmidons justfile — dataset operational helpers
 # Usage: just <recipe>
-# Requires: just, yq, jq, curl (and a running ProjectAgamemnon)
+# Requires: just, yq, jq
 
 # Default: show help
 default:
     @just --list
 
 # =============================================================================
-# Variables
-# =============================================================================
-
-host := env_var_or_default("HOST", "hermes")
-agamemnon_url := env_var_or_default("AGAMEMNON_URL", "http://localhost:8080")
-
-# =============================================================================
-# Observability
-# =============================================================================
-
-# Show desired vs actual state for all agents (or a specific host); pass fleet="" to filter by fleet
-status HOST=host fleet="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    args=({{HOST}})
-    if [[ -n "{{fleet}}" ]]; then args+=(--fleet "{{fleet}}"); fi
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh "${args[@]}"
-
-# Show desired vs actual state for a named fleet
-status-fleet FLEET:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/status.sh --fleet {{FLEET}}
-
-# Display the last reconciliation report (JSON)
-report:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    report_file="reports/last-reconciliation.json"
-    if [[ ! -f "$report_file" ]]; then
-        echo "No reconciliation report found. Run 'just apply' first." >&2
-        exit 1
-    fi
-    jq '.' "$report_file"
-
-# =============================================================================
-# Planning
-# =============================================================================
-
-# Dry-run: show what apply would do (no changes made); pass fleet="<name>" to target a fleet
-plan HOST=host fleet="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    args=({{HOST}} --dry-run)
-    if [[ -n "{{fleet}}" ]]; then args+=(--fleet "{{fleet}}"); fi
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh "${args[@]}"
-
-# Field-level diff: desired YAML vs actual Agamemnon state (optional --agent filter)
-# Usage: just diff               — diff all agents
-#        just diff hermes        — diff agents for a specific host
-#        just diff "" my-agent   — diff a single agent across all hosts
-#        just diff hermes my-agent — diff a single agent on a specific host
-diff HOST="" AGENT="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    args=()
-    if [[ -n "{{HOST}}" ]]; then args+=({{HOST}}); fi
-    if [[ -n "{{AGENT}}" ]]; then args+=(--agent "{{AGENT}}"); fi
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/diff.sh "${args[@]+"${args[@]}"}"
-
-# =============================================================================
-# Apply
-# =============================================================================
-
-# Reconcile desired state → Agamemnon (creates/updates/starts/stops); pass fleet="<name>" to target a fleet
-apply HOST=host fleet="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    args=({{HOST}})
-    if [[ -n "{{fleet}}" ]]; then args+=(--fleet "{{fleet}}"); fi
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh "${args[@]}"
-
-# Apply with --prune (removes agents in Agamemnon that are not in YAML)
-apply-prune HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --prune
-
-# Retry: re-apply agents from .myrmidons/failed-agents.txt (issue #269)
-retry HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/apply.sh {{HOST}} --retry
-
-# =============================================================================
-# Bootstrap
-# =============================================================================
-
-# Export current Agamemnon agents to YAML (bootstrap — run once)
-export HOST=host:
-    AGAMEMNON_URL={{agamemnon_url}} bash scripts/export.sh {{HOST}}
-
-# =============================================================================
 # Validation
 # =============================================================================
 
-# Validate all agent YAML files (schema check without committing)
+# Validate all agent YAML files (schema check)
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -144,36 +57,10 @@ test:
 
 # Run shellcheck on all shell scripts
 lint:
-    shellcheck scripts/*.sh scripts/lib/*.sh hooks/pre-commit tests/*.sh
+    shellcheck scripts/*.sh hooks/pre-commit tests/*.sh
 
 # Run lint and test together
 check: lint test
-
-# =============================================================================
-# C++ Examples
-# =============================================================================
-
-# Build the hello-world C++ example (requires cmake and ninja on PATH)
-# Tip: install via pixi: pixi install -e cpp && pixi shell -e cpp
-build-hello-world:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if ! command -v cmake &>/dev/null; then
-        echo "ERROR: cmake not found." >&2
-        echo "  Install via pixi: pixi install -e cpp" >&2
-        echo "  Then activate:    pixi shell -e cpp" >&2
-        echo "  Or run directly:  pixi run -e cpp build-hello-world" >&2
-        exit 1
-    fi
-    if ! command -v ninja &>/dev/null; then
-        echo "ERROR: ninja not found." >&2
-        echo "  Install via pixi: pixi install -e cpp" >&2
-        echo "  Then activate:    pixi shell -e cpp" >&2
-        echo "  Or run directly:  pixi run -e cpp build-hello-world" >&2
-        exit 1
-    fi
-    cmake -S hello-world -B build/hello-world -G Ninja -DCMAKE_BUILD_TYPE=Release
-    cmake --build build/hello-world
 
 # =============================================================================
 # Hooks

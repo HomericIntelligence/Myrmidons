@@ -131,18 +131,6 @@ jobs:
       - name: Run unit tests (bats)
         run: pixi run test-unit
 
-  integration-tests:
-    name: integration-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-pixi
-
-      - name: Run integration tests (bats)
-        run: pixi run test-integration
-
   security-dependency-scan:
     name: security/dependency-scan
     runs-on: ubuntu-latest
@@ -377,28 +365,3 @@ jobs:
       # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
       - name: Install dependencies (locked)
         run: pixi install --locked
-
-  build-hello-world:
-    name: build-hello-world
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build g++ git ca-certificates libssl-dev
-
-      - name: Configure (CMake)
-        run: cmake -S hello-world -B build/hello-world -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build hello_myrmidon
-        run: cmake --build build/hello-world
-
-      - name: Smoke-test --help
-        run: |
-          output=$(./build/hello-world/hello_myrmidon --help)
-          echo "$output"
-          echo "$output" | grep -qi "usage:" || { echo "ERROR: --help output missing 'usage:'"; exit 1; }

@@ -25,15 +25,3 @@ jobs:
 
       - name: Run unit tests
         run: pixi run test-unit
-
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-pixi
-
-      - name: Run integration tests
-        run: pixi run test-integration
