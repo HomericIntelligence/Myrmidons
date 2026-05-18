@@ -1,8 +1,12 @@
 # Myrmidons gitleaks configuration
 # Pinned version: v8.24.3 (mirrors GITLEAKS_VERSION in .github/workflows/_required.yml)
 # The workflow env var is the source of truth; this comment exists so the pre-commit hook
-# and the CI binary stay in sync. Issue #559 tracks automated skew detection between this
-# header and the workflow env var.
+# and the CI binary stay in sync. This pin is enforced across three sites by
+# scripts/check-gitleaks-version-skew.sh:
+#   1. .github/workflows/_required.yml — env.GITLEAKS_VERSION
+#   2. .gitleaks.toml — the "Pinned version:" comment above (this file)
+#   3. .pre-commit-config.yaml — gitleaks-system hook rev
+# When bumping the version, update all three sites in the same commit. See issue #559.
 # This config extends gitleaks' built-in rules and adds allowlist entries for documentation
 # examples and test fixtures that match secret patterns but are not real credentials.
 
