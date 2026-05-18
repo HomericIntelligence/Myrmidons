@@ -41,7 +41,7 @@ repos:
       - id: gitleaks-system
         pass_filenames: false
 
-  # Myrmidons dataset validators
+  # Myrmidons schema validation
   - repo: local
     hooks:
       - id: myrmidons-validate
@@ -59,12 +59,33 @@ repos:
         pass_filenames: false
         files: '^(agents|fleets|schemas|tests)/'
 
+      - id: check-xtrace-exposure
+        name: Check for unguarded xtrace auth exposure in curl calls
+        language: script
+        entry: scripts/check-xtrace-exposure.sh
+        files: '\.sh$'
+        pass_filenames: false
+
+      - id: check-adr-index
+        name: ADR README index completeness
+        language: script
+        entry: scripts/check-adr-index.sh
+        pass_filenames: false
+        files: ^docs/adr/.*\.md$
+
       - id: myrmidons-doc-drift
         name: Documentation drift check
         language: script
         entry: tests/detect-doc-drift.sh
         pass_filenames: false
         files: '(^(Architecture|README|CLAUDE|CONTRIBUTING)\.md$|^tests/detect-doc-drift\.sh$|^docs/(?!adr/).*\.md$)'
+
+      - id: check-duplicate-functions
+        name: Check for duplicate shell function definitions
+        entry: scripts/check-duplicate-functions.sh
+        language: script
+        types: [shell]
+        pass_filenames: false
 
       - id: myrmidons-validate-fleet-refs
         name: Fleet ref validation
@@ -73,6 +94,17 @@ repos:
         pass_filenames: false
         files: '^(agents|fleets)/.*\.ya?ml$'
 
+      - id: docs-crossref
+        name: CLAUDE.md → AGENTS.md cross-reference check
+        language: script
+        entry: scripts/check-docs-crossref.sh
+        files: '^(CLAUDE\.md|AGENTS\.md)$'
+        pass_filenames: false
+        # Trade-off: `files:` scopes incremental runs to CLAUDE.md/AGENTS.md changes, but
+        # `pre-commit run --all-files` (used in CI parity) always triggers all hooks
+        # regardless of file filters. The hook is fast (two greps), so the CI overhead is
+        # acceptable. always_run is intentionally omitted (defaults to false).
+
       - id: myrmidons-schema-hints
         name: Myrmidons yaml-language-server hint check
         language: system
@@ -80,12 +112,26 @@ repos:
         pass_filenames: true
         files: ^(agents|fleets)/.*\.ya?ml$
 
+      - id: myrmidons-changelog-gaps
+        name: Changelog gap detection
+        language: python
+        entry: python scripts/check-changelog-gaps.py
+        pass_filenames: false
+        always_run: true
+
       - id: myrmidons-lint-agents-md
         name: AGENTS.md required sections
         language: script
         entry: scripts/lint-agents-md.sh
         files: ^AGENTS\.md$
         pass_filenames: false
+
+      - id: no-gitleaks-continue-on-error
+        name: gitleaks step must not have continue-on-error
+        language: script
+        entry: scripts/check-gitleaks-coe.sh
+        files: '^\.github/workflows/.*\.yml$'
+        pass_filenames: true
 
       - id: forbid-or-true
         name: "forbid silent-failure workaround in shell/YAML/Dockerfile/justfile/HCL"
@@ -98,6 +144,22 @@ repos:
         entry: '\|\|\s*true(\s*$|\s+#)'
         files: \.(sh|bash|yml|yaml|hcl)$|(^|/)Dockerfile[^/]*$|(^|/)[Jj]ustfile$
         types: [text]
+        pass_filenames: true
+
+      - id: forbid-bats-run-or-true
+        name: "forbid `run ... || true` antipattern in BATS files"
+        description: >
+          In BATS, `run COMMAND` already captures COMMAND's exit code into
+          `$status`. Appending `|| true` to the `run` line wraps it in an
+          always-zero subshell, making `$status` meaningless and silently
+          neutralising any later `[ "$status" -eq N ]` assertion. The global
+          `forbid-or-true` rule excludes `.bats` files because legitimate
+          cleanup hooks (`kill ... || true`) and command substitutions
+          (`x=$(grep -c ... || true)`) are still allowed there. This narrower
+          rule targets only the dangerous form. See issue #507.
+        language: script
+        entry: scripts/check-bats-run-or-true.sh
+        files: '\.bats$'
         pass_filenames: true
 
       - id: forbid-continue-on-error
@@ -119,8 +181,11 @@ repos:
           underlying problem still goes unfixed. Make the step fail-fast
           instead. The only legitimate use is annotating a step that runs
           BEFORE the failing tool (e.g., advising on a deprecated config),
-          not wrapping the tool's own exit.
+          not wrapping the tool's own exit. See docs/runbooks/no-silent-failures.md.
         language: pygrep
+        # Match the GitHub Actions advisory-annotation prefix. We exempt
+        # this workflow file (the lint rule itself contains the literal
+        # for self-documentation) via the `exclude` regex below.
         entry: '::warning::'
         files: ^\.github/workflows/.*\.ya?ml$
         exclude: ^\.github/workflows/_required\.yml$
