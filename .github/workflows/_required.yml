@@ -377,4 +377,3 @@ jobs:
       # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
       - name: Install dependencies (locked)
         run: pixi install --locked
-
