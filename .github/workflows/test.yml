@@ -25,4 +25,3 @@ jobs:
 
       - name: Run unit tests
         run: pixi run test-unit
-

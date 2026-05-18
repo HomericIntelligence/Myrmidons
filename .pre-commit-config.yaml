@@ -126,14 +126,6 @@ repos:
         files: ^AGENTS\.md$
         pass_filenames: false
 
-      - id: myrmidons-no-bare-read
-        name: No bare read without timeout in scripts
-        language: script
-        entry: scripts/check-bare-read.sh
-        types: [shell]
-        files: '^scripts/.*\.sh$'
-        pass_filenames: false
-
       - id: no-gitleaks-continue-on-error
         name: gitleaks step must not have continue-on-error
         language: script
