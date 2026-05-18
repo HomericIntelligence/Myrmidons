@@ -20,6 +20,18 @@
 
 set -euo pipefail
 
+# Idempotency sentinel (issue #657): if this script has already run inside
+# the current pre-commit invocation (or any parent process tree that exported
+# the marker), skip the re-run. The pre-commit hook config already sets
+# `pass_filenames: false`, which should make pre-commit invoke the hook only
+# once per run, but this guard is defensive against any future regression
+# (duplicate hook id, wrapper that calls the script twice, etc.).
+if [[ "${MYRMIDONS_FLEET_REFS_VALIDATED:-}" == "1" ]]; then
+    echo "Fleet ref validation already ran in this pre-commit invocation — skipping."
+    exit 0
+fi
+export MYRMIDONS_FLEET_REFS_VALIDATED=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 

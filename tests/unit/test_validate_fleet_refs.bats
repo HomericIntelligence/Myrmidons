@@ -292,3 +292,49 @@ YAML
     [ "$status" -eq 0 ]
     [[ "$output" == *"Checked: 0 refs, 0 inline agents, Errors: 0"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Test 13 (issue #657): idempotency — re-invocation under the sentinel
+# env var skips the validation rather than running it a second time.
+# This protects against duplicate hook firings within a single pre-commit
+# invocation when a commit touches BOTH agents/ AND fleets/ YAMLs.
+# ---------------------------------------------------------------------------
+
+@test "validate-fleet-refs: skips re-run when MYRMIDONS_FLEET_REFS_VALIDATED=1 (issue #657)" {
+    cat > "${TMP_ROOT}/fleets/valid.yaml" <<YAML
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: valid-fleet
+spec:
+  agents:
+    - ref: hermes/real-agent
+YAML
+
+    # Simulate a re-invocation: caller already exported the sentinel.
+    MYRMIDONS_FLEET_REFS_VALIDATED=1 run bash "${TMP_ROOT}/tests/validate-fleet-refs.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"already ran"* ]]
+    # The "Validating fleet ref..." banner only appears on a real run.
+    [[ "$output" != *"Validating fleet ref"* ]]
+}
+
+@test "validate-fleet-refs: still runs normally when sentinel is unset (issue #657)" {
+    cat > "${TMP_ROOT}/fleets/valid.yaml" <<YAML
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: valid-fleet
+spec:
+  agents:
+    - ref: hermes/real-agent
+YAML
+
+    # Explicitly unset the sentinel so a stale value from the bats parent
+    # process can never leak into this assertion.
+    unset MYRMIDONS_FLEET_REFS_VALIDATED
+    run _run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Validating fleet ref"* ]]
+    [[ "$output" != *"already ran"* ]]
+}
