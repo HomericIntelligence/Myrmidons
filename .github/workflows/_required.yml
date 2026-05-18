@@ -193,7 +193,7 @@ jobs:
             --ignore-vuln CVE-2025-66471 \
             --ignore-vuln CVE-2026-21441 \
             --ignore-vuln CVE-2026-24049 \
-            --ignore-vuln CVE-2026-44431
+            --ignore-vuln CVE-2026-44431  # urllib3 < 2.7.0 — runner-image baseline; revisit after runner refresh ships urllib3 >= 2.7.0 (#723)
 
       # Trivy filesystem scan — informational. `--exit-code 0` already makes
       # vulnerability findings non-fatal; install/extraction failures should
