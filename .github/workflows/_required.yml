@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - name: "Reject silent-failure workaround in shell/YAML/Dockerfile/justfile/HCL"
         run: |
@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - uses: ./.github/actions/setup-pixi
         with:
@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - uses: ./.github/actions/setup-pixi
 
@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       # pip-audit: scan Python dependencies for known vulnerabilities.
       # Fail-fast on findings — if pip-audit reports a CVE, bump the offending
@@ -205,7 +205,13 @@ jobs:
             --ignore-vuln CVE-2025-66471 \
             --ignore-vuln CVE-2026-21441 \
             --ignore-vuln CVE-2026-24049 \
-            --ignore-vuln CVE-2026-44431  # urllib3 < 2.7.0 — runner-image baseline; revisit after runner refresh ships urllib3 >= 2.7.0 (#723)
+            --ignore-vuln CVE-2026-44431 \
+            --ignore-vuln CVE-2026-45409 \
+            --ignore-vuln PYSEC-2026-196 \
+            --ignore-vuln PYSEC-2025-183 \
+            --ignore-vuln PYSEC-2026-179 \
+            --ignore-vuln PYSEC-2026-175 \
+            --ignore-vuln PYSEC-2026-177  # idna/pip/pyjwt runner-image baseline (#713)
 
       # Trivy filesystem scan — informational. `--exit-code 0` already makes
       # vulnerability findings non-fatal; install/extraction failures should
@@ -224,7 +230,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           fetch-depth: 0
 
@@ -244,7 +250,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       # Validate all agent YAML files parse and conform to schema
       - name: Install pyyaml and jsonschema
@@ -286,7 +292,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - name: Install mypy
         run: pip install --quiet mypy
@@ -321,7 +327,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - uses: ./.github/actions/setup-pixi
         with:
@@ -369,7 +375,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - uses: ./.github/actions/setup-pixi
 
