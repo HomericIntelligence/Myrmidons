@@ -163,6 +163,12 @@ jobs:
       # Each ID below is tracked by issue #713; the consolidated marker above
       # is intentional (per-line tracking refs were tried in earlier iterations
       # but break shell line-continuation with inline `# comment \` syntax).
+      #
+      # 2026-06-29: GHSA-537c-gmf6-5ccf newly surfaced on the same runner-image
+      # `cryptography 41.0.7` baseline package (statically-linked OpenSSL OOB
+      # read in pyca/cryptography wheels < 48.0.1). Myrmidons pins no PyPI deps,
+      # so this is a runner-image baseline CVE like the rest — allowlisted here
+      # and folded into the #713 baseline review. Surfaced by #747.
       - name: pip-audit
         run: |
           set -euo pipefail
@@ -176,6 +182,7 @@ jobs:
             --ignore-vuln GHSA-h4gh-qq45-vh27 \
             --ignore-vuln CVE-2026-26007 \
             --ignore-vuln CVE-2026-34073 \
+            --ignore-vuln GHSA-537c-gmf6-5ccf \
             --ignore-vuln PYSEC-2024-60 \
             --ignore-vuln CVE-2024-22195 \
             --ignore-vuln CVE-2024-34064 \
