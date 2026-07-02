@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/agent-v1.schema.json
+# HMAS mesh pool worker (Odysseus ADR-013): pipeline.chief-architect.
+# Serves hi.myrmidon.pipeline.chief-architect.task.> — epic decomposition:
+# plans the epic's children and ingests the brief via POST /v1/briefs.
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: mesh-pipeline-chief-architect
+  host: hermes
+spec:
+  label: Mesh-Pipeline-Chief-Architect
+  program: claude-code
+  model: opus
+  workingDirectory: /home/mvillmow/Agents/mesh
+  programArgs: ""
+  taskDescription: "HMAS pipeline-pool chief-architect (planner) myrmidon (ADR-013 slice)"
+  tags:
+    - mesh
+    - "pool:pipeline.chief-architect"
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-mesh:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active
