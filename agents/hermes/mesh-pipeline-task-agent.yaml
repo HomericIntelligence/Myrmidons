@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/agent-v1.schema.json
+# HMAS mesh pool worker (Odysseus ADR-013): pipeline.task-agent.
+# Serves hi.myrmidon.pipeline.task-agent.task.> — implements individual
+# issues to merged-ready PRs (advise before / learn after every task).
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: mesh-pipeline-task-agent
+  host: hermes
+spec:
+  label: Mesh-Pipeline-Task-Agent
+  program: claude-code
+  model: sonnet
+  workingDirectory: /home/mvillmow/Agents/mesh
+  programArgs: ""
+  taskDescription: "HMAS pipeline-pool task-agent myrmidon (ADR-013 slice)"
+  tags:
+    - mesh
+    - "pool:pipeline.task-agent"
+  owner: mvillmow
+  role: member
+  deployment:
+    type: docker
+    docker:
+      image: achaean-mesh:latest
+      cpus: 2
+      memory: 4g
+  desiredState: active
