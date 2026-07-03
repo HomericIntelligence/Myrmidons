@@ -13,6 +13,7 @@ All are defined in `.github/workflows/_required.yml`.
 | `typecheck` | `typecheck` |
 | `schema-validation` | `schema-validation` |
 | `deps/version-sync` | `deps-version-sync` |
+| `install` | `install` |
 | `security/dependency-scan` | `security-dependency-scan` |
 | `security/secrets-scan` | `security-secrets-scan` |
 
@@ -44,6 +45,7 @@ gh api --method PATCH \
     "typecheck",
     "schema-validation",
     "deps/version-sync",
+    "install",
     "security/dependency-scan",
     "security/secrets-scan"
   ]
