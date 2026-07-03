@@ -389,3 +389,37 @@ jobs:
       # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
       - name: Install dependencies (locked)
         run: pixi install --locked
+
+  install:
+    name: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - uses: ./.github/actions/setup-pixi
+
+      # Canonical `install` check (Odysseus ecosystem CI-naming, issue #750).
+      # The "artifact" this dataset repo ships to developers and CI is the
+      # pixi-managed validator toolchain plus the git hooks. Verify both
+      # environments install from the lockfile, every pinned tool executes,
+      # and the documented developer install path (just install-hooks) works.
+      - name: Install default environment (locked)
+        run: pixi install --locked
+
+      - name: Install lint environment (locked)
+        run: pixi install --locked --environment lint
+
+      - name: Smoke-test installed toolchain
+        run: |
+          set -euo pipefail
+          pixi run -- just --version
+          pixi run -- jq --version
+          pixi run -- yq --version
+          pixi run -- bats --version
+          pixi run --environment lint -- shellcheck --version
+          pixi run --environment lint -- yamllint --version
+          pixi run --environment lint -- pre-commit --version
+
+      - name: Install git hooks (just install-hooks)
+        run: pixi run -- just install-hooks
