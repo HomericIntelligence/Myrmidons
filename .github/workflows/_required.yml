@@ -294,6 +294,54 @@ jobs:
           print(f"Validated {len(agent_files)} agent definitions — all OK.")
           EOF
 
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only package a schema-valid dataset — build is the agent-YAML schema gate.
+    needs: build
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      # The distributable for a dataset repo is the dataset itself: a
+      # reproducible tar.gz of agents/ + fleets/ + schemas/ with a checksum.
+      # See Odysseus docs/ci-naming-convention.md ("package" = release archive).
+      - name: Build dataset release archive
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          sha="$(git rev-parse --short HEAD)"
+          archive="dist/myrmidons-dataset-${sha}.tar.gz"
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+            --mtime='UTC 2020-01-01' \
+            -czf "${archive}" agents/ fleets/ schemas/
+          (cd dist && sha256sum -- *.tar.gz > SHA256SUMS)
+          ls -l dist/
+
+      - name: Verify archive integrity (round-trip)
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          tar -xzf dist/myrmidons-dataset-*.tar.gz -C "${workdir}"
+          for dir in agents fleets schemas; do
+            diff -r "${dir}" "${workdir}/${dir}"
+          done
+          yaml_count="$(find "${workdir}/agents" -name '*.yaml' | wc -l)"
+          if [ "${yaml_count}" -eq 0 ]; then
+            echo '::error::Packaged archive contains no agent YAMLs'
+            exit 1
+          fi
+          (cd dist && sha256sum --check SHA256SUMS)
+          echo "OK: archive round-trips (${yaml_count} agent YAMLs packaged)"
+
+      - name: Upload dataset artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: myrmidons-dataset
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
   typecheck:
     name: typecheck
     runs-on: ubuntu-latest

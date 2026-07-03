@@ -150,7 +150,7 @@ conda install -c conda-forge actionlint
 
 ## CI/CD
 
-- **On PR** — `.github/workflows/validate.yml` (pre-commit parity + schema validation + fleet-ref validation) and `_required.yml` (lint, unit-tests, build, install, schema-validation, security scans).
+- **On PR** — `.github/workflows/validate.yml` (pre-commit parity + schema validation + fleet-ref validation) and `_required.yml` (lint, unit-tests, build, install, package, schema-validation, security scans).
 - **Branch protection on `main`** — required-check list in [`docs/branch-protection.md`](docs/branch-protection.md).
 
 ## Security

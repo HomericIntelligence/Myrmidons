@@ -10,6 +10,7 @@ All are defined in `.github/workflows/_required.yml`.
 | `lint` | `lint` |
 | `unit-tests` | `unit-tests` |
 | `build` | `build` |
+| `package` | `package` |
 | `typecheck` | `typecheck` |
 | `schema-validation` | `schema-validation` |
 | `deps/version-sync` | `deps-version-sync` |
@@ -42,6 +43,7 @@ gh api --method PATCH \
     "unit-tests",
     "integration-tests",
     "build",
+    "package",
     "typecheck",
     "schema-validation",
     "deps/version-sync",
@@ -71,6 +73,15 @@ gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks 
 
 The `| .contexts |= unique` step makes the command idempotent — re-running it
 will not produce duplicate entries.
+
+```bash
+# Register the package job without overwriting existing required checks
+gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
+  | jq '.contexts += ["package"] | .contexts |= unique' \
+  | gh api --method PATCH \
+    repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
+    --input -
+```
 
 ## Verifying current required checks
 
