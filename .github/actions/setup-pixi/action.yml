@@ -14,14 +14,7 @@ runs:
       with:
         pixi-version: v0.67.2
         environments: ${{ inputs.environment }}
-
-    - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5
-      with:
-        path: |
-          .pixi
-          ~/.cache/rattler/cache
-        key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
-        restore-keys: pixi-${{ runner.os }}-
+        cache: true
 
     - name: Add pixi env tools to PATH
       shell: bash
