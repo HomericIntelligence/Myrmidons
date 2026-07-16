@@ -1,20 +1,19 @@
-# Branch Protection — Required Status Checks
+# Main Protection and Merge Queue
 
-## Required checks on `main`
+## Live required checks on `main`
 
-The following GitHub Actions jobs must pass before any PR can merge into `main`.
-All are defined in `.github/workflows/_required.yml`.
+The active repository ruleset is `homeric-main-baseline` (ID `15556489`). As
+verified on 2026-07-16, it requires the following GitHub Actions jobs before a
+pull request can merge into `main`. All are defined in
+`.github/workflows/_required.yml`.
 
 | Job name (exact string in GitHub) | Job key in YAML |
-|-----------------------------------|-----------------|
+| --- | --- |
 | `lint` | `lint` |
 | `unit-tests` | `unit-tests` |
 | `build` | `build` |
-| `package` | `package` |
-| `typecheck` | `typecheck` |
 | `schema-validation` | `schema-validation` |
 | `deps/version-sync` | `deps-version-sync` |
-| `install` | `install` |
 | `security/dependency-scan` | `security-dependency-scan` |
 | `security/secrets-scan` | `security-secrets-scan` |
 
@@ -22,80 +21,122 @@ All are defined in `.github/workflows/_required.yml`.
 > YAML key. These two differ for `deps-version-sync` (`deps/version-sync`) and both
 > security jobs.
 
-## Restoring required checks after a protection reset
+The workflow also emits `forbid-suppressions`, `package`, `typecheck`, and
+`install`; these are visible CI signals but are not required by the live
+ruleset. The separate `release` workflow is also not required.
 
-> **Tip:** If only adding new required checks (not restoring after a wipe), use the incremental snippet below instead — it preserves any extras already configured.
+The required workflow runs for all three relevant event paths:
 
-If branch protection is wiped (e.g. after a repo transfer or settings reset), run:
+- `pull_request` targeting `main`;
+- `push` to `main`;
+- `merge_group` with action `checks_requested`.
 
-```bash
-# Fetch current required contexts first to avoid overwriting any extras
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks
+This keeps every required context available when GitHub synthesizes a merge
+group commit without changing existing pull-request or push behavior.
 
-# Replace with the full desired list (PATCH replaces, not appends)
-gh api --method PATCH \
-  repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  --input - <<'EOF'
-{
-  "strict": false,
-  "contexts": [
-    "lint",
-    "unit-tests",
-    "integration-tests",
-    "build",
-    "package",
-    "typecheck",
-    "schema-validation",
-    "deps/version-sync",
-    "install",
-    "security/dependency-scan",
-    "security/secrets-scan"
-  ]
-}
-EOF
-```
-
-### Incrementally adding a required check
-
-When you only need to add one or more new contexts (e.g. registering
-`security/secrets-scan` and `security/dependency-scan` without disturbing
-anything else already configured), use `jq` to merge the new entries into the
-current list rather than rewriting it:
+## Verifying the live ruleset
 
 ```bash
-# Add security jobs without overwriting existing required checks
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  | jq '.contexts += ["security/secrets-scan", "security/dependency-scan"] | .contexts |= unique' \
-  | gh api --method PATCH \
-    repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-    --input -
+repo=HomericIntelligence/Myrmidons
+ruleset_id=15556489
+
+gh api "repos/${repo}/rulesets/${ruleset_id}" \
+  --jq '.rules[]
+        | select(.type == "required_status_checks")
+        | .parameters.required_status_checks[].context'
 ```
 
-The `| .contexts |= unique` step makes the command idempotent — re-running it
-will not produce duplicate entries.
+Compare the result byte-for-byte with the seven entries in the table above.
+Do not add, remove, or rename a required context as part of merge-queue
+activation.
+
+## Merge-queue policy
+
+Myrmidons has no canonical repository-owned ruleset automation or ruleset JSON.
+Queue activation is therefore an explicit post-merge administrative step. Land
+and strictly review workflow support first, then activate the live rule and run
+one representative queued pull request before closing issue #765.
+
+| Setting | Required value |
+| --- | --- |
+| Target branch | `main` |
+| Merge method | `SQUASH` |
+| Grouping strategy | `ALLGREEN` |
+| Maximum queue builds | `10` |
+| Maximum entries merged per group | `5` |
+| Minimum entries per group | `1` |
+| Minimum wait | `5` minutes |
+| Required-check timeout | `60` minutes |
+
+### Post-merge activation
+
+The rulesets API replaces the full ruleset. Snapshot first, append only the
+`merge_queue` rule, preserve every existing protection field and required
+context, then read the rule back. Run this only after the readiness PR merges:
 
 ```bash
-# Register the package job without overwriting existing required checks
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  | jq '.contexts += ["package"] | .contexts |= unique' \
-  | gh api --method PATCH \
-    repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-    --input -
+set -euo pipefail
+
+repo=HomericIntelligence/Myrmidons
+ruleset_name=homeric-main-baseline
+ruleset_id="$(gh api "repos/${repo}/rulesets" \
+  --jq ".[] | select(.name == \"${ruleset_name}\") | .id")"
+snapshot="$(mktemp)"
+payload="$(mktemp)"
+restore="$(mktemp)"
+trap 'rm -f "${snapshot}" "${payload}" "${restore}"' EXIT
+
+gh api "repos/${repo}/rulesets/${ruleset_id}" > "${snapshot}"
+jq '
+  if any(.rules[]; .type == "merge_queue") then
+    error("merge_queue already exists; inspect live state instead of replacing it")
+  else
+    {
+      name,
+      target,
+      enforcement,
+      conditions,
+      bypass_actors,
+      rules: (.rules + [{
+        type: "merge_queue",
+        parameters: {
+          merge_method: "SQUASH",
+          grouping_strategy: "ALLGREEN",
+          max_entries_to_build: 10,
+          max_entries_to_merge: 5,
+          min_entries_to_merge: 1,
+          min_entries_to_merge_wait_minutes: 5,
+          check_response_timeout_minutes: 60
+        }
+      }])
+    }
+  end
+' "${snapshot}" > "${payload}"
+
+gh api --method PUT "repos/${repo}/rulesets/${ruleset_id}" \
+  --input "${payload}"
+gh api "repos/${repo}/rulesets/${ruleset_id}" \
+  --jq '.rules[] | select(.type == "merge_queue") | .parameters'
 ```
 
-## Verifying current required checks
+The read-back must report all seven policy values from the table. Also re-read
+the `required_status_checks` rule and confirm the seven original contexts are
+unchanged. If either assertion fails, immediately restore the pre-change
+snapshot:
 
 ```bash
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  | jq '.contexts'
+jq '{name, target, enforcement, conditions, bypass_actors, rules}' \
+  "${snapshot}" > "${restore}"
+gh api --method PUT "repos/${repo}/rulesets/${ruleset_id}" \
+  --input "${restore}"
 ```
-
-Expected output includes `"security/secrets-scan"` and `"security/dependency-scan"`.
 
 ## Design notes
 
-- `strict: false` — stale branches may merge without rebasing; set to `true` to require branches to be up-to-date before merging.
-- Path-filtered workflows should not be added as required checks (they skip on unrelated PRs and would block merges incorrectly).
+- The live ruleset keeps `strict_required_status_checks_policy: false`; the
+  merge queue tests the synthesized commit that will actually merge.
+- Path-filtered workflows should not be added as required checks. They skip on
+  unrelated changes and leave the required context pending.
 - `release` (`.github/workflows/release.yml`) is intentionally **not** a required
   check: it exists to emit the canonical `release` check-run on `main` for the
   Odysseus ecosystem CI board and to publish dataset snapshots. Publishing is a
@@ -155,6 +196,6 @@ information, not as a merge block:
 ### Quick reference
 
 | Job | Behaviour | Reason |
-|-----|-----------|--------|
+| --- | --- | --- |
 | `security/secrets-scan` | Hard block. Any gitleaks hit fails the PR. | Leaked secrets are irrecoverable; rotation is not a substitute for prevention. |
 | `security/dependency-scan` | Informational. `pip-audit --ignore-vuln`, `trivy --exit-code 0`. | Findings are dominated by runner-image baseline CVEs outside our control. Tracked via dated allowlists. |

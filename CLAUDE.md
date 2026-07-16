@@ -150,7 +150,12 @@ conda install -c conda-forge actionlint
 
 ## CI/CD
 
-- **On PR** — `.github/workflows/validate.yml` (pre-commit parity + schema validation + fleet-ref validation) and `_required.yml` (lint, unit-tests, build, install, package, schema-validation, security scans).
+- **On PR** — `.github/workflows/validate.yml` provides pre-commit parity,
+  schema validation, and fleet-ref validation.
+- **On PR / `main` push / merge-group checks** —
+  `.github/workflows/_required.yml` emits every live required context. The
+  `merge_group` trigger is restricted to `checks_requested` so queued commits
+  run the same gates without changing pull-request or push behavior.
 - **On PR / `main` push / `v*` tag** — `.github/workflows/release.yml` packages the
   dataset snapshot (`scripts/package-dataset.sh`, read-only job emitting the
   canonical `release` check-run for the Odysseus ecosystem CI board); on `v*`

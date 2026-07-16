@@ -154,7 +154,9 @@ Every PR runs:
 - Schema-hint policy (`yaml-language-server` comment required on every agent YAML)
 
 Branch protection on `main` enforces the required-check set documented in
-[`docs/branch-protection.md`](docs/branch-protection.md).
+[`docs/branch-protection.md`](docs/branch-protection.md). The required-check
+workflow runs for pull requests, `main` pushes, and merge-group
+`checks_requested` events so the same gates protect queued commits.
 
 ## Security
 
