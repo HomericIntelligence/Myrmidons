@@ -169,6 +169,19 @@ jobs:
       # read in pyca/cryptography wheels < 48.0.1). Myrmidons pins no PyPI deps,
       # so this is a runner-image baseline CVE like the rest — allowlisted here
       # and folded into the #713 baseline review. Surfaced by #747.
+      #
+      # 2026-07-14: PYSEC-2026-2132 newly surfaced on the runner-image
+      # `click 8.1.6` baseline package (fixed in click 8.3.3). Myrmidons pins
+      # no PyPI deps — click is not in pixi.toml/pixi.lock — so this is a
+      # runner-image baseline CVE like the rest: allowlisted here and folded
+      # into the #713 baseline review. Tracked by #762.
+      #
+      # 2026-07-16: PYSEC-2026-3444 (httplib2 0.20.4, fixed in 0.32.0) and
+      # PYSEC-2026-3447 (setuptools 68.1.2, fixed in 83.0.0) newly surfaced on
+      # the same runner-image baseline. Both packages ship with the
+      # `ubuntu-latest` image system Python — Myrmidons pins no PyPI deps —
+      # so these are runner-image baseline CVEs like the rest: allowlisted
+      # here and folded into the #713 baseline review. Surfaced by #763.
       - name: pip-audit
         run: |
           set -euo pipefail
@@ -218,7 +231,10 @@ jobs:
             --ignore-vuln PYSEC-2025-183 \
             --ignore-vuln PYSEC-2026-179 \
             --ignore-vuln PYSEC-2026-175 \
-            --ignore-vuln PYSEC-2026-177  # idna/pip/pyjwt runner-image baseline (#713)
+            --ignore-vuln PYSEC-2026-2132 \
+            --ignore-vuln PYSEC-2026-3444 \
+            --ignore-vuln PYSEC-2026-3447 \
+            --ignore-vuln PYSEC-2026-177  # idna/pip/pyjwt/click/httplib2/setuptools runner-image baseline (#713, #762)
 
       # Trivy filesystem scan — informational. `--exit-code 0` already makes
       # vulnerability findings non-fatal; install/extraction failures should
