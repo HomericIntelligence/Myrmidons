@@ -151,6 +151,10 @@ conda install -c conda-forge actionlint
 ## CI/CD
 
 - **On PR** — `.github/workflows/validate.yml` (pre-commit parity + schema validation + fleet-ref validation) and `_required.yml` (lint, unit-tests, build, install, package, schema-validation, security scans).
+- **On PR / `main` push / `v*` tag** — `.github/workflows/release.yml` packages the
+  dataset snapshot (`scripts/package-dataset.sh`, read-only job emitting the
+  canonical `release` check-run for the Odysseus ecosystem CI board); on `v*`
+  tags a separate tag-gated job publishes a GitHub Release.
 - **Branch protection on `main`** — required-check list in [`docs/branch-protection.md`](docs/branch-protection.md).
 
 ## Security

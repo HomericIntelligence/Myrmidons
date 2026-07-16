@@ -24,6 +24,9 @@ tests/*.log
 ProjectMnemosyne/
 build/
 
+# Dataset snapshot archives built by scripts/package-dataset.sh
+dist/
+
 # Reconciliation reports (runtime state, not config)
 reports/last-reconciliation.json
 

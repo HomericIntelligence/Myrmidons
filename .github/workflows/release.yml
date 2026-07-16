@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      # Package the dataset snapshot. On tag pushes the version is the tag
+      # name (shallow checkout has no tags for git describe); otherwise the
+      # script derives snapshot-<shortsha>.
+      - name: Package dataset snapshot
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            bash scripts/package-dataset.sh "${GITHUB_REF_NAME}"
+          else
+            bash scripts/package-dataset.sh
+          fi
+
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: myrmidons-dataset
+          path: dist/myrmidons-dataset-*.tar.gz
+          if-no-files-found: error
+
+  # Tag-gated publisher — the ONLY job holding a write token. PR- and
+  # main-triggered runs (which execute PR-head code above) stay read-only.
+  # Re-runs the packaging script instead of downloading the artifact: output
+  # is deterministic per commit (RELEASE_INFO date is the commit date), and
+  # this avoids a second third-party action pin.
+  publish-release:
+    name: publish-release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Package dataset snapshot (tag version)
+        run: |
+          set -euo pipefail
+          bash scripts/package-dataset.sh "${GITHUB_REF_NAME}"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/myrmidons-dataset-*.tar.gz \
+            --title "Myrmidons dataset ${GITHUB_REF_NAME}" \
+            --notes "Versioned dataset snapshot (agents/, fleets/, schemas/). See RELEASE_INFO inside the archive."

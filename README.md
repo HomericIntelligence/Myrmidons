@@ -4,6 +4,7 @@
 [![Validate YAML](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/validate.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/validate.yml)
 [![Test](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/test.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/test.yml)
 [![Lock Check](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/lock-check.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/lock-check.yml)
+[![Release](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/release.yml/badge.svg)](https://github.com/HomericIntelligence/Myrmidons/actions/workflows/release.yml)
 
 **The agent dataset for the HomericIntelligence mesh.**
 
