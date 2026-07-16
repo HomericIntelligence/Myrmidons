@@ -96,6 +96,11 @@ Expected output includes `"security/secrets-scan"` and `"security/dependency-sca
 
 - `strict: false` — stale branches may merge without rebasing; set to `true` to require branches to be up-to-date before merging.
 - Path-filtered workflows should not be added as required checks (they skip on unrelated PRs and would block merges incorrectly).
+- `release` (`.github/workflows/release.yml`) is intentionally **not** a required
+  check: it exists to emit the canonical `release` check-run on `main` for the
+  Odysseus ecosystem CI board and to publish dataset snapshots. Publishing is a
+  post-merge concern; the PR-triggered run is a packaging dry-run only, and only
+  the tag-gated `publish-release` job holds `contents: write`.
 
 ## CI security scans — blocking rationale
 
