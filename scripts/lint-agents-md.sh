@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/lint-agents-md.sh — validate required sections in AGENTS.md
 #
-# Checks that all six required H2 sections are present in AGENTS.md.
+# Checks that all seven required H2 sections are present in AGENTS.md.
 # Prevents PRs from accidentally deleting or renaming a required section.
 #
 # Usage:
@@ -75,6 +75,7 @@ fi
 
 REQUIRED_SECTIONS=(
     "## Scope"
+    "## Design Philosophy"
     "## Permitted Actions"
     "## Prohibited Actions"
     "## \`--dangerously-skip-permissions\` Policy"

@@ -3,7 +3,7 @@
 #
 # Unit tests for scripts/lint-agents-md.sh
 #
-# Verifies that the script passes when all six required sections are present,
+# Verifies that the script passes when all seven required sections are present,
 # fails with a clear error message when any section is missing, and handles
 # edge cases (missing file, partial matches, stdin, env var).
 
@@ -25,6 +25,10 @@ _write_complete_agents_md() {
 ## Scope
 
 In scope content here.
+
+## Design Philosophy
+
+Design philosophy content here.
 
 ## Permitted Actions
 
@@ -76,7 +80,7 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# Tests 3–8: each required section missing → exit 1 with helpful message
+# Tests 3–9: each required section missing → exit 1 with helpful message
 # ---------------------------------------------------------------------------
 
 @test "lint-agents-md: missing '## Scope' exits 1" {
@@ -85,6 +89,14 @@ teardown() {
     run bash "$LINT_SCRIPT" "${TMP_DIR}/AGENTS-broken.md"
     [ "$status" -eq 1 ]
     [[ "$output" == *"## Scope"* ]]
+}
+
+@test "lint-agents-md: missing '## Design Philosophy' exits 1" {
+    _write_complete_agents_md "${TMP_DIR}/AGENTS.md"
+    grep -v "^## Design Philosophy" "${TMP_DIR}/AGENTS.md" > "${TMP_DIR}/AGENTS-broken.md"
+    run bash "$LINT_SCRIPT" "${TMP_DIR}/AGENTS-broken.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"## Design Philosophy"* ]]
 }
 
 @test "lint-agents-md: missing '## Permitted Actions' exits 1" {

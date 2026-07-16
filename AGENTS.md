@@ -26,6 +26,34 @@ stay within that scope:
 
 ---
 
+## Design Philosophy
+
+> Heritage: this repository's design descends from ProjectOdyssey — the same
+> "declare desired state, let validators enforce it" lineage.
+
+The safety boundaries in this document follow from four principles. When a rule
+below seems strict, it is because one of these principles made it so.
+
+1. **Dataset, not reconciler.** Myrmidons declares *desired* agent state as
+   YAML and nothing more. Anything that talks to a runtime — applying,
+   planning, polling status — lives in the consumer (ProjectAgamemnon). Agents
+   here never construct calls to an external API; that is why "Reintroducing the
+   reconciler" and "Direct external API calls" are prohibited.
+2. **Desired state is data.** Every agent and fleet is a declarative document
+   validated against a versioned schema (`myrmidons/v1`). Agents edit data and
+   the schemas/validators that guard it — they do not encode runtime behavior.
+3. **Policy is enforced, not trusted.** Security-relevant rules (the
+   `--dangerously-skip-permissions` annotation, schema hints, gitleaks
+   allowlist justifications, name uniqueness) are enforced by pure, offline
+   validators that run identically in pre-commit and CI. A rule that cannot be
+   mechanically checked is a rule that will drift.
+4. **Fail closed, escalate to humans.** When a change touches the dataset
+   contract, CI workflows, schemas, or a new validator, the agent stops and
+   asks. Ambiguity is resolved by a human operator, never by guessing — see
+   [Escalation](#escalation--human-review-required).
+
+---
+
 ## Permitted Actions
 
 - Read any file in the repository
