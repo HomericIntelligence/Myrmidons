@@ -1,0 +1,26 @@
+{
+  "repository": "HomericIntelligence/Myrmidons",
+  "ruleset_name": "homeric-main-baseline",
+  "target_branch": "main",
+  "required_contexts": [
+    "lint",
+    "unit-tests",
+    "security/dependency-scan",
+    "security/secrets-scan",
+    "build",
+    "schema-validation",
+    "deps/version-sync"
+  ],
+  "merge_queue_rule": {
+    "type": "merge_queue",
+    "parameters": {
+      "merge_method": "SQUASH",
+      "grouping_strategy": "ALLGREEN",
+      "max_entries_to_build": 10,
+      "max_entries_to_merge": 5,
+      "min_entries_to_merge": 1,
+      "min_entries_to_merge_wait_minutes": 5,
+      "check_response_timeout_minutes": 60
+    }
+  }
+}

@@ -45,7 +45,7 @@ validate:
     pixi run lint-names
     echo ""
     echo "Running shellcheck..."
-    pixi run lint-shell
+    pixi run --environment lint lint-shell
 
 # =============================================================================
 # Packaging
@@ -65,7 +65,7 @@ test:
 
 # Run shellcheck on all shell scripts
 lint:
-    shellcheck scripts/*.sh hooks/pre-commit tests/*.sh
+    bash scripts/lint-shell.sh
 
 # Run lint and test together
 check: lint test

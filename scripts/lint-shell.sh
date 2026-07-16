@@ -2,7 +2,7 @@
 # scripts/lint-shell.sh — Run shellcheck on all shell scripts
 #
 # This script runs shellcheck (with --severity=warning) on all shell scripts
-# found in the scripts/, tests/, and hooks/ directories.
+# found in the scripts/, tools/, tests/, and hooks/ directories.
 #
 # Usage:
 #   ./scripts/lint-shell.sh
@@ -33,7 +33,8 @@ echo "Running shellcheck on all shell scripts..."
 echo ""
 
 # Find and check all shell scripts and bats test files
-find "${REPO_ROOT}/scripts" "${REPO_ROOT}/tests" "${REPO_ROOT}/hooks" \
+find "${REPO_ROOT}/scripts" "${REPO_ROOT}/tools" "${REPO_ROOT}/tests" \
+    "${REPO_ROOT}/hooks" \
     \( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \) \
     | sort \
     | xargs "$SHELLCHECK_CMD" --severity=warning --enable=SC2154
