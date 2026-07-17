@@ -53,10 +53,16 @@ evidence are recorded.
 
 ## Central Odysseus activation contract
 
-[Odysseus #416](https://github.com/HomericIntelligence/Odysseus/issues/416)
-coordinates the central live rollout. Odysseus is the sole activation authority;
-this dataset repository intentionally contains no administrator-level mutator
-and must not duplicate one.
+[Odysseus issue #386](https://github.com/HomericIntelligence/Odysseus/issues/386)
+is the umbrella tracker for the merge queue rollout. The current implementation
+and activation authority is
+[Odysseus PR #417](https://github.com/HomericIntelligence/Odysseus/pull/417).
+Live activation remains deferred, and this Myrmidons work has not mutated live
+GitHub ruleset state. Odysseus is the sole activation authority; this dataset
+repository intentionally contains no administrator-level mutator and must not
+duplicate one. The central authority must consume Myrmidons's repository-owned
+policy while preserving the full fail-safe preservation, read-back, and
+rollback contract below.
 
 The Odysseus activation implementation must:
 
@@ -158,7 +164,7 @@ information, not as a merge block:
 
 ### Quick reference
 
-| Job | Behaviour | Reason |
-|-----|-----------|--------|
-| `security/secrets-scan` | Hard block. Any gitleaks hit fails the PR. | Leaked secrets are irrecoverable; rotation is not a substitute for prevention. |
+| Job                        | Behaviour                                                        | Reason                                                                                                  |
+| -------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `security/secrets-scan`    | Hard block. Any gitleaks hit fails the PR.                       | Leaked secrets are irrecoverable; rotation is not a substitute for prevention.                          |
 | `security/dependency-scan` | Informational. `pip-audit --ignore-vuln`, `trivy --exit-code 0`. | Findings are dominated by runner-image baseline CVEs outside our control. Tracked via dated allowlists. |
