@@ -1,106 +1,116 @@
-# Branch Protection — Required Status Checks
+# Main Protection and Merge Queue
 
 ## Required checks on `main`
 
-The following GitHub Actions jobs must pass before any PR can merge into `main`.
-All are defined in `.github/workflows/_required.yml`.
+The active repository ruleset is `homeric-main-baseline` (ID `15556489`). Its
+Myrmidons contract requires exactly seven GitHub Actions contexts:
 
-| Job name (exact string in GitHub) | Job key in YAML |
-|-----------------------------------|-----------------|
+| Job name (exact GitHub context) | Job key in YAML |
+| --- | --- |
 | `lint` | `lint` |
 | `unit-tests` | `unit-tests` |
-| `build` | `build` |
-| `package` | `package` |
-| `typecheck` | `typecheck` |
-| `schema-validation` | `schema-validation` |
-| `deps/version-sync` | `deps-version-sync` |
-| `install` | `install` |
 | `security/dependency-scan` | `security-dependency-scan` |
 | `security/secrets-scan` | `security-secrets-scan` |
+| `build` | `build` |
+| `schema-validation` | `schema-validation` |
+| `deps/version-sync` | `deps-version-sync` |
 
-> The string GitHub uses for the required check is the job's `name:` field, not its
-> YAML key. These two differ for `deps-version-sync` (`deps/version-sync`) and both
-> security jobs.
+The machine-readable source of truth is
+[`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json).
+The workflow also emits `forbid-suppressions`, `package`, `typecheck`, and
+`install`, but those contexts are not part of the live seven-context contract.
+The separate `release` workflow is also not required.
 
-## Restoring required checks after a protection reset
+The required workflow runs for all relevant event paths:
 
-> **Tip:** If only adding new required checks (not restoring after a wipe), use the incremental snippet below instead — it preserves any extras already configured.
+- `pull_request` targeting `main`;
+- `push` to `main`;
+- `merge_group` with action `checks_requested`.
 
-If branch protection is wiped (e.g. after a repo transfer or settings reset), run:
+The merge-group trigger makes the same required contexts available on the
+synthetic commit GitHub builds for the queue. It does not alter pull-request or
+push behavior.
+
+## Approved staged queue policy
+
+Workflow support and the declarative activation contract land and receive
+independent human review before any live ruleset changes. Live activation and
+one representative queued pull-request smoke test happen only after merge.
+
+| Setting | Required value |
+| --- | --- |
+| Target branch | `main` |
+| Merge method | `SQUASH` |
+| Grouping strategy | `ALLGREEN` |
+| Maximum queue builds | `10` |
+| Maximum entries merged per group | `5` |
+| Minimum entries per group | `1` |
+| Minimum wait | `5` minutes |
+| Required-check timeout | `60` minutes |
+
+Issue #765 remains open until the post-merge activation and queue smoke
+evidence are recorded.
+
+## Central Odysseus activation contract
+
+[Odysseus issue #386](https://github.com/HomericIntelligence/Odysseus/issues/386)
+is the umbrella tracker for the merge queue rollout. The current implementation
+and activation authority is
+[Odysseus PR #417](https://github.com/HomericIntelligence/Odysseus/pull/417).
+Live activation remains deferred, and this Myrmidons work has not mutated live
+GitHub ruleset state. Odysseus is the sole activation authority; this dataset
+repository intentionally contains no administrator-level mutator and must not
+duplicate one. The central authority must consume Myrmidons's repository-owned
+policy while preserving the full fail-safe preservation, read-back, and
+rollback contract below.
+
+The Odysseus activation implementation must:
+
+1. Consume
+   [`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json)
+   as the repository-owned source for the Myrmidons queue settings and seven
+   required contexts. It must not copy those values into an Odysseus-specific
+   fixed Myrmidons payload.
+2. Require the target include list to equal only `refs/heads/main` and require
+   the exclusion list to be empty before mutation.
+3. Patch the current live `homeric-main-baseline` GET response by appending only
+   the approved `merge_queue` rule. It must preserve the exact seven contexts,
+   the repository-role bypass actor, conditions, enforcement, pull-request
+   policy, and every other unrelated rule without reconstruction.
+4. Save a durable pre-change snapshot, read the ruleset back after mutation,
+   and verify the complete intended state. An ambiguous write, failed read-back,
+   or preservation mismatch must fail closed and restore the snapshot.
+5. Retain the snapshot whenever restoration or its verification is incomplete,
+   and require operator inspection before any retry.
+
+The offline fixtures and tests in this repository validate the input and
+preservation contract without performing GitHub API writes. The mutation,
+read-back, rollback, and live smoke evidence belong only to Odysseus.
+
+## Verification after activation
+
+After the central Odysseus activation reports verified success:
 
 ```bash
-# Fetch current required contexts first to avoid overwriting any extras
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks
-
-# Replace with the full desired list (PATCH replaces, not appends)
-gh api --method PATCH \
-  repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  --input - <<'EOF'
-{
-  "strict": false,
-  "contexts": [
-    "lint",
-    "unit-tests",
-    "integration-tests",
-    "build",
-    "package",
-    "typecheck",
-    "schema-validation",
-    "deps/version-sync",
-    "install",
-    "security/dependency-scan",
-    "security/secrets-scan"
-  ]
-}
-EOF
+gh api repos/HomericIntelligence/Myrmidons/rulesets/15556489 \
+  --jq '.rules[]
+        | select(.type == "merge_queue"
+          or .type == "required_status_checks")'
 ```
 
-### Incrementally adding a required check
-
-When you only need to add one or more new contexts (e.g. registering
-`security/secrets-scan` and `security/dependency-scan` without disturbing
-anything else already configured), use `jq` to merge the new entries into the
-current list rather than rewriting it:
-
-```bash
-# Add security jobs without overwriting existing required checks
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  | jq '.contexts += ["security/secrets-scan", "security/dependency-scan"] | .contexts |= unique' \
-  | gh api --method PATCH \
-    repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-    --input -
-```
-
-The `| .contexts |= unique` step makes the command idempotent — re-running it
-will not produce duplicate entries.
-
-```bash
-# Register the package job without overwriting existing required checks
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  | jq '.contexts += ["package"] | .contexts |= unique' \
-  | gh api --method PATCH \
-    repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-    --input -
-```
-
-## Verifying current required checks
-
-```bash
-gh api repos/mvillmow/Myrmidons/branches/main/protection/required_status_checks \
-  | jq '.contexts'
-```
-
-Expected output includes `"security/secrets-scan"` and `"security/dependency-scan"`.
+Then queue one representative pull request. Record the
+`merge_group/checks_requested` run, all seven successful check contexts, and
+the queued squash merge on issue #765. Do not treat this repository-only PR as
+live activation evidence.
 
 ## Design notes
 
-- `strict: false` — stale branches may merge without rebasing; set to `true` to require branches to be up-to-date before merging.
-- Path-filtered workflows should not be added as required checks (they skip on unrelated PRs and would block merges incorrectly).
-- `release` (`.github/workflows/release.yml`) is intentionally **not** a required
-  check: it exists to emit the canonical `release` check-run on `main` for the
-  Odysseus ecosystem CI board and to publish dataset snapshots. Publishing is a
-  post-merge concern; the PR-triggered run is a packaging dry-run only, and only
-  the tag-gated `publish-release` job holds `contents: write`.
+- The live ruleset keeps `strict_required_status_checks_policy: false`; the
+  queue tests the synthetic commit that will actually merge.
+- Path-filtered workflows must not become required checks because they can
+  skip unrelated changes and leave a required context pending forever.
+- `release` (`.github/workflows/release.yml`) remains intentionally optional.
+  It emits the ecosystem CI-board signal and publishes only on tags.
 
 ## CI security scans — blocking rationale
 
@@ -154,7 +164,7 @@ information, not as a merge block:
 
 ### Quick reference
 
-| Job | Behaviour | Reason |
-|-----|-----------|--------|
-| `security/secrets-scan` | Hard block. Any gitleaks hit fails the PR. | Leaked secrets are irrecoverable; rotation is not a substitute for prevention. |
+| Job                        | Behaviour                                                        | Reason                                                                                                  |
+| -------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `security/secrets-scan`    | Hard block. Any gitleaks hit fails the PR.                       | Leaked secrets are irrecoverable; rotation is not a substitute for prevention.                          |
 | `security/dependency-scan` | Informational. `pip-audit --ignore-vuln`, `trivy --exit-code 0`. | Findings are dominated by runner-image baseline CVEs outside our control. Tracked via dated allowlists. |

@@ -24,7 +24,10 @@ This repo intentionally contains **only**:
 
 It does NOT contain runtime infrastructure. Specifically:
 
-- The **reconciler** (apply/plan/status/export) that drives Agamemnon's REST API lives in [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon) — see [PR #405](https://github.com/HomericIntelligence/ProjectAgamemnon/pull/405).
+- The **reconciler** (apply/plan/status/export) that drives Agamemnon's REST API
+  lives in
+  [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon) —
+  see [PR #405](https://github.com/HomericIntelligence/ProjectAgamemnon/pull/405).
 - **Container images** for agents live in [AchaeanFleet](https://github.com/HomericIntelligence/AchaeanFleet).
 
 ## Quick start
@@ -153,7 +156,12 @@ Every PR runs:
 - Dangerous-flag policy (`--dangerously-skip-permissions` requires inline suppression)
 - Schema-hint policy (`yaml-language-server` comment required on every agent YAML)
 
-Branch protection on `main` enforces the required-check set documented in
+Branch protection on `main` enforces the exact seven-context contract in
+[`configs/github/merge-queue-policy.json`](configs/github/merge-queue-policy.json).
+The required-check workflow handles pull requests, `main` pushes, and
+`merge_group/checks_requested` events. Odysseus is the sole authority for live
+activation and must consume this repository-owned policy; Myrmidons contains
+no GitHub API mutator. The fail-safe central activation contract is documented in
 [`docs/branch-protection.md`](docs/branch-protection.md).
 
 ## Security
