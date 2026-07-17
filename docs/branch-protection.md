@@ -33,7 +33,7 @@ push behavior.
 
 ## Approved staged queue policy
 
-Workflow support and the fail-safe activation mechanism land and receive
+Workflow support and the declarative activation contract land and receive
 independent human review before any live ruleset changes. Live activation and
 one representative queued pull-request smoke test happen only after merge.
 
@@ -51,50 +51,39 @@ one representative queued pull-request smoke test happen only after merge.
 Issue #765 remains open until the post-merge activation and queue smoke
 evidence are recorded.
 
-## Fail-safe post-merge activation
-
-An administrator runs the repository-owned executable after this change is on
-`main` and the smoke-test pull request is ready:
-
-```bash
-snapshot_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/myrmidons/rulesets"
-tools/github/configure-merge-queue.sh --snapshot-dir "$snapshot_dir"
-```
-
-The executable uses only the per-repository policy artifact and the current
-live ruleset. It performs this sequence:
-
-1. Resolve exactly one live `homeric-main-baseline` ruleset.
-2. Save a mode-`0600` durable snapshot in the requested state directory and
-   refuse to overwrite any retained snapshot from an earlier failed run.
-3. Assert the `main` target, absence of an existing queue rule, and the exact
-   seven required contexts before sending a mutation.
-4. Build a PUT payload by appending only the approved `merge_queue` rule to the
-   live rules array, while preserving conditions, bypass actors, enforcement,
-   required checks, pull-request policy, and every unrelated rule.
-5. Read the ruleset back and assert the full queue policy, all seven contexts,
-   and byte-equivalent JSON values for every unrelated protection.
-6. If the PUT response is ambiguous, the post-PUT GET fails, or any read-back
-   assertion fails, automatically PUT the pre-change snapshot back. The
-   snapshot remains on disk for operator recovery and audit.
-7. Delete the durable snapshot only after the read-back verifies the complete
-   intended state.
-
-Any non-zero exit requires operator inspection. Never remove a retained
-snapshot until the live ruleset has been independently checked.
-
-### Central Odysseus rollout
+## Central Odysseus activation contract
 
 [Odysseus #416](https://github.com/HomericIntelligence/Odysseus/issues/416)
-coordinates the central live rollout. Its Myrmidons step must patch the live
-ruleset from the current GET response, preserve Myrmidons's exact seven-context
-contract and every unrelated protection, and apply the queue values in this
-repository's policy artifact. It must not import or reconstruct Myrmidons from
-an Odysseus-specific fixed ruleset payload.
+coordinates the central live rollout. Odysseus is the sole activation authority;
+this dataset repository intentionally contains no administrator-level mutator
+and must not duplicate one.
+
+The Odysseus activation implementation must:
+
+1. Consume
+   [`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json)
+   as the repository-owned source for the Myrmidons queue settings and seven
+   required contexts. It must not copy those values into an Odysseus-specific
+   fixed Myrmidons payload.
+2. Require the target include list to equal only `refs/heads/main` and require
+   the exclusion list to be empty before mutation.
+3. Patch the current live `homeric-main-baseline` GET response by appending only
+   the approved `merge_queue` rule. It must preserve the exact seven contexts,
+   the repository-role bypass actor, conditions, enforcement, pull-request
+   policy, and every other unrelated rule without reconstruction.
+4. Save a durable pre-change snapshot, read the ruleset back after mutation,
+   and verify the complete intended state. An ambiguous write, failed read-back,
+   or preservation mismatch must fail closed and restore the snapshot.
+5. Retain the snapshot whenever restoration or its verification is incomplete,
+   and require operator inspection before any retry.
+
+The offline fixtures and tests in this repository validate the input and
+preservation contract without performing GitHub API writes. The mutation,
+read-back, rollback, and live smoke evidence belong only to Odysseus.
 
 ## Verification after activation
 
-After the executable reports verified success:
+After the central Odysseus activation reports verified success:
 
 ```bash
 gh api repos/HomericIntelligence/Myrmidons/rulesets/15556489 \

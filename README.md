@@ -159,8 +159,9 @@ Every PR runs:
 Branch protection on `main` enforces the exact seven-context contract in
 [`configs/github/merge-queue-policy.json`](configs/github/merge-queue-policy.json).
 The required-check workflow handles pull requests, `main` pushes, and
-`merge_group/checks_requested` events. The tested fail-safe activation and
-rollback procedure is documented in
+`merge_group/checks_requested` events. Odysseus is the sole authority for live
+activation and must consume this repository-owned policy; Myrmidons contains
+no GitHub API mutator. The fail-safe central activation contract is documented in
 [`docs/branch-protection.md`](docs/branch-protection.md).
 
 ## Security

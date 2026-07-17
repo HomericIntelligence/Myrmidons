@@ -42,6 +42,6 @@ test-schema-hints = "./tests/test-check-schema-hints.sh"
 test             = { depends-on = ["test-unit", "test-schema", "test-doc-drift", "test-schema-hints"] }
 
 [feature.lint.tasks]
-lint-shell     = { cmd = "find scripts tools tests hooks \\( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \\) | sort | xargs shellcheck --severity=warning --enable=SC2154", description = "ShellCheck all shell scripts and bats tests at warning severity" }
+lint-shell     = { cmd = "find scripts tests hooks \\( -name '*.sh' -o -name '*.bats' -o -name 'pre-commit' \\) | sort | xargs shellcheck --severity=warning --enable=SC2154", description = "ShellCheck all shell scripts and bats tests at warning severity" }
 lint-agents-md = "bash scripts/lint-agents-md.sh"
 lint           = { depends-on = ["lint-shell", "lint-agents-md"] }
