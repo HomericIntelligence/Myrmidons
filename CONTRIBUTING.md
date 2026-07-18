@@ -26,8 +26,17 @@ For an overview of the full ecosystem, see the
 
 - [Git](https://git-scm.com/)
 - [GitHub CLI](https://cli.github.com/) (`gh`)
-- [Pixi](https://pixi.sh/) for environment management (installs `just`, `yq`, `jq`)
-- [Just](https://just.systems/) as the command runner
+- [Just](https://just.systems/) as the command runner (the task front door)
+- [uv](https://docs.astral.sh/uv/) for the Python-based tooling
+  (`yamllint`, `jsonschema`, `pre-commit`, …)
+- The validator CLI tools, sourced from your OS package manager or release
+  binaries:
+  - `jq` — `sudo apt-get install jq` (or `brew install jq`)
+  - `yq` — the **Go** `yq` (mikefarah): `sudo apt-get install yq`, `brew install yq`,
+    or the [release binary](https://github.com/mikefarah/yq/releases)
+    (NOT the PyPI `yq`)
+  - `bats` — `sudo apt-get install bats` (or `brew install bats-core`)
+  - `shellcheck` — `sudo apt-get install shellcheck` (or `brew install shellcheck`)
 
 ### Environment Setup
 
@@ -36,8 +45,8 @@ For an overview of the full ecosystem, see the
 git clone https://github.com/HomericIntelligence/Myrmidons.git
 cd Myrmidons
 
-# Activate the Pixi environment
-pixi shell
+# Install the Python-based tooling (yamllint, pre-commit, jsonschema, …)
+uv sync --locked
 
 # Install all git hooks (pre-commit framework including dangerous-flags lint guard;
 # see CLAUDE.md § Security for the single canonical policy description)
@@ -212,7 +221,7 @@ just validate
 just test
 
 # Run every linter (shellcheck, yamllint, schema-hint, dangerous-flags, ...)
-pixi run lint
+just lint
 ```
 
 Drift detection (what changes consumers should apply on the runtime side) is

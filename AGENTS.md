@@ -21,7 +21,7 @@ stay within that scope:
 | Read and write agent YAML files in `agents/` | Modify ProjectAgamemnon source code |
 | Read and write fleet YAML files in `fleets/` | Manage container image definitions (→ AchaeanFleet) |
 | Edit / extend dataset validators in `scripts/` | Add reconciler code that calls Agamemnon's API |
-| Run linters and tests via `pixi run` and `just` | Modify `.github/workflows/` without human review |
+| Run linters and tests via `just` and `uv run` | Modify `.github/workflows/` without human review |
 | Create commits and open pull requests | Force-push or rewrite published history |
 
 ---
@@ -60,7 +60,7 @@ below seems strict, it is because one of these principles made it so.
 - Write YAML agent definitions in `agents/<host>/<label>.yaml`
 - Write YAML fleet definitions in `fleets/`
 - Edit JSON schemas in `schemas/` and dataset validators in `scripts/` (with human review for non-trivial changes)
-- Run `pixi run lint`, `pixi run test`, `just validate`, `just test`
+- Run `just lint`, `just test`, `just validate`
 - Run individual validators directly: `bash scripts/check-dangerous-flags.sh`, etc.
 - Create git commits and push branches
 - Open pull requests
@@ -133,11 +133,11 @@ just validate
 just test
 
 # Run every linter (shellcheck, yamllint, schema-hint check, etc.)
-pixi run lint
+just lint
 
 # Check for dangerous-flags policy violations explicitly
 bash scripts/check-dangerous-flags.sh
 
 # Validate required H2 sections in AGENTS.md (run before editing this file)
-pixi run --environment lint lint-agents-md
+just lint-agents-md
 ```

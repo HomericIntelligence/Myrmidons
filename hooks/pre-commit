@@ -11,7 +11,7 @@
 #   4. apiVersion is "myrmidons/v1"
 #   5. Fleet ref referential integrity (staged fleet files) — #123
 #   6. metadata.name uniqueness across all agent YAMLs — #200
-#   7. Test suite via just/pixi (skippable with SKIP_TESTS=1) — #146
+#   7. Test suite via just (skippable with SKIP_TESTS=1) — #146
 
 set -euo pipefail
 
@@ -276,22 +276,21 @@ fi
 # Set SKIP_TESTS=1 to bypass this step (e.g. when test environment is unavailable).
 if [[ "${SKIP_TESTS:-0}" != "1" ]]; then
     echo ""
-    if command -v just &>/dev/null && [[ -f "${REPO_ROOT_HOOK}/Justfile" ]]; then
+    justfile_path=""
+    if [[ -f "${REPO_ROOT_HOOK}/justfile" ]]; then
+        justfile_path="${REPO_ROOT_HOOK}/justfile"
+    elif [[ -f "${REPO_ROOT_HOOK}/Justfile" ]]; then
+        justfile_path="${REPO_ROOT_HOOK}/Justfile"
+    fi
+    if command -v just &>/dev/null && [[ -n "${justfile_path}" ]]; then
         echo "Running test suite (just test) — set SKIP_TESTS=1 to skip..."
-        if ! just --justfile "${REPO_ROOT_HOOK}/Justfile" test; then
-            echo ""
-            echo "Pre-commit: tests failed. Fix failing tests or set SKIP_TESTS=1 to bypass."
-            exit 1
-        fi
-    elif command -v pixi &>/dev/null && [[ -f "${REPO_ROOT_HOOK}/pixi.toml" ]]; then
-        echo "Running test suite (pixi run test) — set SKIP_TESTS=1 to skip..."
-        if ! pixi run --manifest-path "${REPO_ROOT_HOOK}/pixi.toml" test; then
+        if ! just --justfile "${justfile_path}" test; then
             echo ""
             echo "Pre-commit: tests failed. Fix failing tests or set SKIP_TESTS=1 to bypass."
             exit 1
         fi
     else
-        echo "NOTE: neither 'just' nor 'pixi' found or project files missing — skipping test suite (set SKIP_TESTS=1 to suppress)"
+        echo "NOTE: 'just' not found or justfile missing — skipping test suite (set SKIP_TESTS=1 to suppress)"
     fi
 fi
 

@@ -1,6 +1,7 @@
 # Myrmidons justfile — dataset operational helpers
 # Usage: just <recipe>
-# Requires: just, yq, jq
+# Requires: just, yq (go-yq), jq, bats, shellcheck; uv for Python-based tooling.
+# See CONTRIBUTING.md for how to install each (apt / release binary / uv).
 
 # Default: show help
 default:
@@ -42,10 +43,10 @@ validate:
     echo "All YAML files valid."
     echo ""
     echo "Checking name uniqueness..."
-    pixi run lint-names
+    just lint-names
     echo ""
     echo "Running shellcheck..."
-    pixi run lint-shell
+    just lint-shell
 
 # =============================================================================
 # Packaging
@@ -63,6 +64,30 @@ package:
 test:
     bash tests/validate-schemas.sh
 
+# Run bats unit tests
+test-unit:
+    bats tests/unit/
+
+# Run schema-validation tests
+test-schema:
+    ./tests/validate-schemas.sh
+
+# Run documentation-drift check
+test-doc-drift:
+    ./tests/detect-doc-drift.sh
+
+# Check name uniqueness across all agent YAMLs
+lint-names:
+    bash scripts/lint-names.sh
+
+# Run shellcheck on all shell scripts and bats tests
+lint-shell:
+    bash scripts/lint-shell.sh
+
+# Check AGENTS.md has the required sections
+lint-agents-md:
+    bash scripts/lint-agents-md.sh
+
 # Run shellcheck on all shell scripts
 lint:
     shellcheck scripts/*.sh hooks/pre-commit tests/*.sh
@@ -78,23 +103,23 @@ check: lint test
 install-hooks:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! command -v pixi &>/dev/null; then
-        printf 'ERROR: pixi is not installed.\n'
-        printf '  Install it: curl -fsSL https://pixi.sh/install.sh | bash\n'
+    if ! command -v uv &>/dev/null; then
+        printf 'ERROR: uv is not installed.\n'
+        printf '  Install it: curl -LsSf https://astral.sh/uv/install.sh | sh\n'
         printf '  Then re-run: just install-hooks\n'
         printf '  See CONTRIBUTING.md for full setup instructions.\n'
         exit 1
     fi
-    if ! pixi run --environment lint pre-commit --version &>/dev/null; then
-        printf 'ERROR: pre-commit is not available in the pixi lint environment.\n'
-        printf '  Run: pixi install --environment lint\n'
+    if ! uv run --frozen pre-commit --version &>/dev/null; then
+        printf 'ERROR: pre-commit is not available in the uv environment.\n'
+        printf '  Run: uv sync --locked\n'
         printf '  Then re-run: just install-hooks\n'
         printf '  See CONTRIBUTING.md for full setup instructions.\n'
         exit 1
     fi
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    pixi run --environment lint pre-commit install
+    uv run --frozen pre-commit install
     printf 'Hooks installed: dangerous-flags hook + pre-commit framework (.pre-commit-config.yaml).\n'
 
 # Legacy: install only the dangerous-flags hook script (no pre-commit framework)

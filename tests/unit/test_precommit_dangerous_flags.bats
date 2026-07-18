@@ -58,8 +58,8 @@ teardown() {
 
 # ---------------------------------------------------------------------------
 # Helper: stage a file and run the hook directly.
-# The hook is run with the mikefarah yq (from pixi) in PATH if available,
-# since the hook uses `yq eval` syntax (yq v4).
+# The hook uses `yq eval` syntax (the Go mikefarah yq, v4), which must be on
+# PATH — sourced from apt / the release binary per Odysseus ADR-018.
 # ---------------------------------------------------------------------------
 
 _stage_and_run_hook() {
@@ -68,16 +68,10 @@ _stage_and_run_hook() {
 
     git -C "$TMP_REPO" add "$rel_path"
 
-    # Prefer pixi yq (v4/mikefarah) over system yq (may be Python-based v3)
-    local pixi_yq_dir="${SCRIPT_DIR}/.pixi/envs/lint/bin"
-    local run_path="$PATH"
-    if [[ -x "${pixi_yq_dir}/yq" ]]; then
-        run_path="${pixi_yq_dir}:${PATH}"
-    fi
-
-    # Run the pre-commit hook from the repo root
-    # SKIP_TESTS=1: TMP_REPO has no Justfile/pixi.toml, so skip the test-suite step
-    (cd "$TMP_REPO" && SKIP_TESTS=1 PATH="$run_path" bash ".git/hooks/pre-commit") 2>&1
+    # Run the pre-commit hook from the repo root using the ambient PATH, which
+    # must carry the Go mikefarah yq (v4). SKIP_TESTS=1: TMP_REPO has no
+    # justfile, so skip the optional test-suite step.
+    (cd "$TMP_REPO" && SKIP_TESTS=1 bash ".git/hooks/pre-commit") 2>&1
 }
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,53 @@
+name: Set Up Myrmidons Toolchain
+description: >
+  Install the Myrmidons validator toolchain — just, jq, go-yq (yq), bats, and
+  uv — sourcing each from its canonical upstream (setup-just action, apt,
+  mikefarah release binary, setup-uv action). Replaces the former pixi setup
+  per Odysseus ADR-018.
+
+inputs:
+  python-tools:
+    description: >
+      Whether to `uv sync --locked` the Python tool dependency group (yamllint,
+      jsonschema, pre-commit, …). Set to 'false' for jobs that need only the
+      shell/YAML CLI tools.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Install just
+      uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
+
+    - name: Install jq, bats, and go-yq (yq)
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        # jq, bats, and shellcheck ship in the ubuntu-latest apt repositories.
+        sudo apt-get install -y --no-install-recommends jq bats shellcheck
+        # go-yq (mikefarah/yq) is NOT the Python `yq`; the validators use its
+        # `yq eval` syntax, so install the Go release binary explicitly.
+        YQ_VERSION="v4.44.3"
+        sudo curl -sSfL \
+          "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+          -o /usr/local/bin/yq
+        sudo chmod +x /usr/local/bin/yq
+        echo "--- installed toolchain versions ---"
+        just --version
+        jq --version
+        yq --version
+        bats --version
+        shellcheck --version
+
+    - name: Install uv
+      if: inputs.python-tools == 'true'
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      with:
+        enable-cache: true
+
+    - name: Sync Python tooling (locked)
+      if: inputs.python-tools == 'true'
+      shell: bash
+      run: uv sync --locked

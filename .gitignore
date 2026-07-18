@@ -20,6 +20,13 @@ tests/*.log
 # Local state (not config)
 *.bak
 
+# uv / Python virtualenv (managed by `uv sync`)
+.venv/
+__pycache__/
+
+# Legacy pixi environment (removed per ADR-018; ignore any stale local copy)
+.pixi/
+
 # Cloned repos from /advise skill
 ProjectMnemosyne/
 build/

@@ -16,17 +16,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Find shellcheck: try system first, then pixi lint environment
+# Find shellcheck: it is a system tool (apt install shellcheck / brew).
 SHELLCHECK_CMD="shellcheck"
 if ! command -v shellcheck &>/dev/null; then
-    if [[ -f "${REPO_ROOT}/.pixi/envs/lint/bin/shellcheck" ]]; then
-        SHELLCHECK_CMD="${REPO_ROOT}/.pixi/envs/lint/bin/shellcheck"
-    else
-        echo "ERROR: shellcheck is required for shell linting." >&2
-        echo "  Install: https://www.shellcheck.net/wiki/Install" >&2
-        echo "  Or run: pixi run lint-shell" >&2
-        exit 1
-    fi
+    echo "ERROR: shellcheck is required for shell linting." >&2
+    echo "  Install: https://www.shellcheck.net/wiki/Install" >&2
+    echo "  Ubuntu/Debian: sudo apt-get install -y shellcheck" >&2
+    exit 1
 fi
 
 echo "Running shellcheck on all shell scripts..."

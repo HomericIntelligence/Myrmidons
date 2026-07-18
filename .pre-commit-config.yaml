@@ -55,7 +55,7 @@ repos:
       - id: myrmidons-test-schema
         name: Myrmidons schema validation tests
         language: system
-        entry: pixi run test-schema
+        entry: just test-schema
         pass_filenames: false
         files: '^(agents|fleets|schemas|tests)/'
 
