@@ -109,6 +109,6 @@ complex with no corresponding benefit.
 | `tests/validate-fleet-refs.sh` | Standalone validation script — checks all fleet `ref:` entries resolve to existing files and validates inline agent required fields |
 | `tests/validate-schemas.sh` | Calls `validate-fleet-refs.sh` as part of the schema test suite |
 | `tests/unit/test_validate_fleet_refs.bats` | BATS unit tests for `validate-fleet-refs.sh` (pass/fail paths, inline agent validation, empty fleet, non-Fleet kind skipping) |
-| `.pre-commit-config.yaml` | `myrmidons-validate-fleet-refs` hook runs `validate-fleet-refs.sh` directly on `agents/`/`fleets/` changes; `myrmidons-test-schema` hook calls it indirectly via `pixi run test-schema` |
-| `.github/workflows/validate.yml` | Standalone `Fleet ref validation` CI step runs `validate-fleet-refs.sh` directly (in addition to the `pixi run test-schema` step that calls it indirectly) |
+| `.pre-commit-config.yaml` | `myrmidons-validate-fleet-refs` hook runs `validate-fleet-refs.sh` directly on `agents/`/`fleets/` changes; `myrmidons-test-schema` hook calls it indirectly via `just test-schema` |
+| `.github/workflows/validate.yml` | Standalone `Fleet ref validation` CI step runs `validate-fleet-refs.sh` directly (in addition to the `just test-schema` step that calls it indirectly) |
 | `CLAUDE.md` | Documents the naming convention and the ref resolution rule |

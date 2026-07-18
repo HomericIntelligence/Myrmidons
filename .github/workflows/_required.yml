@@ -107,20 +107,15 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
-        with:
-          environment: lint
+      - uses: ./.github/actions/setup-tools
 
-      # ShellCheck on all .sh files via pixi lint task
-      - name: Run shellcheck (pixi lint-shell)
-        run: pixi run --environment lint lint-shell
+      # ShellCheck on all .sh files via the just lint-shell recipe
+      - name: Run shellcheck (just lint-shell)
+        run: just lint-shell
 
-      # yamllint on agent YAML definitions
-      - name: Install yamllint
-        run: pip install --quiet yamllint
-
+      # yamllint (Python tool) on agent YAML definitions, via uv
       - name: yamllint agent definitions
-        run: yamllint -d relaxed agents/
+        run: uv run --frozen yamllint -d relaxed agents/
 
   unit-tests:
     name: unit-tests
@@ -129,10 +124,12 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
+      - uses: ./.github/actions/setup-tools
+        with:
+          python-tools: 'false'
 
       - name: Run unit tests (bats)
-        run: pixi run test-unit
+        run: just test-unit
 
   security-dependency-scan:
     name: security/dependency-scan
@@ -174,7 +171,7 @@ jobs:
       #
       # 2026-07-14: PYSEC-2026-2132 newly surfaced on the runner-image
       # `click 8.1.6` baseline package (fixed in click 8.3.3). Myrmidons pins
-      # no PyPI deps — click is not in pixi.toml/pixi.lock — so this is a
+      # no PyPI deps — click is not in pyproject.toml/uv.lock — so this is a
       # runner-image baseline CVE like the rest: allowlisted here and folded
       # into the #713 baseline review. Tracked by #762.
       #
@@ -184,11 +181,16 @@ jobs:
       # `ubuntu-latest` image system Python — Myrmidons pins no PyPI deps —
       # so these are runner-image baseline CVEs like the rest: allowlisted
       # here and folded into the #713 baseline review. Surfaced by #763.
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+        with:
+          enable-cache: true
+
       - name: pip-audit
         run: |
           set -euo pipefail
-          pip install --quiet pip-audit
-          pip-audit \
+          uv sync --locked
+          uv run --frozen pip-audit \
             --ignore-vuln PYSEC-2024-230 \
             --ignore-vuln CVE-2023-26112 \
             --ignore-vuln PYSEC-2024-225 \
@@ -277,13 +279,19 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      # Validate all agent YAML files parse and conform to schema
-      - name: Install pyyaml and jsonschema
-        run: pip install --quiet pyyaml jsonschema
+      # Validate all agent YAML files parse and conform to schema.
+      # pyyaml + jsonschema come from the uv-managed dev dependency group.
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+        with:
+          enable-cache: true
+
+      - name: Sync Python tooling (locked)
+        run: uv sync --locked
 
       - name: Validate agent YAML definitions
         run: |
-          python - <<'EOF'
+          uv run --frozen python - <<'EOF'
           import yaml, glob, json, jsonschema, sys
 
           schema_path = "schemas/agent-v1.schema.json"
@@ -367,8 +375,13 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - name: Install mypy
-        run: pip install --quiet mypy
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+        with:
+          enable-cache: true
+
+      - name: Sync Python tooling (locked)
+        run: uv sync --locked
 
       # Run mypy on Python scripts if any exist; fall back to py_compile check
       - name: mypy / py_compile on Python files
@@ -386,13 +399,13 @@ jobs:
           # visible in the build summary.
           if [ -d "scripts" ] && find scripts -name "*.py" | grep -q .; then
             mypy_rc=0
-            mypy --ignore-missing-imports scripts/ || mypy_rc=$?
+            uv run --frozen mypy --ignore-missing-imports scripts/ || mypy_rc=$?
             if [ "$mypy_rc" -ne 0 ]; then
               echo "::warning::mypy on scripts/ exited $mypy_rc — review the output above."
             fi
           fi
           # Always run py_compile as a hard syntax check
-          echo "$PY_FILES" | head -20 | xargs python -m py_compile
+          echo "$PY_FILES" | head -20 | xargs uv run --frozen python -m py_compile
           echo "py_compile passed on all Python files."
 
   schema-validation:
@@ -402,11 +415,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
-        with:
-          environment: lint
+      - uses: ./.github/actions/setup-tools
 
-      # Validate workflow YAML files are well-formed (yq, already in pixi env)
+      # Validate workflow YAML files are well-formed (go-yq)
       - name: Lint workflow YAML files (yq)
         run: |
           find .github/workflows -name '*.yml' | sort | while read -r f; do
@@ -415,32 +426,28 @@ jobs:
           done
           echo "All workflow YAML files are well-formed."
 
-      # Validate GitHub workflow schema via check-jsonschema
-      - name: Install check-jsonschema
-        run: pip install --quiet check-jsonschema
-
+      # Validate GitHub workflow schema via check-jsonschema (uv-managed tool)
       - name: Validate GitHub workflow schemas
         run: |
           mapfile -t workflow_files < <(find .github/workflows -name '*.yml' | sort)
           # Retry up to 3 times to handle transient schemastore.org 503s
           for attempt in 1 2 3; do
-            check-jsonschema \
+            uv run --frozen check-jsonschema \
               --schemafile https://json.schemastore.org/github-workflow \
               "${workflow_files[@]}" && break
             echo "::warning::Schema validation attempt $attempt failed; retrying in 15s..."
             sleep 15
           done
 
-      # Validate pixi.toml is parseable TOML
-      - name: Validate pixi.toml
+      # Validate pyproject.toml is parseable TOML
+      - name: Validate pyproject.toml
         run: |
-          python - <<'EOF'
+          uv run --frozen python - <<'EOF'
           import tomllib
-          with open("pixi.toml", "rb") as f:
+          with open("pyproject.toml", "rb") as f:
               data = tomllib.load(f)
-          name = (data.get('workspace', {}).get('name')
-                  or data.get('project', {}).get('name', 'unknown'))
-          print(f"pixi.toml OK — workspace: {name}")
+          name = data.get('project', {}).get('name', 'unknown')
+          print(f"pyproject.toml OK — project: {name}")
           EOF
 
   deps-version-sync:
@@ -450,11 +457,20 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+        with:
+          enable-cache: true
 
-      # Verify pixi.lock matches pixi.toml — exits non-zero if lock is stale
+      # Verify uv.lock matches pyproject.toml — exits non-zero if lock is stale.
+      # This preserves the deps/version-sync intent: the dependency lockfile
+      # must be in sync with its manifest before merge.
+      - name: Verify lockfile is in sync
+        run: uv lock --check
+
+      # Verify the locked environment installs cleanly.
       - name: Install dependencies (locked)
-        run: pixi install --locked
+        run: uv sync --locked
 
   install:
     name: install
@@ -463,29 +479,24 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
+      - uses: ./.github/actions/setup-tools
 
       # Canonical `install` check (Odysseus ecosystem CI-naming, issue #750).
       # The "artifact" this dataset repo ships to developers and CI is the
-      # pixi-managed validator toolchain plus the git hooks. Verify both
-      # environments install from the lockfile, every pinned tool executes,
-      # and the documented developer install path (just install-hooks) works.
-      - name: Install default environment (locked)
-        run: pixi install --locked
-
-      - name: Install lint environment (locked)
-        run: pixi install --locked --environment lint
-
+      # validator toolchain (just/jq/go-yq/bats/shellcheck sourced outside uv,
+      # plus the uv-managed Python tools) and the git hooks. Verify the locked
+      # environment installs, every pinned tool executes, and the documented
+      # developer install path (just install-hooks) works.
       - name: Smoke-test installed toolchain
         run: |
           set -euo pipefail
-          pixi run -- just --version
-          pixi run -- jq --version
-          pixi run -- yq --version
-          pixi run -- bats --version
-          pixi run --environment lint -- shellcheck --version
-          pixi run --environment lint -- yamllint --version
-          pixi run --environment lint -- pre-commit --version
+          just --version
+          jq --version
+          yq --version
+          bats --version
+          shellcheck --version
+          uv run --frozen yamllint --version
+          uv run --frozen pre-commit --version
 
       - name: Install git hooks (just install-hooks)
-        run: pixi run -- just install-hooks
+        run: just install-hooks

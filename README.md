@@ -20,7 +20,7 @@ This repo intentionally contains **only**:
 - **Agent and fleet descriptions** that conform to those schemas (`agents/`, `fleets/`)
 - **Validators** that read the dataset and enforce schema + policy (`scripts/`, `tests/`)
 - **Documentation** about the dataset and its schemas (this README, `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `docs/adr/`)
-- **CI/CD wrappers** that run the validators on every PR (`.github/workflows/`, `.pre-commit-config.yaml`, `pixi.toml`)
+- **CI/CD wrappers** that run the validators on every PR (`.github/workflows/`, `.pre-commit-config.yaml`, `pyproject.toml`)
 
 It does NOT contain runtime infrastructure. Specifically:
 
@@ -33,8 +33,10 @@ It does NOT contain runtime infrastructure. Specifically:
 ## Quick start
 
 ```bash
-# Install validators (pixi-managed env: yq, jq, bats-core, shellcheck, yamllint)
-pixi install
+# Install the CLI validators (yq, jq, bats, shellcheck) from apt / release
+# binaries, plus `just` and `uv` — see CONTRIBUTING.md for the per-tool commands.
+# Then install the Python-based tooling (yamllint, jsonschema, pre-commit, …):
+uv sync --locked
 
 # Install pre-commit hooks so every commit runs the validators
 just install-hooks
@@ -136,13 +138,22 @@ them before making structural changes to schemas or validators.
 
 ## Dependencies
 
-All validator dependencies are pinned in `pixi.toml`. Install via `pixi install`.
+The validator toolchain is sourced two ways (per Odysseus ADR-018):
 
-- `yq` ≥ 4.0 — YAML parser
+**CLI tools** — from your OS package manager or upstream release binaries
+(see [CONTRIBUTING.md](CONTRIBUTING.md) for exact commands):
+
+- `just` — command runner (task front door)
+- `yq` ≥ 4.0 — the **Go** `yq` (mikefarah), YAML parser (NOT the PyPI `yq`)
 - `jq` ≥ 1.6 — JSON processor
-- `bats-core` ≥ 1.11 — test runner for validators
-- `shellcheck` 0.10.0 — shell-script lint
+- `bats` ≥ 1.11 — test runner for validators
+- `shellcheck` — shell-script lint
+
+**Python-based tools** — pinned in `pyproject.toml` / `uv.lock`, installed with
+`uv sync --locked`, run via `uv run`:
+
 - `yamllint` ≥ 1.35 — YAML lint
+- `jsonschema` / `check-jsonschema` — schema validation
 - `pre-commit` ≥ 3.0 — hook framework (`just install-hooks`)
 
 ## CI/CD

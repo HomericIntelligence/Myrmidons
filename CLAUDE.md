@@ -29,8 +29,10 @@ read this dataset and reconcile their runtime state against it.
 ## Quick start
 
 ```bash
-# Install validators (pixi-managed env)
-pixi install
+# Install the Python-based tooling (yamllint, jsonschema, pre-commit, …).
+# The CLI validators (just, jq, go-yq, bats, shellcheck) come from apt /
+# release binaries — see CONTRIBUTING.md.
+uv sync --locked
 
 # Install pre-commit hooks so every commit runs the validators
 just install-hooks
@@ -121,13 +123,13 @@ of truth. CI runs `pre-commit run --all-files` to stay in parity with local.
 
 ## Dependencies
 
-All validator dependencies are pinned in `pixi.toml`.
+The validator toolchain is sourced two ways (per Odysseus ADR-018 — this repo
+carries NO Python source, only tool config):
 
-- `yq` — YAML parser
-- `jq` — JSON processor
-- `bats-core` — bats test runner
-- `shellcheck` — shell lint
-- `yamllint` — YAML lint
+- **CLI tools from apt / release binaries:** `just` (task front door), `yq`
+  (the **Go** mikefarah `yq`, not the PyPI one), `jq`, `bats`, `shellcheck`.
+- **Python-based tools pinned in `pyproject.toml` / `uv.lock`** and run via
+  `uv run`: `yamllint`, `jsonschema` / `check-jsonschema`, `pre-commit`.
 - `actionlint` — GitHub Actions workflow linter (system binary; see install notes below)
 
 ### Installing actionlint (Go <1.16 systems)
@@ -143,9 +145,6 @@ brew install actionlint
 # Linux (pre-built binary)
 curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_linux_amd64.tar.gz | tar xz
 sudo mv actionlint /usr/local/bin/
-
-# conda / pixi
-conda install -c conda-forge actionlint
 ```
 
 ## CI/CD

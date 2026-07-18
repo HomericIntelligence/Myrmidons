@@ -21,12 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
+      - uses: ./.github/actions/setup-tools
         with:
-          environment: lint
+          python-tools: 'false'
 
       - name: Run shellcheck
-        run: pixi run --environment lint lint-shell
+        run: just lint-shell
 
   schema:
     name: Schema Validation Tests
@@ -35,10 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
+      - uses: ./.github/actions/setup-tools
+        with:
+          python-tools: 'false'
 
       - name: Validate YAML schemas
-        run: pixi run test-schema
+        run: just test-schema
 
       - name: Check documentation drift
-        run: pixi run test-doc-drift
+        run: just test-doc-drift

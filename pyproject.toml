@@ -1,0 +1,29 @@
+[project]
+name = "myrmidons"
+version = "0.1.0"
+description = "GitOps agent dataset for the HomericIntelligence mesh"
+requires-python = ">=3.11"
+# Myrmidons is a shell/YAML/bats dataset repo: it ships NO importable Python
+# package and declares ZERO runtime PyPI dependencies. This pyproject.toml
+# exists solely so `uv` can manage the Python-based *tooling* the validators
+# and CI use (yamllint, jsonschema, pre-commit, …) via `uv run`, replacing the
+# per-step `pip install` calls removed in the pixi→uv migration (ADR-018).
+dependencies = []
+
+# No importable package to build — this project is tool-config only.
+[tool.uv]
+package = false
+
+[dependency-groups]
+# Python-based developer + CI tooling, run via `uv run <tool>`.
+# The non-Python validator toolchain (just, jq, go-yq, bats) is sourced
+# outside uv — see CONTRIBUTING.md and the CI workflows.
+dev = [
+  "yamllint>=1.35,<2",     # YAML lint (agents/, pre-commit hook)
+  "pyyaml>=6.0",           # agent-YAML schema validation (build job)
+  "jsonschema>=4.0",       # agent-YAML schema validation (build job)
+  "check-jsonschema>=0.28", # GitHub-workflow schema validation
+  "mypy>=1.8",             # typecheck job (py_compile fallback)
+  "pip-audit>=2.7",        # dependency-scan job
+  "pre-commit>=3.0,<5",    # single-source-of-truth lint runner
+]

@@ -12,8 +12,8 @@ on:
       - 'schemas/**'
       - '.myrmidons.yaml'
       - '.pre-commit-config.yaml'
-      - 'pixi.toml'
-      - 'pixi.lock'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'tests/**'
       - 'CLAUDE.md'
       - 'AGENTS.md'
@@ -42,9 +42,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup-pixi
-        with:
-          environment: lint
+      - uses: ./.github/actions/setup-tools
 
       - name: Install gitleaks (required by gitleaks-system pre-commit hook)
         run: |
@@ -62,7 +60,7 @@ jobs:
 
       - name: Run pre-commit on all files
         run: |
-          pixi run --environment lint pre-commit run \
+          uv run --frozen pre-commit run \
             --all-files --show-diff-on-failure
 
   validate:
@@ -73,7 +71,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-pixi
+      - uses: ./.github/actions/setup-tools
+        with:
+          python-tools: 'false'
 
       - name: Check dependencies
         run: |
@@ -95,7 +95,7 @@ jobs:
       - name: Validate all YAML files
         env:
           CI: "true"
-        run: pixi run test-schema
+        run: just test-schema
 
       - name: Fleet ref validation
         run: tests/validate-fleet-refs.sh
