@@ -9,6 +9,7 @@
 #include <nats.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -73,7 +74,21 @@ int main(int argc, char* argv[]) {
     const char* nats_url_env = std::getenv("NATS_URL");
     std::string nats_url     = nats_url_env ? nats_url_env : "nats://localhost:4222";
 
-    std::cout << "Hello Myrmidon starting, NATS=" << nats_url << "\n";
+    // Simulated per-task work delay, in milliseconds. Defaults to 1000 (1s) to
+    // mimic real work; E2E throughput/fan-out tests set MYRMIDON_WORK_DELAY_MS=0
+    // so a large task batch is bounded by real dispatch speed, not this delay.
+    int work_delay_ms = 1000;
+    if (const char* wd = std::getenv("MYRMIDON_WORK_DELAY_MS")) {
+        try {
+            work_delay_ms = std::max(0, std::stoi(wd));
+        } catch (...) {
+            std::cerr << "WARNING: MYRMIDON_WORK_DELAY_MS=\"" << wd
+                      << "\" is invalid; using default 1000ms\n";
+        }
+    }
+
+    std::cout << "Hello Myrmidon starting, NATS=" << nats_url
+              << ", work_delay_ms=" << work_delay_ms << "\n";
 
     // ── Connect to NATS (with retry for container startup ordering) ──────────
     natsConnection* conn = nullptr;
@@ -202,8 +217,10 @@ int main(int argc, char* argv[]) {
 
             std::cout << "Processing task " << task_id << ": " << subject << "\n";
 
-            // Simulate work — 1 second.
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            // Simulate work (configurable via MYRMIDON_WORK_DELAY_MS; default 1s).
+            if (work_delay_ms > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(work_delay_ms));
+            }
 
             // ── Publish completion ────────────────────────────────────────
             std::string completion_subject =
