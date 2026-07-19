@@ -135,7 +135,7 @@ asymmetry is deliberate, not an oversight.
     advisory mode.
 - **False positives** are handled exclusively via `.gitleaks.toml` allowlist
   entries with `# gitleaks-allowlist: <justification>` comments. See the
-  Gitleaks allowlist section of [CLAUDE.md](../CLAUDE.md).
+  Gitleaks allowlist section of [AGENTS.md](../AGENTS.md).
 
 ### `security/dependency-scan` (pip-audit + Trivy) — **informational**
 

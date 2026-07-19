@@ -8,5 +8,4 @@
 - [ ] Commit messages follow Conventional Commits format
 - [ ] PR title follows `type(scope): description` format
 - [ ] Documentation updated if behavior changed
-- [ ] `CLAUDE.md` updated if developer workflow or conventions changed
-- [ ] `AGENTS.md` updated if agent permissions or safety boundaries changed
+- [ ] `AGENTS.md` updated if developer workflow, conventions, agent permissions, or safety boundaries changed

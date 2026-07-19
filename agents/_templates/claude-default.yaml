@@ -16,7 +16,7 @@ spec:
                         # WARNING: Do not use --dangerously-skip-permissions
                         # without a "# skip-permissions-lint: <justification>"
                         # annotation on the same line.
-                        # See check-dangerous-flags.sh and CLAUDE.md.
+                        # See check-dangerous-flags.sh and AGENTS.md.
   taskDescription: "Describe what this agent does"
   tags: []
   owner: mvillmow

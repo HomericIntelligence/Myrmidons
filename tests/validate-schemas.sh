@@ -224,7 +224,7 @@ while IFS= read -r -d '' file; do
     fi
 
     # Warn if filename stem does not match lowercase(spec.label) per naming convention
-    # Convention: filename = lowercase(spec.label) + ".yaml"  (see CLAUDE.md)
+    # Convention: filename = lowercase(spec.label) + ".yaml"  (see AGENTS.md)
     lbl="$(yq eval '.spec.label // ""' "$file")"
     if [[ -n "$lbl" ]]; then
         expected_stem="$(echo "$lbl" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"

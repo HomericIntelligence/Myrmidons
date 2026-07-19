@@ -20,7 +20,7 @@ repos:
         files: '\.(sh|bats)$|(^|/)pre-commit$'
 
   # GitHub Actions workflow linting — system-installed binary to support Go <1.16 hosts
-  # See CLAUDE.md for installation instructions
+  # See AGENTS.md for installation instructions
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
     hooks:
