@@ -5,6 +5,7 @@ setup() {
     POLICY="${ROOT}/configs/github/merge-queue-policy.json"
     FIXTURE="${ROOT}/tests/fixtures/github/myrmidons-ruleset-before.json"
     WORKFLOW="${ROOT}/.github/workflows/_required.yml"
+    SMOKE="${ROOT}/.github/workflows/merge-queue-smoke.yml"
     MUTATOR="${ROOT}/tools/github/configure-merge-queue.sh"
     FAKE_GH="${ROOT}/tests/fixtures/github/fake-gh.sh"
 }
@@ -49,11 +50,30 @@ assert_main_only_scope() {
     [ "$status" -eq 0 ]
 }
 
-@test "required checks workflow handles merge-group checks_requested events" {
+@test "required checks workflow no longer runs on merge-group events" {
+    run yq eval --exit-status '.on | has("merge_group") | not' "$WORKFLOW"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "merge-queue smoke workflow handles merge-group checks_requested events only" {
     run yq eval --exit-status '
+        (.on | keys | length) == 1 and
+        (.on | keys | .[0]) == "merge_group" and
         (.on.merge_group.types | length) == 1 and
         .on.merge_group.types[0] == "checks_requested"
-    ' "$WORKFLOW"
+    ' "$SMOKE"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "merge-queue smoke workflow runs exactly one fast job named merge-queue-smoke" {
+    run yq eval --exit-status '
+        (.jobs | keys | length) == 1 and
+        (.jobs | keys | .[0]) == "merge-queue-smoke" and
+        .jobs."merge-queue-smoke".name == "merge-queue-smoke" and
+        .jobs."merge-queue-smoke".timeout-minutes == 5
+    ' "$SMOKE"
 
     [ "$status" -eq 0 ]
 }
