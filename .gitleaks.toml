@@ -18,14 +18,14 @@ useDefault = true
 [allowlist]
 description = "Test fixtures and documentation examples"
 regexes = [
-  '''your-token-here''',               # gitleaks-allowlist: placeholder token in CLAUDE.md, not a real credential
+  '''your-token-here''',               # gitleaks-allowlist: placeholder token in AGENTS.md, not a real credential
   '''fake-api-key''',                  # gitleaks-allowlist: placeholder token in documentation examples
   '''test-token''',                    # gitleaks-allowlist: placeholder token in test fixtures and documentation
-  '''AGAMEMNON_API_KEY=.*example''',   # gitleaks-allowlist: environment variable example in CLAUDE.md, not a real API key
+  '''AGAMEMNON_API_KEY=.*example''',   # gitleaks-allowlist: environment variable example in AGENTS.md, not a real API key
 ]
 paths = [
   '''tests/.*''',                      # gitleaks-allowlist: test fixtures contain intentional fake secrets
   '''README\.md''',                    # gitleaks-allowlist: documentation examples with placeholder tokens
-  '''CLAUDE\.md''',                    # gitleaks-allowlist: policy documentation with example configs and tokens
+  '''AGENTS\.md''',                    # gitleaks-allowlist: policy documentation with example configs and tokens
   '''docs/.*''',                       # gitleaks-allowlist: documentation files with examples and placeholders
 ]

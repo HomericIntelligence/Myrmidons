@@ -19,7 +19,7 @@ This repo intentionally contains **only**:
 - **YAML schemas** for agents and fleets (`schemas/`)
 - **Agent and fleet descriptions** that conform to those schemas (`agents/`, `fleets/`)
 - **Validators** that read the dataset and enforce schema + policy (`scripts/`, `tests/`)
-- **Documentation** about the dataset and its schemas (this README, `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `docs/adr/`)
+- **Documentation** about the dataset and its schemas (this README, `AGENTS.md`, `CONTRIBUTING.md`, `docs/adr/`)
 - **CI/CD wrappers** that run the validators on every PR (`.github/workflows/`, `.pre-commit-config.yaml`, `pyproject.toml`)
 
 It does NOT contain runtime infrastructure. Specifically:
@@ -178,7 +178,7 @@ no GitHub API mutator. The fail-safe central activation contract is documented i
 ## Security
 
 The dangerous-flag policy and gitleaks allowlist policy are documented in
-`CLAUDE.md` under "Security." Both are enforced by pre-commit hooks and in CI.
+`AGENTS.md` under "Security." Both are enforced by pre-commit hooks and in CI.
 
 ## Contributing
 
