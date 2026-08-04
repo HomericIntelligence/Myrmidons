@@ -2,7 +2,7 @@
 name = "myrmidons"
 version = "0.1.0"
 description = "GitOps agent dataset for the HomericIntelligence mesh"
-requires-python = ">=3.11"
+requires-python = ">=3.13,<3.14"
 # Myrmidons is a shell/YAML/bats dataset repo: it ships NO importable Python
 # package and declares ZERO runtime PyPI dependencies. This pyproject.toml
 # exists solely so `uv` can manage the Python-based *tooling* the validators
