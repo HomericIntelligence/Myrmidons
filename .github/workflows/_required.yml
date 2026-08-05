@@ -98,6 +98,12 @@ jobs:
           fi
           echo 'OK: no advisory annotations found'
 
+  # ---------------------------------------------------------------------------
+  # Containerized jobs: the toolchain is baked into the CI image
+  # (ci/Containerfile) and every check runs inside a podman container.
+  # scripts/run_ci_local.sh auto-detects podman on the runner.
+  # ---------------------------------------------------------------------------
+
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -105,15 +111,19 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      # ShellCheck on all .sh files via the just lint-shell recipe
-      - name: Run shellcheck (just lint-shell)
-        run: just lint-shell
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
-      # yamllint (Python tool) on agent YAML definitions, via uv
-      - name: yamllint agent definitions
-        run: uv run --frozen yamllint -d relaxed agents/
+      - name: Run shellcheck (just lint-shell) + yamllint (in container)
+        run: ./scripts/run_ci_local.sh lint
 
   unit-tests:
     name: unit-tests
@@ -122,12 +132,19 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-tools: 'false'
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Run unit tests (bats)
-        run: just test-unit
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
+
+      - name: Run unit tests (bats) (in container)
+        run: ./scripts/run_ci_local.sh test
 
   security-dependency-scan:
     name: security/dependency-scan
@@ -135,6 +152,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
+
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
       # pip-audit: scan Python dependencies for known vulnerabilities.
       # Fail-fast on findings — if pip-audit reports a CVE, bump the offending
@@ -179,76 +207,8 @@ jobs:
       # `ubuntu-latest` image system Python — Myrmidons pins no PyPI deps —
       # so these are runner-image baseline CVEs like the rest: allowlisted
       # here and folded into the #713 baseline review. Surfaced by #763.
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
-        with:
-          enable-cache: true
-
-      - name: pip-audit
-        run: |
-          set -euo pipefail
-          uv sync --locked
-          uv run --frozen pip-audit \
-            --ignore-vuln PYSEC-2024-230 \
-            --ignore-vuln CVE-2023-26112 \
-            --ignore-vuln PYSEC-2024-225 \
-            --ignore-vuln CVE-2023-50782 \
-            --ignore-vuln CVE-2024-0727 \
-            --ignore-vuln GHSA-h4gh-qq45-vh27 \
-            --ignore-vuln CVE-2026-26007 \
-            --ignore-vuln CVE-2026-34073 \
-            --ignore-vuln GHSA-537c-gmf6-5ccf \
-            --ignore-vuln PYSEC-2024-60 \
-            --ignore-vuln CVE-2024-22195 \
-            --ignore-vuln CVE-2024-34064 \
-            --ignore-vuln CVE-2024-56326 \
-            --ignore-vuln CVE-2024-56201 \
-            --ignore-vuln CVE-2025-27516 \
-            --ignore-vuln CVE-2025-8869 \
-            --ignore-vuln CVE-2026-1703 \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2026-6357 \
-            --ignore-vuln CVE-2026-30922 \
-            --ignore-vuln CVE-2026-4539 \
-            --ignore-vuln CVE-2026-32597 \
-            --ignore-vuln CVE-2026-27448 \
-            --ignore-vuln CVE-2026-27459 \
-            --ignore-vuln CVE-2024-35195 \
-            --ignore-vuln CVE-2024-47081 \
-            --ignore-vuln CVE-2026-25645 \
-            --ignore-vuln PYSEC-2025-49 \
-            --ignore-vuln CVE-2024-6345 \
-            --ignore-vuln PYSEC-2024-75 \
-            --ignore-vuln CVE-2024-41671 \
-            --ignore-vuln CVE-2026-42304 \
-            --ignore-vuln CVE-2024-37891 \
-            --ignore-vuln CVE-2025-50181 \
-            --ignore-vuln CVE-2025-66418 \
-            --ignore-vuln CVE-2025-66471 \
-            --ignore-vuln CVE-2026-21441 \
-            --ignore-vuln CVE-2026-24049 \
-            --ignore-vuln CVE-2026-44431 \
-            --ignore-vuln CVE-2026-45409 \
-            --ignore-vuln PYSEC-2026-196 \
-            --ignore-vuln PYSEC-2025-183 \
-            --ignore-vuln PYSEC-2026-179 \
-            --ignore-vuln PYSEC-2026-175 \
-            --ignore-vuln PYSEC-2026-2132 \
-            --ignore-vuln PYSEC-2026-3444 \
-            --ignore-vuln PYSEC-2026-3447 \
-            --ignore-vuln PYSEC-2026-177  # idna/pip/pyjwt/click/httplib2/setuptools runner-image baseline (#713, #762)
-
-      # Trivy filesystem scan — informational. `--exit-code 0` already makes
-      # vulnerability findings non-fatal; install/extraction failures should
-      # still fail the step so we know when the scan stopped working.
-      - name: Trivy filesystem scan
-        run: |
-          set -euo pipefail
-          base="https://github.com/aquasecurity/trivy/releases/download"
-          curl -sSfL \
-            "${base}/v${{ env.TV_VER }}/trivy_${{ env.TV_VER }}_Linux-64bit.tar.gz" \
-            | tar -xz -C /usr/local/bin trivy
-          trivy fs --severity HIGH,CRITICAL --exit-code 0 .
+      - name: pip-audit + trivy (in container)
+        run: ./scripts/run_ci_local.sh security
 
   security-secrets-scan:
     name: security/secrets-scan
@@ -259,16 +219,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Use the unlicensed gitleaks binary — no GITLEAKS_LICENSE required.
-      - name: Install gitleaks
-        run: |
-          url="https://github.com/gitleaks/gitleaks/releases/download"
-          curl -sSfL \
-            "${url}/v${{ env.GITLEAKS_VERSION }}/gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Scan for secrets (gitleaks)
-        run: gitleaks detect --source . --config .gitleaks.toml --no-git -v
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
+
+      # gitleaks is baked into the CI image (pinned release).
+      - name: Scan for secrets (gitleaks) (in container)
+        run: podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local gitleaks detect --source /workspace --config .gitleaks.toml --no-git -v
 
   build:
     name: build
@@ -277,46 +241,21 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      # Validate all agent YAML files parse and conform to schema.
-      # pyyaml + jsonschema come from the uv-managed dev dependency group.
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          enable-cache: true
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Sync Python tooling (locked)
-        run: uv sync --locked
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
-      - name: Validate agent YAML definitions
-        run: |
-          uv run --frozen python - <<'EOF'
-          import yaml, glob, json, jsonschema, sys
-
-          schema_path = "schemas/agent-v1.schema.json"
-          with open(schema_path) as f:
-              schema = json.load(f)
-
-          agent_files = glob.glob("agents/**/*.yaml", recursive=True)
-          errors = []
-          for filepath in sorted(agent_files):
-              with open(filepath) as f:
-                  try:
-                      doc = yaml.safe_load(f)
-                  except yaml.YAMLError as e:
-                      errors.append(f"YAML parse error in {filepath}: {e}")
-                      continue
-              try:
-                  jsonschema.validate(doc, schema)
-              except jsonschema.ValidationError as e:
-                  errors.append(f"Schema error in {filepath}: {e.message}")
-
-          if errors:
-              for err in errors:
-                  print(f"ERROR: {err}", file=sys.stderr)
-              sys.exit(1)
-
-          print(f"Validated {len(agent_files)} agent definitions — all OK.")
-          EOF
+      # Validate all agent YAML files parse and conform to schema.
+      # pyyaml + jsonschema are baked into the CI image's uv environment.
+      - name: Validate agent YAML definitions (in container)
+        run: podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local uv run --frozen python scripts/validate-agent-schemas.py
 
   package:
     name: package
@@ -327,36 +266,22 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
+
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
+
       # The distributable for a dataset repo is the dataset itself: a
       # reproducible tar.gz of agents/ + fleets/ + schemas/ with a checksum.
       # See Odysseus docs/ci-naming-convention.md ("package" = release archive).
-      - name: Build dataset release archive
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          sha="$(git rev-parse --short HEAD)"
-          archive="dist/myrmidons-dataset-${sha}.tar.gz"
-          tar --sort=name --owner=0 --group=0 --numeric-owner \
-            --mtime='UTC 2020-01-01' \
-            -czf "${archive}" agents/ fleets/ schemas/
-          (cd dist && sha256sum -- *.tar.gz > SHA256SUMS)
-          ls -l dist/
-
-      - name: Verify archive integrity (round-trip)
-        run: |
-          set -euo pipefail
-          workdir="$(mktemp -d)"
-          tar -xzf dist/myrmidons-dataset-*.tar.gz -C "${workdir}"
-          for dir in agents fleets schemas; do
-            diff -r "${dir}" "${workdir}/${dir}"
-          done
-          yaml_count="$(find "${workdir}/agents" -name '*.yaml' | wc -l)"
-          if [ "${yaml_count}" -eq 0 ]; then
-            echo '::error::Packaged archive contains no agent YAMLs'
-            exit 1
-          fi
-          (cd dist && sha256sum --check SHA256SUMS)
-          echo "OK: archive round-trips (${yaml_count} agent YAMLs packaged)"
+      - name: Build dataset release archive + verify round-trip (in container)
+        run: ./scripts/run_ci_local.sh package
 
       - name: Upload dataset artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -373,38 +298,20 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          enable-cache: true
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Sync Python tooling (locked)
-        run: uv sync --locked
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
       # Run mypy on Python scripts if any exist; fall back to py_compile check
-      - name: mypy / py_compile on Python files
-        run: |
-          PY_FILES=$(find . -name "*.py" \
-            -not -path "*/.git/*" \
-            -not -path "*/__pycache__/*")
-          if [ -z "$PY_FILES" ]; then
-            echo "No Python files found — skipping mypy."
-            exit 0
-          fi
-          # Attempt mypy on scripts/ if it exists. Surface type errors as a
-          # workflow warning rather than failing the job (mypy on a partial
-          # codebase produces noisy results), but log the actual rc so it is
-          # visible in the build summary.
-          if [ -d "scripts" ] && find scripts -name "*.py" | grep -q .; then
-            mypy_rc=0
-            uv run --frozen mypy --ignore-missing-imports scripts/ || mypy_rc=$?
-            if [ "$mypy_rc" -ne 0 ]; then
-              echo "::warning::mypy on scripts/ exited $mypy_rc — review the output above."
-            fi
-          fi
-          # Always run py_compile as a hard syntax check
-          echo "$PY_FILES" | head -20 | xargs uv run --frozen python -m py_compile
-          echo "py_compile passed on all Python files."
+      - name: mypy / py_compile on Python files (in container)
+        run: ./scripts/run_ci_local.sh typecheck
 
   schema-validation:
     name: schema-validation
@@ -413,40 +320,21 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      # Validate workflow YAML files are well-formed (go-yq)
-      - name: Lint workflow YAML files (yq)
-        run: |
-          find .github/workflows -name '*.yml' | sort | while read -r f; do
-            echo "  checking: $f"
-            yq eval '.' "$f" > /dev/null
-          done
-          echo "All workflow YAML files are well-formed."
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
-      # Validate GitHub workflow schema via check-jsonschema (uv-managed tool)
-      - name: Validate GitHub workflow schemas
-        run: |
-          mapfile -t workflow_files < <(find .github/workflows -name '*.yml' | sort)
-          # Retry up to 3 times to handle transient schemastore.org 503s
-          for attempt in 1 2 3; do
-            uv run --frozen check-jsonschema \
-              --schemafile https://json.schemastore.org/github-workflow \
-              "${workflow_files[@]}" && break
-            echo "::warning::Schema validation attempt $attempt failed; retrying in 15s..."
-            sleep 15
-          done
-
-      # Validate pyproject.toml is parseable TOML
-      - name: Validate pyproject.toml
-        run: |
-          uv run --frozen python - <<'EOF'
-          import tomllib
-          with open("pyproject.toml", "rb") as f:
-              data = tomllib.load(f)
-          name = data.get('project', {}).get('name', 'unknown')
-          print(f"pyproject.toml OK — project: {name}")
-          EOF
+      # Validate workflow YAML files, GitHub workflow schemas, and pyproject.toml
+      # (yq + check-jsonschema + Python are baked into the CI image)
+      - name: Validate workflows + pyproject (in container)
+        run: ./scripts/run_ci_local.sh schema
 
   deps-version-sync:
     name: deps/version-sync
@@ -455,20 +343,21 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          enable-cache: true
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      # Verify uv.lock matches pyproject.toml — exits non-zero if lock is stale.
-      # This preserves the deps/version-sync intent: the dependency lockfile
-      # must be in sync with its manifest before merge.
-      - name: Verify lockfile is in sync
-        run: uv lock --check
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
-      # Verify the locked environment installs cleanly.
-      - name: Install dependencies (locked)
-        run: uv sync --locked
+      # Verify uv.lock matches pyproject.toml and the locked environment installs
+      # cleanly — inside the container.
+      - name: Verify lockfile sync + locked install (in container)
+        run: ./scripts/run_ci_local.sh deps
 
   install:
     name: install
@@ -477,24 +366,22 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
+
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
       # Canonical `install` check (Odysseus ecosystem CI-naming, issue #750).
       # The "artifact" this dataset repo ships to developers and CI is the
-      # validator toolchain (just/jq/go-yq/bats/shellcheck sourced outside uv,
-      # plus the uv-managed Python tools) and the git hooks. Verify the locked
-      # environment installs, every pinned tool executes, and the documented
-      # developer install path (just install-hooks) works.
-      - name: Smoke-test installed toolchain
-        run: |
-          set -euo pipefail
-          just --version
-          jq --version
-          yq --version
-          bats --version
-          shellcheck --version
-          uv run --frozen yamllint --version
-          uv run --frozen pre-commit --version
-
-      - name: Install git hooks (just install-hooks)
-        run: just install-hooks
+      # validator toolchain (just/jq/go-yq/bats/shellcheck plus the uv-managed
+      # Python tools) and the git hooks. Verify every pinned tool executes and
+      # the documented developer install path (just install-hooks) works —
+      # inside the container.
+      - name: Smoke-test installed toolchain + hooks (in container)
+        run: ./scripts/run_ci_local.sh install

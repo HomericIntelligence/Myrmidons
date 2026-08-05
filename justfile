@@ -127,3 +127,63 @@ install-hooks-legacy:
     cp hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
     @echo "Legacy hook installed (dangerous-flags only, no pre-commit framework)."
+
+# =============================================================================
+# Containerized CI (podman-by-default)
+# =============================================================================
+# These recipes run the same checks as the GitHub Actions workflows, but inside
+# the CI container image (ci/Containerfile) instead of on the native host.
+# Engine: podman (rootless, preferred) or docker — auto-detected by
+# scripts/run_ci_local.sh. Override with CONTAINER_ENGINE=docker.
+
+# Build the CI container image (ci/Containerfile)
+ci-build:
+    podman build -f ci/Containerfile -t myrmidons-ci:local .
+
+# Run the forbid-suppressions policy scans in the container
+ci-forbid:
+    ./scripts/run_ci_local.sh forbid
+
+# Run lint (shellcheck + yamllint) in the container
+ci-lint:
+    ./scripts/run_ci_local.sh lint
+
+# Run bats unit tests in the container
+ci-test:
+    ./scripts/run_ci_local.sh test
+
+# Run agent YAML schema validation in the container
+ci-validate:
+    ./scripts/run_ci_local.sh build
+
+# Run typecheck (mypy / py_compile) in the container
+ci-typecheck:
+    ./scripts/run_ci_local.sh typecheck
+
+# Run schema-validation (workflow YAML + jsonschema + pyproject) in the container
+ci-schema:
+    ./scripts/run_ci_local.sh schema
+
+# Run deps-version-sync (lockfile) in the container
+ci-deps:
+    ./scripts/run_ci_local.sh deps
+
+# Run security scans (pip-audit + gitleaks + trivy) in the container
+ci-security:
+    ./scripts/run_ci_local.sh security
+
+# Run the package job in the container
+ci-package:
+    ./scripts/run_ci_local.sh package
+
+# Run the install smoke-test + hooks in the container
+ci-install:
+    ./scripts/run_ci_local.sh install
+
+# Run the full pre-commit suite in the container
+ci-precommit:
+    ./scripts/run_ci_local.sh precommit
+
+# Run the full required-check suite in the container
+ci-check:
+    ./scripts/run_ci_local.sh all
