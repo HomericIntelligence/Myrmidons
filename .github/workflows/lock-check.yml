@@ -11,13 +11,20 @@ jobs:
   lock-check:
     name: Verify uv.lock is in sync
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          enable-cache: true
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Verify lockfile is in sync
-        run: uv lock --check
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
+
+      - name: Verify lockfile is in sync (in container)
+        run: podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local uv lock --check

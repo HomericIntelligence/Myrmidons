@@ -1,0 +1,139 @@
+# Containerfile for myrmidons-ci — CI image for the Myrmidons dataset repo.
+#
+# This image provides the complete validator toolchain:
+# - Python 3.13 environment (matches requires-python >=3.13,<3.14)
+# - uv with the locked dev dependency group pre-installed (yamllint, pyyaml,
+#   jsonschema, check-jsonschema, mypy, pip-audit, pre-commit)
+# - System tools: just, jq, go-yq (yq), bats, shellcheck (apt)
+# - gitleaks + actionlint (required by the gitleaks-system / actionlint-system
+#   pre-commit hooks)
+# - trivy (dependency filesystem scan)
+# - pre-commit hook environments baked in
+# - Non-root user 'ci' for rootless Podman compatibility
+#
+# Toolchain: uv (Odysseus ADR-017). Myrmidons is a dataset repo — it ships no
+# importable Python package ([tool.uv] package = false), so the dev group is
+# installed without a project build.
+#
+# Build (OCI-compliant — works with both podman and docker):
+#   podman build -f ci/Containerfile -t myrmidons-ci:local .
+#   docker build -f ci/Containerfile -t myrmidons-ci:local .
+#
+# Run:
+#   podman run --rm -v .:/workspace:Z myrmidons-ci:local just lint-shell
+#   podman run --rm -v .:/workspace:Z myrmidons-ci:local uv run pre-commit run --all-files
+
+# ============================================================================
+# Stage 0: uv binary — installed from a pinned GitHub release so the checksum
+# is reproducible and the build resolves identically under both podman/buildah
+# and docker (no cross-registry COPY of a third-party image). The ghcr.io
+# astral-sh/uv image's version-tag scheme does not track uv CLI versions
+# (0.11.21 does not exist there), so we pin the release tarball instead.
+# ============================================================================
+FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91 AS uv
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.1/uv-x86_64-unknown-linux-gnu.tar.gz -o /tmp/uv.tar.gz \
+    && echo "90b2f223fb69d19db49e117da601f64978593417988530aa733d456141b4bcbb  /tmp/uv.tar.gz" | sha256sum --check \
+    && tar xzf /tmp/uv.tar.gz -C /usr/local/bin --strip-components=1 \
+    && rm /tmp/uv.tar.gz
+
+# ============================================================================
+# Stage 1: Runtime — the full toolchain in one image (dataset repo: no compile
+# stage required, and the shell/YAML toolchain is needed at runtime anyway)
+# ============================================================================
+FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91
+
+LABEL org.opencontainers.image.title="myrmidons-ci"
+LABEL org.opencontainers.image.description="CI container for Myrmidons — dataset validation, linting, packaging"
+LABEL org.opencontainers.image.vendor="Myrmidons"
+LABEL org.opencontainers.image.source="https://github.com/HomericIntelligence/Myrmidons"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/myrmidons-venv \
+    UV_LINK_MODE=copy \
+    PATH="/opt/myrmidons-venv/bin:$PATH"
+
+# System packages: git (pre-commit / just install-hooks), curl/ca-certificates
+# (tool downloads), jq + bats + shellcheck (apt — same sources as the
+# ubuntu-latest runner image), openssh-client (git over ssh in GitOps tooling)
+# apt-get upgrade picks up any security patches released after the base image was pinned
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    jq \
+    bats \
+    shellcheck \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# uv — pinned release (keep in sync with astral-sh/setup-uv in workflows)
+COPY --from=uv /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+
+# just — pinned release (mirrors extractions/setup-just; setup-tools action
+# installs the latest, but the image pins for reproducibility)
+RUN curl -fsSL https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz \
+    && echo "4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d  /tmp/just.tar.gz" | sha256sum --check \
+    && tar xzf /tmp/just.tar.gz -C /usr/local/bin just \
+    && rm /tmp/just.tar.gz
+
+# go-yq (mikefarah/yq) — pinned release binary (same version as setup-tools)
+RUN curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq \
+    && echo "a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7  /usr/local/bin/yq" | sha256sum --check \
+    && chmod +x /usr/local/bin/yq
+
+# gitleaks — pinned release binary (required by gitleaks-system pre-commit hook
+# and the security-secrets-scan job)
+RUN curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz \
+    && echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  /tmp/gitleaks.tar.gz" | sha256sum --check \
+    && tar xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks \
+    && rm /tmp/gitleaks.tar.gz
+
+# actionlint — pinned release binary (required by actionlint-system pre-commit hook)
+RUN curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz -o /tmp/actionlint.tar.gz \
+    && echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  /tmp/actionlint.tar.gz" | sha256sum --check \
+    && tar xzf /tmp/actionlint.tar.gz -C /usr/local/bin actionlint \
+    && rm /tmp/actionlint.tar.gz
+
+# trivy — pinned release binary (dependency filesystem scan, informational)
+RUN curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz \
+    && echo "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9  /tmp/trivy.tar.gz" | sha256sum --check \
+    && tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy \
+    && rm /tmp/trivy.tar.gz
+
+# Layer: Dependency files — cache layer invalidated only when deps change.
+WORKDIR /opt/myrmidons-build
+COPY uv.lock pyproject.toml .pre-commit-config.yaml ./
+
+# Install the locked dev dependency group into the venv.
+# Myrmidons declares zero runtime deps ([tool.uv] package = false) — this
+# installs only the developer/CI tool group.
+RUN uv sync --locked
+
+# Create non-root user for rootless Podman compatibility
+# UID 1000 is the default first user on most Linux systems, matching typical
+# developer UIDs for smooth volume mount permissions without --userns=keep-id
+RUN groupadd -r ci && useradd -r -g ci -u 1000 -m -s /bin/bash ci && \
+    chown -R ci:ci /opt/myrmidons-venv /opt/myrmidons-build
+
+# Layer: pre-commit hook environments (baked in so 'pre-commit run --all-files'
+# starts immediately without downloading hook repos at CI time). Requires a git
+# repo, so we init a temporary one. Run as the ci user so the pre-commit cache
+# (db + repo clones) lives under /home/ci/.cache with correct paths. The
+# gitleaks-system and actionlint-system hooks use the binaries installed above.
+USER ci
+WORKDIR /opt/myrmidons-build
+RUN git init . && \
+    uv run --frozen pre-commit install-hooks && \
+    rm -rf .git
+
+# Working directory is the mounted repo root at runtime
+WORKDIR /workspace
+
+# No ENTRYPOINT — commands are provided externally by CI or run_ci_local.sh
+
+USER ci

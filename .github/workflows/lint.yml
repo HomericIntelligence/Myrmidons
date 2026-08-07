@@ -21,12 +21,19 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-tools: 'false'
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Run shellcheck
-        run: just lint-shell
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
+
+      - name: Run shellcheck (in container)
+        run: podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local just lint-shell
 
   schema:
     name: Schema Validation Tests
@@ -35,12 +42,19 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-tools: 'false'
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Validate YAML schemas
-        run: just test-schema
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
-      - name: Check documentation drift
-        run: just test-doc-drift
+      - name: Validate YAML schemas (in container)
+        run: podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local just test-schema
+
+      - name: Check documentation drift (in container)
+        run: podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local just test-doc-drift

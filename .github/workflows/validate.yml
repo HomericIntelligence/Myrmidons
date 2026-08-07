@@ -26,10 +26,6 @@ permissions:
   contents: read
   pull-requests: read
 
-env:
-  GITLEAKS_VERSION: "8.24.3"
-  ACTIONLINT_VERSION: "1.7.7"
-
 jobs:
   # Single source-of-truth lint job: runs every hook in .pre-commit-config.yaml.
   # Adding a linter? Add it to .pre-commit-config.yaml — it auto-runs here.
@@ -37,31 +33,27 @@ jobs:
   pre-commit:
     name: Pre-commit (parity)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Install gitleaks (required by gitleaks-system pre-commit hook)
-        run: |
-          url="https://github.com/gitleaks/gitleaks/releases/download"
-          curl -sSfL \
-            "${url}/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
 
-      - name: Install actionlint (required by actionlint-system pre-commit hook)
-        run: |
-          url="https://github.com/rhysd/actionlint/releases/download"
-          curl -sSfL \
-            "${url}/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            | tar -xz -C /usr/local/bin actionlint
-
-      - name: Run pre-commit on all files
-        run: |
-          uv run --frozen pre-commit run \
-            --all-files --show-diff-on-failure
+      # gitleaks + actionlint (required by the gitleaks-system /
+      # actionlint-system hooks) are baked into the CI image.
+      - name: Run pre-commit on all files (in container)
+        run: ./scripts/run_ci_local.sh precommit
 
   validate:
     name: Validate YAML Schemas
@@ -71,31 +63,41 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      - uses: ./.github/actions/setup-tools
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-tools: 'false'
+          path: ~/.local/share/containers/storage
+          key: podman-myrmidons-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-myrmidons-${{ runner.os }}-
 
-      - name: Check dependencies
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t myrmidons-ci:local .
+
+      - name: Check dependencies (in container)
         run: |
-          echo "--- Checking required tools ---"
-          yq --version
-          jq --version
-          bash --version | head -1
-          echo "All required dependencies present."
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local \
+            bash -c 'yq --version && jq --version && bash --version | head -1 && echo "All required dependencies present."'
 
-      - name: Lint workflow YAML files
+      - name: Lint workflow YAML files (in container)
         run: |
-          echo "--- Validating workflow YAML files ---"
-          find .github/workflows -name '*.yml' | sort | while read -r f; do
-            echo "  checking: $f"
-            yq eval '.' "$f" > /dev/null
-          done
-          echo "All workflow YAML files are well-formed."
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local \
+            bash -c '
+              find .github/workflows -name "*.yml" | sort | while read -r f; do
+                echo "  checking: $f"
+                yq eval "." "$f" > /dev/null
+              done
+              echo "All workflow YAML files are well-formed."
+            '
 
-      - name: Validate all YAML files
+      - name: Validate all YAML files (in container)
         env:
           CI: "true"
-        run: just test-schema
+        run: |
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 \
+            -e CI=true myrmidons-ci:local just test-schema
 
-      - name: Fleet ref validation
-        run: tests/validate-fleet-refs.sh
+      - name: Fleet ref validation (in container)
+        run: |
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 myrmidons-ci:local \
+            tests/validate-fleet-refs.sh
