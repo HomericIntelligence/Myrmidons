@@ -22,8 +22,8 @@ dev = [
   "yamllint>=1.35,<2",     # YAML lint (agents/, pre-commit hook)
   "pyyaml>=6.0",           # agent-YAML schema validation (build job)
   "jsonschema>=4.0",       # agent-YAML schema validation (build job)
-  "check-jsonschema>=0.28", # GitHub-workflow schema validation
+  "check-jsonschema>=0.38.0", # GitHub-workflow schema validation
   "mypy>=1.8",             # typecheck job (py_compile fallback)
   "pip-audit>=2.7",        # dependency-scan job
-  "pre-commit>=3.0,<5",    # single-source-of-truth lint runner
+  "pre-commit>=4.6.1,<5",    # single-source-of-truth lint runner
 ]
