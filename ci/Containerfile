@@ -34,7 +34,7 @@ FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.1/uv-x86_64-unknown-linux-gnu.tar.gz -o /tmp/uv.tar.gz \
+    && curl -fsSL --retry 5 --retry-all-errors https://github.com/astral-sh/uv/releases/download/0.12.1/uv-x86_64-unknown-linux-gnu.tar.gz -o /tmp/uv.tar.gz \
     && echo "90b2f223fb69d19db49e117da601f64978593417988530aa733d456141b4bcbb  /tmp/uv.tar.gz" | sha256sum --check \
     && tar xzf /tmp/uv.tar.gz -C /usr/local/bin --strip-components=1 \
     && rm /tmp/uv.tar.gz
@@ -76,31 +76,31 @@ COPY --from=uv /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 
 # just — pinned release (mirrors extractions/setup-just; setup-tools action
 # installs the latest, but the image pins for reproducibility)
-RUN curl -fsSL https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz \
+RUN curl -fsSL --retry 5 --retry-all-errors https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz \
     && echo "4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d  /tmp/just.tar.gz" | sha256sum --check \
     && tar xzf /tmp/just.tar.gz -C /usr/local/bin just \
     && rm /tmp/just.tar.gz
 
 # go-yq (mikefarah/yq) — pinned release binary (same version as setup-tools)
-RUN curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq \
+RUN curl -fsSL --retry 5 --retry-all-errors https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq \
     && echo "a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7  /usr/local/bin/yq" | sha256sum --check \
     && chmod +x /usr/local/bin/yq
 
 # gitleaks — pinned release binary (required by gitleaks-system pre-commit hook
 # and the security-secrets-scan job)
-RUN curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz \
+RUN curl -fsSL --retry 5 --retry-all-errors https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz \
     && echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  /tmp/gitleaks.tar.gz" | sha256sum --check \
     && tar xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks \
     && rm /tmp/gitleaks.tar.gz
 
 # actionlint — pinned release binary (required by actionlint-system pre-commit hook)
-RUN curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz -o /tmp/actionlint.tar.gz \
+RUN curl -fsSL --retry 5 --retry-all-errors https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz -o /tmp/actionlint.tar.gz \
     && echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  /tmp/actionlint.tar.gz" | sha256sum --check \
     && tar xzf /tmp/actionlint.tar.gz -C /usr/local/bin actionlint \
     && rm /tmp/actionlint.tar.gz
 
 # trivy — pinned release binary (dependency filesystem scan, informational)
-RUN curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz \
+RUN curl -fsSL --retry 5 --retry-all-errors https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz \
     && echo "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9  /tmp/trivy.tar.gz" | sha256sum --check \
     && tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy \
     && rm /tmp/trivy.tar.gz
