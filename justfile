@@ -117,15 +117,25 @@ install-hooks:
         printf '  See CONTRIBUTING.md for full setup instructions.\n'
         exit 1
     fi
-    cp hooks/pre-commit .git/hooks/pre-commit
-    chmod +x .git/hooks/pre-commit
+    # Resolve via --git-path so this works in linked worktrees, where .git is
+    # a gitdir-pointer file rather than a directory (#756). In a worktree the
+    # path resolves to the shared common-dir hooks directory.
+    hooks_dir="$(git rev-parse --git-path hooks)"
+    mkdir -p "$hooks_dir"
+    cp hooks/pre-commit "$hooks_dir/pre-commit"
+    chmod +x "$hooks_dir/pre-commit"
     uv run --frozen pre-commit install
     printf 'Hooks installed: dangerous-flags hook + pre-commit framework (.pre-commit-config.yaml).\n'
 
 # Legacy: install only the dangerous-flags hook script (no pre-commit framework)
 install-hooks-legacy:
-    cp hooks/pre-commit .git/hooks/pre-commit
-    chmod +x .git/hooks/pre-commit
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Resolve via --git-path so this works in linked worktrees (#756).
+    hooks_dir="$(git rev-parse --git-path hooks)"
+    mkdir -p "$hooks_dir"
+    cp hooks/pre-commit "$hooks_dir/pre-commit"
+    chmod +x "$hooks_dir/pre-commit"
     @echo "Legacy hook installed (dangerous-flags only, no pre-commit framework)."
 
 # =============================================================================
