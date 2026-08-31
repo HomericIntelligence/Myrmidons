@@ -19,6 +19,43 @@ assert_main_only_scope() {
     ' "$1" >/dev/null
 }
 
+assert_required_contexts_unconditional() {
+    workflow="$1"
+
+    while IFS= read -r context; do
+        count="$(yq eval "[.jobs[] | select(.name == \"${context}\")] | length" "$workflow")"
+        [ "$count" -eq 1 ] || return 1
+
+        yq eval --exit-status ".jobs[] | select(.name == \"${context}\") | has(\"if\") | not" \
+            "$workflow" >/dev/null || return 1
+        yq eval --exit-status ".jobs[] | select(.name == \"${context}\") | has(\"needs\") | not" \
+            "$workflow" >/dev/null || return 1
+    done < <(jq --raw-output '.required_contexts[]' "$POLICY")
+}
+
+render_required_concurrency_group() {
+    workflow_name="$1"
+    event_name="$2"
+    pull_request_number="$3"
+    sha="$4"
+    head_ref="$5"
+    template="$(yq eval '.concurrency.group' "$WORKFLOW")"
+
+    case "$template" in
+        '${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}')
+            identity="${pull_request_number:-$sha}"
+            printf '%s-%s-%s\n' "$workflow_name" "$event_name" "$identity"
+            ;;
+        'required-${{ github.event_name }}-${{ github.head_ref || github.sha }}')
+            identity="${head_ref:-$sha}"
+            printf 'required-%s-%s\n' "$event_name" "$identity"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 @test "policy pins Myrmidons exact seven contexts and approved queue settings" {
     run jq --exit-status '
         .repository == "HomericIntelligence/Myrmidons" and
@@ -50,32 +87,62 @@ assert_main_only_scope() {
     [ "$status" -eq 0 ]
 }
 
-@test "required checks workflow no longer runs on merge-group events" {
-    run yq eval --exit-status '.on | has("merge_group") | not' "$WORKFLOW"
-
-    [ "$status" -eq 0 ]
-}
-
-@test "merge-queue smoke workflow handles merge-group checks_requested events only" {
+@test "required checks workflow has exact pull-request push and merge-group triggers" {
     run yq eval --exit-status '
-        (.on | keys | length) == 1 and
-        (.on | keys | .[0]) == "merge_group" and
+        (.on | keys | length) == 3 and
+        (.on | has("pull_request")) and
+        (.on.pull_request.branches | length) == 1 and
+        .on.pull_request.branches[0] == "main" and
+        (.on | has("push")) and
+        (.on.push.branches | length) == 1 and
+        .on.push.branches[0] == "main" and
+        (.on | has("merge_group")) and
+        (.on.merge_group | keys | length) == 1 and
         (.on.merge_group.types | length) == 1 and
         .on.merge_group.types[0] == "checks_requested"
-    ' "$SMOKE"
+    ' "$WORKFLOW"
 
     [ "$status" -eq 0 ]
 }
 
-@test "merge-queue smoke workflow runs exactly one fast job named merge-queue-smoke" {
-    run yq eval --exit-status '
-        (.jobs | keys | length) == 1 and
-        (.jobs | keys | .[0]) == "merge-queue-smoke" and
-        .jobs."merge-queue-smoke".name == "merge-queue-smoke" and
-        .jobs."merge-queue-smoke".timeout-minutes == 5
-    ' "$SMOKE"
+@test "required checks concurrency uses workflow event and pull-request-or-sha identity" {
+    expected_group="\${{ github.workflow }}-\${{ github.event_name }}-\${{ github.event.pull_request.number || github.sha }}"
+    run env EXPECTED_GROUP="$expected_group" yq eval --exit-status '
+        .concurrency.group == strenv(EXPECTED_GROUP) and
+        .concurrency.cancel-in-progress == true
+    ' "$WORKFLOW"
 
     [ "$status" -eq 0 ]
+}
+
+@test "concurrency distinguishes fork pull requests with identical source branches" {
+    first="$(render_required_concurrency_group 'Required Checks' pull_request 101 first-sha renovate/deps)"
+    second="$(render_required_concurrency_group 'Required Checks' pull_request 202 second-sha renovate/deps)"
+
+    [ "$first" != "$second" ]
+}
+
+@test "concurrency cancels a stale run for the same pull request" {
+    first="$(render_required_concurrency_group 'Required Checks' pull_request 101 first-sha feature/example)"
+    second="$(render_required_concurrency_group 'Required Checks' pull_request 101 second-sha feature/example)"
+
+    [ "$first" = "$second" ]
+}
+
+@test "concurrency separates pull-request and merge-group runs" {
+    pull_request="$(render_required_concurrency_group 'Required Checks' pull_request 101 shared-sha feature/example)"
+    merge_group="$(render_required_concurrency_group 'Required Checks' merge_group '' shared-sha '')"
+
+    [ "$pull_request" != "$merge_group" ]
+}
+
+@test "smoke-only merge-group carrier is absent" {
+    [ ! -e "$SMOKE" ]
+
+    run grep --fixed-strings --recursive --line-number --include='*.yml' --include='*.yaml' \
+        'merge-queue-smoke' "${ROOT}/.github/workflows"
+
+    [ "$status" -eq 1 ]
 }
 
 @test "required checks workflow preserves pull-request and push main triggers" {
@@ -90,12 +157,28 @@ assert_main_only_scope() {
 }
 
 @test "required checks workflow supplies every context in repository policy" {
-    while IFS= read -r context; do
-        run yq eval --exit-status ".jobs[] | select(.name == \"${context}\") | .name" \
-            "$WORKFLOW"
+    run assert_required_contexts_unconditional "$WORKFLOW"
 
-        [ "$status" -eq 0 ]
-    done < <(jq --raw-output '.required_contexts[]' "$POLICY")
+    [ "$status" -eq 0 ]
+}
+
+@test "required context contract rejects an event-suppressed job" {
+    drifted="${BATS_TEST_TMPDIR}/event-suppressed.yml"
+    yq eval '.jobs.lint.if = "github.event_name != '\''merge_group'\''"' \
+        "$WORKFLOW" > "$drifted"
+
+    run assert_required_contexts_unconditional "$drifted"
+
+    [ "$status" -ne 0 ]
+}
+
+@test "required context contract rejects a dependent producer" {
+    drifted="${BATS_TEST_TMPDIR}/dependent-producer.yml"
+    yq eval '.jobs.lint.needs = "typecheck"' "$WORKFLOW" > "$drifted"
+
+    run assert_required_contexts_unconditional "$drifted"
+
+    [ "$status" -ne 0 ]
 }
 
 @test "ruleset fixture targets exactly refs/heads/main with no exclusions" {
