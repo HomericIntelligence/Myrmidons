@@ -35,14 +35,35 @@
         "description": {
           "type": "string",
           "description": "Human-readable description of the fleet's purpose"
+        },
+        "displayName": {
+          "type": "string", "minLength": 1
         }
       }
     },
     "spec": {
       "type": "object",
-      "required": ["agents"],
+      "anyOf": [{"required": ["agents"]}, {"required": ["executionPools"]}],
       "additionalProperties": false,
       "properties": {
+        "poolRef": {
+          "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Default pool for member agents that omit poolRef."
+        },
+        "executionPools": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+          "description": "ExecutionPool names selected for this Fleet, including separate build capacity."
+        },
+        "expectedCapacity": {
+          "type": "integer", "minimum": 0,
+          "description": "Expected total logical conversation capacity of selected agent pools."
+        },
+        "expectedCapacityByHost": {
+          "type": "object", "minProperties": 1,
+          "additionalProperties": {"type": "integer", "minimum": 0},
+          "description": "Exact expected agent capacity by host. Build pools add zero."
+        },
         "agents": {
           "type": "array",
           "minItems": 1,
@@ -75,12 +96,25 @@
                   },
                   "program": {
                     "type": "string",
-                    "enum": ["claude-code", "aider", "none"],
+                    "enum": ["claude-code", "aider", "codex", "none"],
                     "description": "The AI tool (or 'none' for shell workers) to run"
                   },
                   "model": {
                     "type": ["string", "null"],
                     "description": "Override model; null means use the Agamemnon default"
+                  },
+                  "role": {
+                    "type": "string", "enum": ["member", "admin"],
+                    "description": "Administrative role; separate from hmasRole."
+                  },
+                  "poolRef": {
+                    "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "executionDomain": {
+                    "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "hmasRole": {
+                    "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
                   },
                   "workingDirectory": {
                     "type": "string",

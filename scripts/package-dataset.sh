@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/package-dataset.sh — build a versioned dataset snapshot archive.
 #
-# Packages agents/, fleets/, schemas/ into dist/myrmidons-dataset-<version>.tar.gz
+# Packages agents/, fleets/, pools/ when present, and schemas/ into a dataset archive.
 # together with a RELEASE_INFO manifest. Pure: reads the working tree, writes
 # only dist/ (stale archives are removed first, so exactly one archive remains).
 # Used by .github/workflows/release.yml, `just package`, and
@@ -23,6 +23,12 @@ version="${1:-snapshot-$(git rev-parse --short HEAD)}"
 
 agent_count="$(find agents -name '*.yaml' ! -path '*/_templates/*' | wc -l)"
 fleet_count="$(find fleets -name '*.yaml' | wc -l)"
+pool_count=0
+dataset_paths=(agents/ fleets/ schemas/)
+if [[ -d pools ]]; then
+    pool_count="$(find pools -name '*.yaml' | wc -l)"
+    dataset_paths+=(pools/)
+fi
 if [[ "${agent_count}" -eq 0 || "${fleet_count}" -eq 0 ]]; then
     echo "ERROR: dataset looks empty (agents=${agent_count}, fleets=${fleet_count}); refusing to package." >&2
     exit 1
@@ -37,14 +43,15 @@ rm -f dist/myrmidons-dataset-*.tar.gz dist/RELEASE_INFO
     echo "commit-date: $(git log -1 --format=%cI)"
     echo "agents: ${agent_count}"
     echo "fleets: ${fleet_count}"
+    echo "pools: ${pool_count}"
 } > dist/RELEASE_INFO
 
 archive="dist/myrmidons-dataset-${version}.tar.gz"
-tar czf "${archive}" agents/ fleets/ schemas/ -C dist RELEASE_INFO
+tar czf "${archive}" "${dataset_paths[@]}" -C dist RELEASE_INFO
 
 # Verify: list once into a variable (no tar|grep pipe — grep -q would exit at
 # first match and SIGPIPE tar, exit 141 under pipefail), then assert contents.
 contents="$(tar -tzf "${archive}")"
 grep -q '^agents/' <<< "${contents}"
 grep -q '^RELEASE_INFO$' <<< "${contents}"
-echo "Packaged ${archive} (${agent_count} agents, ${fleet_count} fleets)"
+echo "Packaged ${archive} (${agent_count} agents, ${fleet_count} fleets, ${pool_count} pools)"

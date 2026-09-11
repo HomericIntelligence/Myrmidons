@@ -16,8 +16,8 @@ read this dataset and reconcile their runtime against it.
 
 This repo intentionally contains **only**:
 
-- **YAML schemas** for agents and fleets (`schemas/`)
-- **Agent and fleet descriptions** that conform to those schemas (`agents/`, `fleets/`)
+- **JSON schemas** for agents, fleets, and execution pools (`schemas/`)
+- **Desired-state descriptions** that conform to those schemas (`agents/`, `fleets/`, `pools/`)
 - **Validators** that read the dataset and enforce schema + policy (`scripts/`, `tests/`)
 - **Documentation** about the dataset and its schemas (this README, `AGENTS.md`, `CONTRIBUTING.md`, `docs/adr/`)
 - **CI/CD wrappers** that run the validators on every PR (`.github/workflows/`, `.pre-commit-config.yaml`, `pyproject.toml`)
@@ -52,6 +52,11 @@ just lint
 ```
 
 ## Agent definition format
+
+Homeric Fleet adds compatible Codex and execution-pool contracts. See
+[Execution pools](docs/execution-pools.md) for the native/container laptop
+comparison, the 12 + 48 + 48 target, profile references, and offline validation.
+The supplied pools have admission and scheduling disabled pending real acceptance.
 
 ```yaml
 # yaml-language-server: $schema=../../schemas/agent-v1.schema.json

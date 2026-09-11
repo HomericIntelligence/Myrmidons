@@ -252,3 +252,29 @@ EOF
     [[ "$status" -eq 0 ]]
     [[ "$output" == *"Fleet"* ]]
 }
+
+@test "pre-commit hook: staged template host is a deployment example" {
+    mkdir -p "$REPO_DIR/agents/_templates"
+    _write_valid_agent "agents/_templates/example.yaml"
+    git -C "$REPO_DIR" add "agents/_templates/example.yaml"
+    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "pre-commit hook: staged template still requires valid agent fields" {
+    mkdir -p "$REPO_DIR/agents/_templates"
+    _write_invalid_agent "agents/_templates/example.yaml"
+    git -C "$REPO_DIR" add "agents/_templates/example.yaml"
+    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"metadata.name is required"* ]]
+}
+
+@test "pre-commit hook: deployed agent still requires matching host directory" {
+    mkdir -p "$REPO_DIR/agents/laptop"
+    _write_valid_agent "agents/laptop/example.yaml"
+    git -C "$REPO_DIR" add "agents/laptop/example.yaml"
+    run bash -c "cd '$REPO_DIR' && bash '$HOOK'"
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"does not match directory"* ]]
+}

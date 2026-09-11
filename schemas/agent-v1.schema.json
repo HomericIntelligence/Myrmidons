@@ -45,7 +45,7 @@
         },
         "program": {
           "type": "string",
-          "enum": ["claude-code", "aider", "none"],
+          "enum": ["claude-code", "aider", "codex", "none"],
           "description": "The AI tool (or 'none' for shell workers) to run in the agent"
         },
         "model": {
@@ -79,6 +79,21 @@
           "type": "string",
           "enum": ["member", "admin"],
           "description": "Agent role in Agamemnon: 'member' or 'admin'"
+        },
+        "poolRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "ExecutionPool metadata.name. The consumer resolves this reference before admission."
+        },
+        "executionDomain": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Extensible work domain, such as pipeline or research."
+        },
+        "hmasRole": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Extensible task role, such as task-agent. Does not confer administrative privileges."
         },
         "deployment": {
           "type": "object",

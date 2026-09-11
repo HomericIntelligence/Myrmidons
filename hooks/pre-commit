@@ -118,8 +118,8 @@ while IFS= read -r file; do
         [[ -z "$docker_image" ]] && local_errors+=("spec.deployment.docker.image is required when deployment.type is 'docker'")
     fi
 
-    # Validate metadata.host matches the parent directory name
-    if [[ -n "$host" ]]; then
+    # Templates declare an example host; deployed agents must match their directory.
+    if [[ -n "$host" && "$file" != agents/_templates/* ]]; then
         dir_host="$(basename "$(dirname "$file")")"
         if [[ "$dir_host" != "$host" ]]; then
             local_errors+=("metadata.host '${host}' does not match directory '${dir_host}'")

@@ -57,7 +57,14 @@ repos:
         language: system
         entry: just test-schema
         pass_filenames: false
-        files: '^(agents|fleets|schemas|tests)/'
+        files: '^(agents|fleets|pools|schemas|tests)/'
+
+      - id: myrmidons-execution-pools
+        name: ExecutionPool contracts and resource validation
+        language: system
+        entry: just test-pools
+        pass_filenames: false
+        files: '^(agents|fleets|pools|schemas|scripts|tests)/|^justfile$'
 
       - id: myrmidons-doc-drift
         name: Documentation drift check
@@ -83,7 +90,7 @@ repos:
         language: system
         entry: scripts/check-schema-hints.sh
         pass_filenames: true
-        files: ^(agents|fleets)/.*\.ya?ml$
+        files: ^(agents|fleets|pools)/.*\.ya?ml$
 
       - id: check-gitleaks-annotations
         name: Gitleaks allowlist justification check
