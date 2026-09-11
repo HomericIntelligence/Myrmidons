@@ -47,7 +47,7 @@ for file in "${FILES[@]}"; do
     first_line="$(head -1 "$file")"
 
     # Pass: correct canonical hint
-    if echo "$first_line" | grep -qE '^# yaml-language-server: \$schema=.+'; then
+    if echo "$first_line" | grep -qE '^# yaml-language-server: [$]schema=.+'; then
         continue
     fi
 

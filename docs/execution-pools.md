@@ -5,6 +5,25 @@ reconciles workers. Hephaestus executes admitted work. Myrmidons stores no live
 claims, allocation IDs, authentication material, conversation history, or status.
 Odysseus can use `metadata.displayName` and stable worker IDs for display.
 
+## Integration boundaries
+
+The [Odysseus architecture](https://github.com/HomericIntelligence/Odysseus/blob/main/docs/architecture.md)
+defines the runtime owners. These manifests supply configuration to those owners;
+they do not dispatch tasks or record execution results.
+
+| Component | Relationship to this dataset |
+| --- | --- |
+| Odysseus | Displays pools and workers through the orchestration interfaces |
+| Agamemnon | Resolves profiles, admits work, and owns claims, leases, and generations |
+| Keystone | Carries admitted role-addressed work and worker facts |
+| Hephaestus | Supervises each runtime and enforces its workspace and execution boundary |
+| AchaeanFleet | Supplies pinned images with independently checked provenance |
+
+Provider authentication, private inputs, journals, and runtime state belong outside
+source workspaces. Consumers must keep these roots disjoint and exclude worker
+`.fleet-runtime` directories from source snapshots. Profile references declare the
+required bindings; they do not prove that any runtime boundary has been enforced.
+
 ## Select a target
 
 The supplied targets describe the same required capacity with different laptop

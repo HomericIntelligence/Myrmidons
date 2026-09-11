@@ -20,10 +20,7 @@ PASS=0
 FAIL=0
 TMPDIR_LOCAL="$(mktemp -d)"
 
-cleanup() {
-    rm -rf "$TMPDIR_LOCAL"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TMPDIR_LOCAL"' EXIT
 
 assert_exit() {
     local description="$1"

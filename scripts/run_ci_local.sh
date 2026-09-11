@@ -120,7 +120,7 @@ run_in_container() {
 
 run_forbid() {
     log_step "forbid-suppressions: silent-failure / continue-on-error / advisory policy"
-    run_in_container bash -c '
+    run_in_container bash -c "$(cat <<'CI_SCRIPT'
         set -euo pipefail
         mapfile -t files < <(git ls-files -- "*.sh" "*.bash" "*.yml" "*.yaml" "*.hcl" "Dockerfile*" "**/Dockerfile*" "justfile" "**/justfile" "Justfile" "**/Justfile")
         declare -a scan_files=()
@@ -132,12 +132,12 @@ run_forbid() {
             scan_files+=("$f")
         done
         if [ "${#scan_files[@]}" -eq 0 ]; then echo "No files to scan"; exit 0; fi
-        if grep -nE '"'"'\|[[:space:]]*true([[:space:]]*$|[[:space:]]+#)'"'"' "${scan_files[@]}"; then
+        if grep -nE '\|[[:space:]]*true([[:space:]]*$|[[:space:]]+#)' "${scan_files[@]}"; then
             echo "::error::Found silent-failure workarounds above."; exit 1
         fi
         echo "OK: no silent-failure workarounds found"
         mapfile -t wf < <(git ls-files -- ".github/workflows/*.yml" ".github/workflows/*.yaml")
-        if grep -nE '"'"'^[[:space:]]*continue-on-error:[[:space:]]*true[[:space:]]*$'"'"' "${wf[@]}"; then
+        if grep -nE '^[[:space:]]*continue-on-error:[[:space:]]*true[[:space:]]*$' "${wf[@]}"; then
             echo "::error::Found continue-on-error: true above."; exit 1
         fi
         echo "OK: no continue-on-error found"
@@ -149,11 +149,12 @@ run_forbid() {
             esac
             wf_scan+=("$f")
         done
-        if grep -nF '"'"'::warning::'"'"' "${wf_scan[@]}"; then
+        if grep -nF '::warning::' "${wf_scan[@]}"; then
             echo "::error::Found advisory annotations above."; exit 1
         fi
         echo "OK: no advisory annotations found"
-    '
+CI_SCRIPT
+    )"
 }
 
 run_lint() {
@@ -163,7 +164,7 @@ run_lint() {
 
 run_test() {
     log_step "unit-tests: bats"
-    run_in_container bash -c 'just test-unit'
+    run_in_container just test-unit test-pools
 }
 
 run_build() {
@@ -173,24 +174,25 @@ run_build() {
 
 run_typecheck() {
     log_step "typecheck: mypy / py_compile"
-    run_in_container bash -c '
-        PY_FILES=$(find . -name "*.py" -not -path "*/.git/*" -not -path "*/__pycache__/*")
+    run_in_container bash -c "$(cat <<'CI_SCRIPT'
+        set -euo pipefail
+        PY_FILES=$(git ls-files -- '*.py')
         if [ -z "$PY_FILES" ]; then echo "No Python files found — skipping mypy."; exit 0; fi
         if [ -d "scripts" ] && find scripts -name "*.py" | grep -q .; then
-            mypy_rc=0
-            uv run --frozen mypy --ignore-missing-imports scripts/ || mypy_rc=$?
-            if [ "$mypy_rc" -ne 0 ]; then
-                echo "::warning::mypy on scripts/ exited $mypy_rc — review the output above."
-            fi
+            uv run --frozen mypy --ignore-missing-imports scripts/
         fi
-        echo "$PY_FILES" | head -20 | xargs uv run --frozen python -m py_compile
+        while IFS= read -r file; do
+            uv run --frozen python -m py_compile "$file"
+        done <<< "$PY_FILES"
         echo "py_compile passed on all Python files."
-    '
+CI_SCRIPT
+    )"
 }
 
 run_schema() {
     log_step "schema-validation: workflow YAML + GitHub schema + pyproject"
-    run_in_container bash -c '
+    run_in_container bash -c "$(cat <<'CI_SCRIPT'
+        set -euo pipefail
         find .github/workflows -name "*.yml" | sort | while read -r f; do
             echo "  checking: $f"
             yq eval "." "$f" > /dev/null
@@ -198,14 +200,15 @@ run_schema() {
         echo "All workflow YAML files are well-formed."
         mapfile -t workflow_files < <(find .github/workflows -name "*.yml" | sort)
         uv run --frozen check-jsonschema --schemafile https://json.schemastore.org/github-workflow "${workflow_files[@]}"
-        uv run --frozen python - <<'"'"'EOF'"'"'
+        uv run --frozen python - <<'EOF'
 import tomllib
 with open("pyproject.toml", "rb") as f:
     data = tomllib.load(f)
 name = data.get("project", {}).get("name", "unknown")
 print(f"pyproject.toml OK — project: {name}")
 EOF
-    '
+CI_SCRIPT
+    )"
 }
 
 run_deps() {
@@ -216,6 +219,7 @@ run_deps() {
 run_security() {
     log_step "security/dependency-scan: pip-audit + trivy"
     run_in_container bash -c '
+        set -euo pipefail
         uv sync --locked
         uv run --frozen pip-audit \
             --ignore-vuln PYSEC-2024-230 \
@@ -267,33 +271,14 @@ run_security() {
             --ignore-vuln PYSEC-2026-3447 \
             --ignore-vuln PYSEC-2026-177
         trivy fs --severity HIGH,CRITICAL --exit-code 0 .
-    '
+    ' || return $?
     log_step "security/secrets-scan: gitleaks"
     run_in_container bash -c 'gitleaks detect --source . --config .gitleaks.toml --no-git -v'
 }
 
 run_package() {
-    log_step "package: dataset archive + round-trip"
-    run_in_container bash -c '
-        set -euo pipefail
-        mkdir -p dist
-        sha="$(git rev-parse --short HEAD)"
-        archive="dist/myrmidons-dataset-${sha}.tar.gz"
-        tar --sort=name --owner=0 --group=0 --numeric-owner \
-            --mtime="UTC 2020-01-01" \
-            -czf "${archive}" agents/ fleets/ schemas/
-        (cd dist && sha256sum -- *.tar.gz > SHA256SUMS)
-        ls -l dist/
-        workdir="$(mktemp -d)"
-        tar -xzf dist/myrmidons-dataset-*.tar.gz -C "${workdir}"
-        for dir in agents fleets schemas; do
-            diff -r "${dir}" "${workdir}/${dir}"
-        done
-        yaml_count="$(find "${workdir}/agents" -name "*.yaml" | wc -l)"
-        if [ "${yaml_count}" -eq 0 ]; then echo "::error::Packaged archive contains no agent YAMLs"; exit 1; fi
-        (cd dist && sha256sum --check SHA256SUMS)
-        echo "OK: archive round-trips (${yaml_count} agent YAMLs packaged)"
-    '
+    log_step "package: canonical dataset archive (round-trip covered by test-unit)"
+    run_in_container just package
 }
 
 run_install() {

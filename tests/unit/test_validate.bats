@@ -33,6 +33,86 @@ run_validate() {
 }
 export -f run_validate
 
+# Self-contained fixtures for the former test-validate-schemas.sh cases.
+write_agent() {
+    local file=$1 name=$2 program=${3:-claude-code}
+    mkdir -p "$(dirname "$TEST_TMPDIR/agents/$file")"
+    cat > "$TEST_TMPDIR/agents/$file" <<EOF
+apiVersion: myrmidons/v1
+kind: Agent
+metadata:
+  name: $name
+  host: hermes
+spec:
+  label: ${file##*/}
+  program: $program
+  workingDirectory: /tmp/test
+  deployment:
+    type: local
+  desiredState: active
+EOF
+    yq -i '.spec.label |= sub("\\.yaml$", "")' "$TEST_TMPDIR/agents/$file"
+}
+
+@test "all supported programs validate real nonempty fixtures" {
+    for program in claude-code aider codex goose cline opencode codebuff ampcode none; do
+        write_agent hermes/program.yaml program-agent "$program"
+        run run_validate
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"Checked: 1 files"* ]]
+    done
+}
+
+@test "unsupported program is rejected" {
+    write_agent hermes/program.yaml program-agent unsupported
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"spec.program must be one of:"* ]]
+}
+
+@test "docker deployment requires an image and accepts one when supplied" {
+    write_agent hermes/docker.yaml docker-agent
+    yq -i '.spec.deployment.type = "docker"' "$TEST_TMPDIR/agents/hermes/docker.yaml"
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"spec.deployment.docker.image is required"* ]]
+    yq -i '.spec.deployment.docker.image = "fixture:local"' "$TEST_TMPDIR/agents/hermes/docker.yaml"
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Checked: 1 files"* ]]
+}
+
+@test "duplicate agent names are rejected across files" {
+    write_agent hermes/first.yaml duplicate-agent
+    write_agent hermes/second.yaml duplicate-agent
+    run run_validate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"duplicate metadata.name 'duplicate-agent'"* ]]
+}
+
+@test "distinct agent names validate across files" {
+    write_agent hermes/first.yaml first-agent
+    write_agent hermes/second.yaml second-agent
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Checked: 2 files"* ]]
+}
+
+@test "matching label and filename has no naming warning" {
+    write_agent hermes/matching.yaml matching-agent
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"does not match lowercase(spec.label)"* ]]
+}
+
+@test "mismatched label and filename reports a naming warning" {
+    write_agent hermes/matching.yaml matching-agent
+    yq -i '.spec.label = "Different"' "$TEST_TMPDIR/agents/hermes/matching.yaml"
+    run run_validate
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"does not match lowercase(spec.label)"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # Test 1: Valid agent YAML exits 0
 # ---------------------------------------------------------------------------
