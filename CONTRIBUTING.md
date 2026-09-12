@@ -3,7 +3,7 @@
 Thank you for your interest in contributing to Myrmidons! This repository is
 the source-of-truth **dataset** for the
 [HomericIntelligence](https://github.com/HomericIntelligence) distributed agent
-mesh — agent and fleet definitions as YAML, plus the schemas and validators
+mesh — agent, fleet, and execution-pool definitions as YAML, plus the schemas and validators
 that keep them consistent. Consumers (notably
 [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon))
 read this dataset and reconcile their runtime against it.
@@ -69,8 +69,9 @@ just test
 ## What You Can Contribute
 
 - **Agent manifests** — New YAML agent definitions in the appropriate host directory
+- **Execution pools** — Desired worker capacity, resource budgets, and private profile references in `pools/`
 - **Manifest schema updates** — Validation rules and schema extensions
-- **Validation scripts** — Improvements to `tests/validate-schemas.sh`
+- **Offline validation** — Python schema/resource checks, shell validators, and their contract tests
 - **Justfile recipes** — New provisioning or management commands
 - **Pre-commit hooks** — Git hook improvements in `hooks/`
 - **Documentation** — README updates, manifest format guides
@@ -92,6 +93,12 @@ not perform, or when escalation thresholds change.
 Agent manifests are YAML files that describe desired agent state. Reference existing manifests
 as examples for the expected schema. Key fields typically include agent type, resource limits,
 NATS subject subscriptions, and container image references.
+
+The [ExecutionPool architecture and contract](docs/execution-pools.md) describes
+the compatible Codex program, optional `poolRef`, and independent
+`executionDomain`/`hmasRole` fields. Do not repurpose administrative `role` for
+dispatch or add observed execution status to desired-state manifests. Runtime
+admission and work claims remain Agamemnon's responsibility.
 
 ### ADR Lifecycle
 
@@ -215,6 +222,13 @@ just test
 
 # Run every linter (shellcheck, yamllint, schema-hint, dangerous-flags, ...)
 just lint
+
+# Run offline pool/resource contracts and package integrity regressions
+just test-pools
+just test-unit
+
+# Build and verify a normalized archive, manifest, and SHA256SUMS
+just package
 ```
 
 Drift detection (what changes consumers should apply on the runtime side) is

@@ -133,6 +133,11 @@ The offline validator checks the timezone and time order, not scheduler behavior
 The existing schema validator entry point now covers Agents, Fleets, and pools.
 The `just` recipes and pre-commit checks run this validation. Dataset archives
 include `pools/` when present, while old datasets without pools still package.
+Canonical `just package` normalizes tar ownership and timestamps, writes and
+checks `dist/SHA256SUMS`, and extracts with the system tar reader. It compares
+every included source tree and `RELEASE_INFO` byte for byte before success.
+These checks validate dataset delivery only; they do not validate a worker
+image or authorize admission.
 
 Accepted ADRs are unchanged. The compatible additions do not rename or remove
 existing required fields. Runtime integration follows the owning component's

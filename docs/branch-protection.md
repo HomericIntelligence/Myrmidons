@@ -137,34 +137,29 @@ asymmetry is deliberate, not an oversight.
   entries with `# gitleaks-allowlist: <justification>` comments. See the
   Gitleaks allowlist section of [AGENTS.md](../AGENTS.md).
 
-### `security/dependency-scan` (pip-audit + Trivy) — **informational**
+### `security/dependency-scan` (pip-audit + Trivy) — **mixed policy**
 
-The job is required-to-run (so the signal is visible on every PR) but the two
-scanners inside are configured to surface vulnerability findings as
-information, not as a merge block:
+The required job runs the canonical CI wrapper. Its two scanners have different
+finding policies; tool execution failures are blocking in both cases:
 
-- **`pip-audit`** runs with an explicit `--ignore-vuln <ID>` list against the
-  baseline `ubuntu-latest` runner image (issue #713). Myrmidons declares zero
-  PyPI dependencies, so every advisory pip-audit raises is in the runner image
-  itself — outside our control until `actions/runner-images` ships a refresh.
-  Blocking PRs on transient upstream runner CVEs would halt all merges with no
-  remediation available to the contributor.
+- **`pip-audit`** audits the Python developer environment installed from
+  `pyproject.toml` and `uv.lock`. Unignored advisories fail the job. The existing
+  explicit, dated `--ignore-vuln <ID>` list excludes only those advisories.
+  Myrmidons has no runtime PyPI dependencies, but its validator and audit tools
+  have dependencies maintained in this repository. Upgrade a vulnerable locked
+  tool when a supported fix exists; do not add an ignore to avoid that repair.
 - **`Trivy filesystem scan`** runs with `--exit-code 0` (vulnerability findings
   non-fatal). Install/extraction failures still fail the step — we want to
   know when the scanner stops working, just not when it reports a HIGH against
   an upstream package.
-- **Why we don't hard-block:** (a) baseline CVEs in the runner image are out
-  of our control, and (b) blocking on transient upstream advisories would
-  block every PR for reasons unrelated to the change under review.
-- **How findings are tracked:** dated allowlists in the workflow itself
-  (`--ignore-vuln` IDs with a review date — see the comment block above the
-  `pip-audit` step in `.github/workflows/_required.yml`). Each allowlisted CVE
-  carries a `review YYYY-MM-DD` marker so the list can be pruned after the
-  next runner-image refresh.
+- **How exceptions are tracked:** the inherited dated audit exclusions are in
+  `scripts/run_ci_local.sh`. They do not convert all dependency findings into
+  informational output. The Trivy finding policy remains informational; this
+  documentation correction does not change either scanner's exit handling.
 
 ### Quick reference
 
-| Job                        | Behaviour                                                        | Reason                                                                                                  |
-| -------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `security/secrets-scan`    | Hard block. Any gitleaks hit fails the PR.                       | Leaked secrets are irrecoverable; rotation is not a substitute for prevention.                          |
-| `security/dependency-scan` | Informational. `pip-audit --ignore-vuln`, `trivy --exit-code 0`. | Findings are dominated by runner-image baseline CVEs outside our control. Tracked via dated allowlists. |
+| Job | Behaviour | Reason |
+| --- | --- | --- |
+| `security/secrets-scan` | Hard block. Any gitleaks hit fails the PR. | Leaked secrets are irrecoverable; rotation is not a substitute for prevention. |
+| `security/dependency-scan` | Unignored pip-audit findings block; Trivy findings are informational. Scanner errors block. | Locked developer tools are maintained here; existing dated exclusions and Trivy policy remain explicit. |
