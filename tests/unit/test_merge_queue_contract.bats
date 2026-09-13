@@ -50,8 +50,11 @@ assert_main_only_scope() {
     [ "$status" -eq 0 ]
 }
 
-@test "required checks workflow no longer runs on merge-group events" {
-    run yq eval --exit-status '.on | has("merge_group") | not' "$WORKFLOW"
+@test "required checks workflow runs on merge-group checks_requested events" {
+    run yq eval --exit-status '
+        (.on.merge_group.types | length) == 1 and
+        .on.merge_group.types[0] == "checks_requested"
+    ' "$WORKFLOW"
 
     [ "$status" -eq 0 ]
 }
@@ -89,9 +92,9 @@ assert_main_only_scope() {
     [ "$status" -eq 0 ]
 }
 
-@test "required checks workflow supplies every context in repository policy" {
+@test "required checks workflow makes every required job eligible on merge groups" {
     while IFS= read -r context; do
-        run yq eval --exit-status ".jobs[] | select(.name == \"${context}\") | .name" \
+        run yq eval --exit-status ".jobs[] | select(.name == \"${context}\") | has(\"if\") | not" \
             "$WORKFLOW"
 
         [ "$status" -eq 0 ]

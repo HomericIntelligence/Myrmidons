@@ -15,7 +15,7 @@ Myrmidons contract requires exactly seven GitHub Actions contexts:
 | `schema-validation` | `schema-validation` |
 | `deps/version-sync` | `deps-version-sync` |
 
-The machine-readable source of truth is
+The machine-readable required-context contract is
 [`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json).
 The workflow also emits `forbid-suppressions`, `package`, `typecheck`, and
 `install`, but those contexts are not part of the live seven-context contract.
@@ -31,13 +31,21 @@ The merge-group trigger makes the same required contexts available on the
 synthetic commit GitHub builds for the queue. It does not alter pull-request or
 push behavior.
 
-## Approved staged queue policy
+The separate `merge-queue-smoke` job supplements these checks. It does not emit
+the seven required contexts, so its success alone cannot satisfy the queue.
 
-Workflow support and the declarative activation contract land and receive
-independent human review before any live ruleset changes. Live activation and
-one representative queued pull-request smoke test happen only after merge.
+## Observed active queue and historical staged policy
 
-| Setting | Required value |
+Read-back on 2026-09-12 confirmed that ruleset `15556489` already has an active
+merge queue using `HEADGREEN` and at most `2` concurrent queue builds. The seven
+required contexts remain unchanged. This workflow-trigger repair does not
+modify the live ruleset.
+
+The policy JSON and offline fixtures retain the historical staged proposal
+below, including `ALLGREEN` and `10` builds. Those values describe the proposal,
+not the observed active queue, and do not authorize replacing its settings.
+
+| Setting | Historical staged value |
 | --- | --- |
 | Target branch | `main` |
 | Merge method | `SQUASH` |
@@ -48,8 +56,9 @@ one representative queued pull-request smoke test happen only after merge.
 | Minimum wait | `5` minutes |
 | Required-check timeout | `60` minutes |
 
-Issue #765 remains open until the post-merge activation and queue smoke
-evidence are recorded.
+Issue #765 tracks activation and representative queue-smoke evidence. A
+workflow subscription or an active ruleset alone does not prove that all seven
+required checks completed on a queued commit.
 
 ## Central Odysseus activation contract
 
@@ -57,14 +66,17 @@ evidence are recorded.
 is the umbrella tracker for the merge queue rollout. The current implementation
 and activation authority is
 [Odysseus PR #417](https://github.com/HomericIntelligence/Odysseus/pull/417).
-Live activation remains deferred, and this Myrmidons work has not mutated live
-GitHub ruleset state. Odysseus is the sole activation authority; this dataset
-repository intentionally contains no administrator-level mutator and must not
+The queue is already active as observed above. Any future policy change needs
+separate central approval and live read-back; this Myrmidons change has not
+mutated GitHub ruleset state. Odysseus is the sole activation authority; this
+dataset repository intentionally contains no administrator-level mutator and must not
 duplicate one. The central authority must consume Myrmidons's repository-owned
 policy while preserving the full fail-safe preservation, read-back, and
 rollback contract below.
 
-The Odysseus activation implementation must:
+The prospective first-activation contract below applies when no queue rule is
+present. It is not an instruction to append a second rule or replace the
+observed active settings. The Odysseus activation implementation must:
 
 1. Consume
    [`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json)
