@@ -3,7 +3,7 @@
 Thank you for your interest in contributing to Myrmidons! This repository is
 the source-of-truth **dataset** for the
 [HomericIntelligence](https://github.com/HomericIntelligence) distributed agent
-mesh — agent and fleet definitions as YAML, plus the schemas and validators
+mesh — agent, fleet, and execution-pool definitions as YAML, plus the schemas and validators
 that keep them consistent. Consumers (notably
 [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon))
 read this dataset and reconcile their runtime against it.
@@ -69,8 +69,9 @@ just test
 ## What You Can Contribute
 
 - **Agent manifests** — New YAML agent definitions in the appropriate host directory
+- **Execution pools** — Desired worker capacity, resource budgets, and private profile references in `pools/`
 - **Manifest schema updates** — Validation rules and schema extensions
-- **Validation scripts** — Improvements to `tests/validate-schemas.sh`
+- **Offline validation** — Python schema/resource checks, shell validators, and their contract tests
 - **Justfile recipes** — New provisioning or management commands
 - **Pre-commit hooks** — Git hook improvements in `hooks/`
 - **Documentation** — README updates, manifest format guides
@@ -92,6 +93,12 @@ not perform, or when escalation thresholds change.
 Agent manifests are YAML files that describe desired agent state. Reference existing manifests
 as examples for the expected schema. Key fields typically include agent type, resource limits,
 NATS subject subscriptions, and container image references.
+
+The [ExecutionPool architecture and contract](docs/execution-pools.md) describes
+the compatible Codex program, optional `poolRef`, and independent
+`executionDomain`/`hmasRole` fields. Do not repurpose administrative `role` for
+dispatch or add observed execution status to desired-state manifests. Runtime
+admission and work claims remain Agamemnon's responsibility.
 
 ### ADR Lifecycle
 
@@ -215,6 +222,13 @@ just test
 
 # Run every linter (shellcheck, yamllint, schema-hint, dangerous-flags, ...)
 just lint
+
+# Run offline pool/resource contracts and package integrity regressions
+just test-pools
+just test-unit
+
+# Build and verify a normalized archive, manifest, and SHA256SUMS
+just package
 ```
 
 Drift detection (what changes consumers should apply on the runtime side) is
@@ -222,6 +236,41 @@ defined by the consumer of this dataset — see
 [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon).
 This repo's job is to make sure the YAML is well-formed, schema-conformant, and
 policy-compliant. What a consumer does with it is the consumer's contract.
+
+### Native containerized CI
+
+The pinned Python 3.13 image supports Debian `amd64` and `arm64`. The CI-only
+`ci/install-tool.sh` reads the image's native `dpkg --print-architecture`, selects
+an explicit release asset, and verifies its SHA-256 before extraction or binary
+installation. Unknown tools or architectures, download errors, checksum
+mismatches, and extraction errors stop the build. This does not change the
+dataset contract or enable any Fleet pool.
+
+| Tool | Pinned version and upstream release |
+| --- | --- |
+| uv | [0.12.1](https://github.com/astral-sh/uv/releases/tag/0.12.1) |
+| just | [1.58.0](https://github.com/casey/just/releases/tag/1.58.0) |
+| Go yq | [4.44.3](https://github.com/mikefarah/yq/releases/tag/v4.44.3) |
+| Gitleaks | [8.24.3](https://github.com/gitleaks/gitleaks/releases/tag/v8.24.3) |
+| actionlint | [1.7.7](https://github.com/rhysd/actionlint/releases/tag/v1.7.7) |
+| Trivy | [0.70.0](https://github.com/aquasecurity/trivy/releases/tag/v0.70.0) |
+
+The installer pins come from those releases' SHA-256 files or GitHub asset
+digests. Both architecture selections preserve these versions and the existing
+security policy. `just test-unit` includes offline installer contracts for
+selection and failure order; these fixtures do not prove that a Linux binary
+runs. Actual native image execution remains a separate gate:
+
+```bash
+# Use the engine's native Linux architecture; do not force amd64 on an arm64 guest.
+just ci-build
+just ci-check
+just ci-precommit
+```
+
+An amd64 build on an arm64 guest previously crashed inside `uv sync --locked`
+under QEMU before validation ran. Preserve that failure as an emulation result;
+an image build or controlled installer test alone is not a passing CI suite.
 
 ## Pull Request Process
 

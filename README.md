@@ -8,7 +8,7 @@
 
 **The agent dataset for the HomericIntelligence mesh.**
 
-Myrmidons is a GitOps-managed dataset of agent and fleet YAML definitions. It is
+Myrmidons is a GitOps-managed dataset of agent, fleet, and execution-pool YAML definitions. It is
 the source of truth for *desired* agent state across the mesh. Validators in
 this repo ensure every definition conforms to the schema; consumers (notably
 [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon))
@@ -16,9 +16,9 @@ read this dataset and reconcile their runtime against it.
 
 This repo intentionally contains **only**:
 
-- **YAML schemas** for agents and fleets (`schemas/`)
-- **Agent and fleet descriptions** that conform to those schemas (`agents/`, `fleets/`)
-- **Validators** that read the dataset and enforce schema + policy (`scripts/`, `tests/`)
+- **JSON schemas** for agents, fleets, and execution pools (`schemas/`)
+- **Desired-state descriptions** that conform to those schemas (`agents/`, `fleets/`, `pools/`)
+- **Offline Python and shell validators** that enforce schema + policy (`scripts/`, `tests/`)
 - **Documentation** about the dataset and its schemas (this README, `AGENTS.md`, `CONTRIBUTING.md`, `docs/adr/`)
 - **CI/CD wrappers** that run the validators on every PR (`.github/workflows/`, `.pre-commit-config.yaml`, `pyproject.toml`)
 
@@ -53,6 +53,16 @@ just lint
 
 ## Agent definition format
 
+Homeric Fleet adds compatible Codex and execution-pool contracts. See
+[Execution pools](docs/execution-pools.md) for the native/container laptop
+comparison, the 12 + 48 + 48 target, profile references, and offline validation.
+The supplied pools have admission and scheduling disabled pending real acceptance.
+`poolRef` selects desired capacity; `executionDomain` and `hmasRole` address work
+independently of the administrative `role`. Agamemnon owns admission and durable
+claims, Keystone transports work, and Hephaestus owns worker execution. Odysseus
+provides the unified web interface. The Python validator checks declarations and
+references only; it cannot certify those runtime gates.
+
 ```yaml
 # yaml-language-server: $schema=../../schemas/agent-v1.schema.json
 apiVersion: myrmidons/v1
@@ -82,7 +92,7 @@ spec:
 ### Naming convention
 
 | Field | Example | Purpose |
-|-------|---------|---------|
+| ------- | --------- | --------- |
 | **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
 | **`metadata.name`** | `odyssey-mainline-analysis` | Consumer-side identifier (e.g., Agamemnon API name / tmux session name). |
 | **`spec.label`** | `Aindrea` | Display name shown in the consumer UI. |
@@ -108,16 +118,19 @@ the merged state on their next reconciliation cycle.
 
 ## Directory structure
 
-```
-schemas/                  YAML schemas (JSON Schema) for agents, fleets, config
+```text
+schemas/                  JSON Schema for agents, fleets, pools, config
   agent-v1.schema.json
   fleet-v1.schema.json
+  execution-pool-v1.schema.json
   config.schema.json
 agents/
-  _templates/             Starter templates (not enforced by schema check)
+  _templates/             Schema-checked starters; no deployed-host requirement
   <host>/                 Agent YAML files for a given host
 fleets/                   Fleet definitions (group multiple agents by ref)
-scripts/                  Dataset validators (read-only against agents/, fleets/)
+pools/                    Desired worker/runtime and build-pool definitions
+scripts/                  Offline Python and shell validators; dataset packager
+  validate-agent-schemas.py
   check-dangerous-flags.sh
   check-schema-hints.sh
   lint-agents-md.sh
@@ -126,7 +139,8 @@ scripts/                  Dataset validators (read-only against agents/, fleets/
 hooks/
   pre-commit              Git pre-commit hook (legacy) — validates schema
 .pre-commit-config.yaml   pre-commit framework config (preferred)
-tests/                    bats unit tests for the validators
+tests/                    Bats tests and Python ExecutionPool contract tests
+docs/execution-pools.md   Fleet ownership, resources, profiles, and offline gates
 docs/adr/                 Architecture Decision Records about the dataset
 .github/workflows/        CI: runs validators on every PR
 ```
@@ -162,6 +176,7 @@ Every PR runs:
 
 - `pre-commit run --all-files` (formatting + lint + schema)
 - Schema validation against `schemas/agent-v1.schema.json` and `schemas/fleet-v1.schema.json`
+- ExecutionPool schema, cross-document references, resource budgets, and capacity checks
 - Fleet `ref:` referential integrity
 - Name uniqueness across all agent YAMLs
 - Dangerous-flag policy (`--dangerously-skip-permissions` requires inline suppression)
@@ -174,6 +189,13 @@ The required-check workflow handles pull requests, `main` pushes, and
 activation and must consume this repository-owned policy; Myrmidons contains
 no GitHub API mutator. The fail-safe central activation contract is documented in
 [`docs/branch-protection.md`](docs/branch-protection.md).
+
+`just package` builds the dataset archive and `RELEASE_INFO` under `dist/`.
+Archive entry order, ownership, and timestamps are normalized; source permissions
+remain intact. `SHA256SUMS` binds the archive. Packaging checks that digest and
+compares the extracted bytes of every included dataset directory and manifest
+before reporting success. This uses Python's standard library, system `tar` and
+`diff`, and `sha256sum` (or macOS `shasum`). No GNU tar installation is required.
 
 ## Security
 

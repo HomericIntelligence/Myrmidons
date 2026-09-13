@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../schemas/execution-pool-v1.schema.json
+# Desired capacity only; admission stays disabled pending integration acceptance.
+apiVersion: myrmidons/v1
+kind: ExecutionPool
+metadata:
+  name: m2-builds
+  displayName: "M2 · laptop tool offload"
+spec:
+  host: m2
+  backend: slurm
+  purpose: builds
+  platform: linux/amd64
+  workers: 1
+  conversationsPerWorker: 0
+  allocation:
+    cpus: 18
+    memoryGiB: 72
+    gpus: 0
+  overhead:
+    cpus: 2
+    memoryGiB: 8
+  workload:
+    cpus: 16
+    memoryGiB: 64
+  workerProfiles:
+    - workerId: m2-builds-01
+      privateHomeRef: m2-builds-01-home
+      permissionProfileRef: fleet-build-isolation
+  container:
+    image: null
+  slurm:
+    partition: cpuonly
+    transport: ssh-attach
+    containerPlugin: pyxis
+  admission:
+    enabled: false
+  schedule:
+    enabled: false
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    submit: "08:00"
+    drain: "17:00"
+    terminate: "18:00"

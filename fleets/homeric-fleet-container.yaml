@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../schemas/fleet-v1.schema.json
+# Select one comparison target. Slots describe desired capacity, not active agents.
+apiVersion: myrmidons/v1
+kind: Fleet
+metadata:
+  name: homeric-fleet-container
+  displayName: "Homeric Fleet · container laptop"
+  description: "12 laptop + 48 M1 + 48 M2 agents, with separate laptop tool capacity."
+spec:
+  executionPools:
+    - laptop-container
+    - m1-agents
+    - m2-agents
+    - m1-builds
+    - m2-builds
+  expectedCapacity: 108
+  expectedCapacityByHost:
+    laptop: 12
+    m1: 48
+    m2: 48

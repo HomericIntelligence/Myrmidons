@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../schemas/execution-pool-v1.schema.json
+# Desired capacity only; admission stays disabled pending integration acceptance.
+apiVersion: myrmidons/v1
+kind: ExecutionPool
+metadata:
+  name: laptop-container
+  displayName: "Laptop · Linux VM"
+spec:
+  host: laptop
+  backend: container
+  purpose: agents
+  platform: linux/arm64
+  exclusiveGroup: laptop-comparison
+  workers: 1
+  conversationsPerWorker: 12
+  allocation:
+    cpus: 8
+    memoryGiB: 12
+    gpus: 0
+  overhead:
+    cpus: 2
+    memoryGiB: 4
+  workload:
+    cpus: 6
+    memoryGiB: 8
+  workerProfiles:
+    - workerId: laptop-container-01
+      privateHomeRef: laptop-container-01-home
+      permissionProfileRef: fleet-workspace-isolation
+      authProfileRef: laptop-container-01-codex
+  runtime:
+    program: codex
+    version: "0.153.4"
+    nestedAgents: false
+    authentication: independent-native-login
+  container:
+    image: null
+  admission:
+    enabled: false
+  schedule:
+    enabled: false
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    submit: "08:00"
+    drain: "17:00"
+    terminate: "18:00"

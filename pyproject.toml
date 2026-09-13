@@ -3,7 +3,7 @@ name = "myrmidons"
 version = "0.1.0"
 description = "GitOps agent dataset for the HomericIntelligence mesh"
 requires-python = ">=3.13,<3.14"
-# Myrmidons is a shell/YAML/bats dataset repo: it ships NO importable Python
+# Myrmidons is a YAML dataset with shell and Python validators: no importable Python
 # package and declares ZERO runtime PyPI dependencies. This pyproject.toml
 # exists solely so `uv` can manage the Python-based *tooling* the validators
 # and CI use (yamllint, jsonschema, pre-commit, …) via `uv run`, replacing the
@@ -25,5 +25,6 @@ dev = [
   "check-jsonschema>=0.28", # GitHub-workflow schema validation
   "mypy>=1.8",             # typecheck job (py_compile fallback)
   "pip-audit>=2.7",        # dependency-scan job
+  "pip>=26.2.1,<27",       # pip-api tooling; excludes PYSEC-2026-3721
   "pre-commit>=4.6.1,<5",    # single-source-of-truth lint runner
 ]

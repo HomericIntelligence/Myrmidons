@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../schemas/execution-pool-v1.schema.json
+# Desired capacity only; admission stays disabled pending integration acceptance.
+apiVersion: myrmidons/v1
+kind: ExecutionPool
+metadata:
+  name: m2-agents
+  displayName: "M2 · Codex agents"
+spec:
+  host: m2
+  backend: slurm
+  purpose: agents
+  platform: linux/amd64
+  workers: 2
+  conversationsPerWorker: 24
+  allocation:
+    cpus: 72
+    memoryGiB: 288
+    gpus: 0
+  overhead:
+    cpus: 8
+    memoryGiB: 32
+  workload:
+    cpus: 64
+    memoryGiB: 256
+  workerProfiles:
+    - workerId: m2-agents-01
+      privateHomeRef: m2-agents-01-home
+      permissionProfileRef: fleet-workspace-isolation
+      authProfileRef: m2-agents-01-codex
+    - workerId: m2-agents-02
+      privateHomeRef: m2-agents-02-home
+      permissionProfileRef: fleet-workspace-isolation
+      authProfileRef: m2-agents-02-codex
+  runtime:
+    program: codex
+    version: "0.153.4"
+    nestedAgents: false
+    authentication: independent-native-login
+  container:
+    image: null
+  slurm:
+    partition: cpuonly
+    transport: ssh-attach
+    containerPlugin: pyxis
+  admission:
+    enabled: false
+  schedule:
+    enabled: false
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    submit: "08:00"
+    drain: "17:00"
+    terminate: "18:00"

@@ -15,7 +15,7 @@ Myrmidons contract requires exactly seven GitHub Actions contexts:
 | `schema-validation` | `schema-validation` |
 | `deps/version-sync` | `deps-version-sync` |
 
-The machine-readable source of truth is
+The machine-readable required-context contract is
 [`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json).
 The workflow also emits `forbid-suppressions`, `package`, `typecheck`, and
 `install`, but those contexts are not part of the live seven-context contract.
@@ -31,13 +31,21 @@ The merge-group trigger makes the same required contexts available on the
 synthetic commit GitHub builds for the queue. It does not alter pull-request or
 push behavior.
 
-## Approved staged queue policy
+The separate `merge-queue-smoke` job supplements these checks. It does not emit
+the seven required contexts, so its success alone cannot satisfy the queue.
 
-Workflow support and the declarative activation contract land and receive
-independent human review before any live ruleset changes. Live activation and
-one representative queued pull-request smoke test happen only after merge.
+## Observed active queue and historical staged policy
 
-| Setting | Required value |
+Read-back on 2026-09-12 confirmed that ruleset `15556489` already has an active
+merge queue using `HEADGREEN` and at most `2` concurrent queue builds. The seven
+required contexts remain unchanged. This workflow-trigger repair does not
+modify the live ruleset.
+
+The policy JSON and offline fixtures retain the historical staged proposal
+below, including `ALLGREEN` and `10` builds. Those values describe the proposal,
+not the observed active queue, and do not authorize replacing its settings.
+
+| Setting | Historical staged value |
 | --- | --- |
 | Target branch | `main` |
 | Merge method | `SQUASH` |
@@ -48,8 +56,9 @@ one representative queued pull-request smoke test happen only after merge.
 | Minimum wait | `5` minutes |
 | Required-check timeout | `60` minutes |
 
-Issue #765 remains open until the post-merge activation and queue smoke
-evidence are recorded.
+Issue #765 tracks activation and representative queue-smoke evidence. A
+workflow subscription or an active ruleset alone does not prove that all seven
+required checks completed on a queued commit.
 
 ## Central Odysseus activation contract
 
@@ -57,14 +66,17 @@ evidence are recorded.
 is the umbrella tracker for the merge queue rollout. The current implementation
 and activation authority is
 [Odysseus PR #417](https://github.com/HomericIntelligence/Odysseus/pull/417).
-Live activation remains deferred, and this Myrmidons work has not mutated live
-GitHub ruleset state. Odysseus is the sole activation authority; this dataset
-repository intentionally contains no administrator-level mutator and must not
+The queue is already active as observed above. Any future policy change needs
+separate central approval and live read-back; this Myrmidons change has not
+mutated GitHub ruleset state. Odysseus is the sole activation authority; this
+dataset repository intentionally contains no administrator-level mutator and must not
 duplicate one. The central authority must consume Myrmidons's repository-owned
 policy while preserving the full fail-safe preservation, read-back, and
 rollback contract below.
 
-The Odysseus activation implementation must:
+The prospective first-activation contract below applies when no queue rule is
+present. It is not an instruction to append a second rule or replace the
+observed active settings. The Odysseus activation implementation must:
 
 1. Consume
    [`configs/github/merge-queue-policy.json`](../configs/github/merge-queue-policy.json)
@@ -137,34 +149,29 @@ asymmetry is deliberate, not an oversight.
   entries with `# gitleaks-allowlist: <justification>` comments. See the
   Gitleaks allowlist section of [AGENTS.md](../AGENTS.md).
 
-### `security/dependency-scan` (pip-audit + Trivy) — **informational**
+### `security/dependency-scan` (pip-audit + Trivy) — **mixed policy**
 
-The job is required-to-run (so the signal is visible on every PR) but the two
-scanners inside are configured to surface vulnerability findings as
-information, not as a merge block:
+The required job runs the canonical CI wrapper. Its two scanners have different
+finding policies; tool execution failures are blocking in both cases:
 
-- **`pip-audit`** runs with an explicit `--ignore-vuln <ID>` list against the
-  baseline `ubuntu-latest` runner image (issue #713). Myrmidons declares zero
-  PyPI dependencies, so every advisory pip-audit raises is in the runner image
-  itself — outside our control until `actions/runner-images` ships a refresh.
-  Blocking PRs on transient upstream runner CVEs would halt all merges with no
-  remediation available to the contributor.
+- **`pip-audit`** audits the Python developer environment installed from
+  `pyproject.toml` and `uv.lock`. Unignored advisories fail the job. The existing
+  explicit, dated `--ignore-vuln <ID>` list excludes only those advisories.
+  Myrmidons has no runtime PyPI dependencies, but its validator and audit tools
+  have dependencies maintained in this repository. Upgrade a vulnerable locked
+  tool when a supported fix exists; do not add an ignore to avoid that repair.
 - **`Trivy filesystem scan`** runs with `--exit-code 0` (vulnerability findings
   non-fatal). Install/extraction failures still fail the step — we want to
   know when the scanner stops working, just not when it reports a HIGH against
   an upstream package.
-- **Why we don't hard-block:** (a) baseline CVEs in the runner image are out
-  of our control, and (b) blocking on transient upstream advisories would
-  block every PR for reasons unrelated to the change under review.
-- **How findings are tracked:** dated allowlists in the workflow itself
-  (`--ignore-vuln` IDs with a review date — see the comment block above the
-  `pip-audit` step in `.github/workflows/_required.yml`). Each allowlisted CVE
-  carries a `review YYYY-MM-DD` marker so the list can be pruned after the
-  next runner-image refresh.
+- **How exceptions are tracked:** the inherited dated audit exclusions are in
+  `scripts/run_ci_local.sh`. They do not convert all dependency findings into
+  informational output. The Trivy finding policy remains informational; this
+  documentation correction does not change either scanner's exit handling.
 
 ### Quick reference
 
-| Job                        | Behaviour                                                        | Reason                                                                                                  |
-| -------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `security/secrets-scan`    | Hard block. Any gitleaks hit fails the PR.                       | Leaked secrets are irrecoverable; rotation is not a substitute for prevention.                          |
-| `security/dependency-scan` | Informational. `pip-audit --ignore-vuln`, `trivy --exit-code 0`. | Findings are dominated by runner-image baseline CVEs outside our control. Tracked via dated allowlists. |
+| Job | Behaviour | Reason |
+| --- | --- | --- |
+| `security/secrets-scan` | Hard block. Any gitleaks hit fails the PR. | Leaked secrets are irrecoverable; rotation is not a substitute for prevention. |
+| `security/dependency-scan` | Unignored pip-audit findings block; Trivy findings are informational. Scanner errors block. | Locked developer tools are maintained here; existing dated exclusions and Trivy policy remain explicit. |

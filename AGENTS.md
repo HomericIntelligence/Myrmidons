@@ -13,14 +13,15 @@ tooling) previously kept in CLAUDE.md.
 
 ## Scope
 
-This repository is a **dataset** of agent and fleet YAML definitions plus the
+This repository is a **dataset** of agent, fleet, and execution-pool YAML definitions plus the
 validators that enforce schema and policy on them. Agents operating here must
 stay within that scope:
 
 | In scope | Out of scope |
-|----------|--------------|
+| ---------- | -------------- |
 | Read and write agent YAML files in `agents/` | Modify ProjectAgamemnon source code |
 | Read and write fleet YAML files in `fleets/` | Manage container image definitions (→ AchaeanFleet) |
+| Read and write execution-pool YAML files in `pools/` | Admit workers or start Slurm allocations |
 | Edit / extend dataset validators in `scripts/` | Add reconciler code that calls Agamemnon's API |
 | Run linters and tests via `just` and `uv run` | Modify `.github/workflows/` without human review |
 | Create commits and open pull requests | Force-push or rewrite published history |
@@ -34,6 +35,15 @@ stay within that scope:
 Myrmidons is the source of truth for **desired** agent state, expressed as YAML.
 It contains the schema for those definitions, the definitions themselves, and
 validators that enforce schema + policy on every PR.
+
+The compatible `myrmidons/v1` `ExecutionPool` contract declares worker counts,
+conversation capacity, resource budgets, private profile references, and
+admission/schedule settings. Supplied pools are disabled. Agents and fleets can select pools with `poolRef`; Codex is
+a supported `program`. `executionDomain` and `hmasRole` are separate extensible
+dispatch fields. The existing `role` remains the administrative `member`/`admin`
+field. See [Execution pools](docs/execution-pools.md) for the architecture and
+validation boundary. These declarations do not create task claims or prove
+runtime capacity, isolation, authentication, or image availability.
 
 This repo is a **dataset**. Consumers (most notably
 [ProjectAgamemnon](https://github.com/HomericIntelligence/ProjectAgamemnon))
@@ -85,6 +95,7 @@ below seems strict, it is because one of these principles made it so.
 - Read any file in the repository
 - Write YAML agent definitions in `agents/<host>/<label>.yaml`
 - Write YAML fleet definitions in `fleets/`
+- Write YAML execution-pool definitions in `pools/`
 - Edit JSON schemas in `schemas/` and dataset validators in `scripts/` (with human review for non-trivial changes)
 - Run `just lint`, `just test`, `just validate`
 - Run individual validators directly: `bash scripts/check-dangerous-flags.sh`, etc.
@@ -95,11 +106,16 @@ below seems strict, it is because one of these principles made it so.
 
 ## Prohibited Actions
 
-- **Reintroducing the reconciler** — scripts that drive Agamemnon's REST API (apply, plan, status, export, etc.) belong in ProjectAgamemnon, not here. See [ProjectAgamemnon#405](https://github.com/HomericIntelligence/ProjectAgamemnon/pull/405).
-- **Direct external API calls** — this repo does not talk to runtime systems. Never construct `curl` calls to Agamemnon or any other service from inside this repo's scripts or workflows.
+- **Reintroducing the reconciler** — scripts that drive Agamemnon's REST API
+  (apply, plan, status, export, etc.) belong in Agamemnon, not here. See
+  [ProjectAgamemnon#405](https://github.com/HomericIntelligence/ProjectAgamemnon/pull/405).
+- **Direct external API calls** — this repo does not talk to runtime systems.
+  Never construct `curl` calls to Agamemnon or any other service from inside this
+  repo's scripts or workflows.
 - **Committing secrets** — never commit tokens, certificates, or credentials. Use environment variables or GitHub secrets.
 - **`--dangerously-skip-permissions` without annotation** — see policy below.
-- **Force-push** — `git push --force` and `git push --force-with-lease` are prohibited on shared branches. Create a new commit instead.
+- **Force-push** — `git push --force` and `git push --force-with-lease` are
+  prohibited on shared branches. Create a new commit instead.
 - **Skipping pre-commit hooks** — never use `--no-verify`. If a hook fails, fix the underlying issue.
 - **Modifying CI workflows** — changes to `.github/workflows/` require human review.
 
@@ -200,7 +216,7 @@ spec:
 ### Naming convention
 
 | Field | Example | Purpose |
-|-------|---------|---------|
+| ------- | --------- | --------- |
 | **Filename** | `aindrea.yaml` | Derived from `spec.label` (lowercased). Used by fleet `ref:` entries. |
 | **`metadata.name`** | `odyssey-mainline-analysis` | Consumer-side identifier (Agamemnon API name / tmux session name). |
 | **`spec.label`** | `Aindrea` | Display name shown in the consumer UI. |
@@ -225,13 +241,14 @@ for the strategy.
 ## Validators
 
 Scripts under `scripts/` validate the dataset on every PR. Each is pure: it
-reads `agents/`/`fleets/` and exits non-zero on policy violation. None of them
+reads `agents/`, `fleets/`, and (when present) `pools/` and exits non-zero on policy violation. None of them
 talk to Agamemnon or any other runtime.
 
 | Script | What it checks |
-|--------|----------------|
+| -------- | ---------------- |
+| `scripts/validate-agent-schemas.py` | Python schema validation for all three kinds; pool references, host/program compatibility, budgets, private profile uniqueness, schedules, and selected fleet capacity |
 | `scripts/check-dangerous-flags.sh` | `--dangerously-skip-permissions` requires inline suppression with justification |
-| `scripts/check-schema-hints.sh` | Every agent/fleet YAML carries a `yaml-language-server` schema-hint comment |
+| `scripts/check-schema-hints.sh` | Every agent/fleet/pool YAML carries a `yaml-language-server` schema-hint comment |
 | `scripts/check-gitleaks-annotations.sh` | Every `.gitleaks.toml` allowlist entry carries a `# gitleaks-allowlist:` justification |
 | `scripts/lint-names.sh` | `metadata.name` uniqueness across all agent YAMLs |
 | `scripts/lint-agents-md.sh` | `AGENTS.md` has the required sections |
@@ -257,8 +274,12 @@ of truth. CI runs `pre-commit run --all-files` to stay in parity with local.
 
 ## Dependencies
 
-The validator toolchain is sourced two ways (per Odysseus ADR-018 — this repo
-carries NO Python source, only tool config):
+The repository contains offline Python and shell validation source, Python
+contract tests, and Bats tests. It has no importable runtime package and declares
+no runtime PyPI dependencies. Python 3.13 tooling is locked with uv; this does
+not introduce a runtime orchestrator or change an accepted ADR.
+
+The validator toolchain is sourced two ways:
 
 - **CLI tools from apt / release binaries:** `just` (task front door), `yq`
   (the **Go** mikefarah `yq`, not the PyPI one), `jq`, `bats`, `shellcheck`.
@@ -297,6 +318,10 @@ sudo mv actionlint /usr/local/bin/
   dataset snapshot (`scripts/package-dataset.sh`, read-only job emitting the
   canonical `release` check-run for the Odysseus ecosystem CI board); on `v*`
   tags a separate tag-gated job publishes a GitHub Release.
+- **Canonical packaging** — `just package` creates an archive with normalized
+  ownership and timestamps, writes and verifies `dist/SHA256SUMS`, and compares
+  the extracted agents/fleets/schemas/pools and `RELEASE_INFO` with source bytes.
+  The required workflow's package artifact includes the complete `dist/` output.
 - **Branch protection on `main`** — required-check list in [`docs/branch-protection.md`](docs/branch-protection.md).
 
 ---
@@ -364,13 +389,13 @@ Two required checks cover security: `security/secrets-scan` and
   PR. Leaked secrets are an immediate, irrecoverable risk. The
   `forbid-continue-on-error` and `forbid-advisory-warnings` pre-commit hooks
   prevent anyone from downgrading this step to advisory mode.
-- **`security/dependency-scan` (pip-audit + Trivy) — informational.**
-  `pip-audit` runs with an explicit `--ignore-vuln` list and `trivy fs` runs
-  with `--exit-code 0`. Myrmidons has zero PyPI dependencies, so findings are
-  dominated by baseline `ubuntu-latest` runner-image CVEs we cannot fix from
-  this repo. Blocking PRs on transient upstream advisories would halt every
-  merge with no remediation path. Findings are tracked via dated allowlists
-  in the workflow itself.
+- **`security/dependency-scan` (pip-audit + Trivy) — mixed policy.**
+  `pip-audit` audits the locked Python developer tools and fails on unignored
+  findings or execution errors. Its explicit, dated `--ignore-vuln` list does
+  not exempt other advisories. These tool dependencies are maintained here;
+  zero runtime dependencies does not mean an empty audit inventory. `trivy fs`
+  retains `--exit-code 0` for informational vulnerability findings; scanner
+  execution failures still fail the job.
 
 Full rationale and the regression-guard hook list:
 [`docs/branch-protection.md`](docs/branch-protection.md#ci-security-scans--blocking-rationale).

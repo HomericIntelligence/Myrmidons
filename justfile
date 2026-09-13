@@ -12,7 +12,7 @@ default:
 # =============================================================================
 
 # Validate all agent YAML files (schema check)
-validate:
+validate: validate-dataset
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v yq &>/dev/null; then
@@ -61,7 +61,7 @@ package:
 # =============================================================================
 
 # Run all tests
-test:
+test: test-pools
     bash tests/validate-schemas.sh
 
 # Run bats unit tests
@@ -69,8 +69,24 @@ test-unit:
     bats tests/unit/
 
 # Run schema-validation tests
-test-schema:
+test-schema: validate-dataset
     ./tests/validate-schemas.sh
+
+# Run offline ExecutionPool contract tests
+test-pools:
+    uv run --frozen python -m unittest discover -s tests -p 'test_execution_pools.py' -v
+
+# Validate every manifest and cross-document pool constraint without runtime access
+validate-dataset:
+    uv run --frozen python scripts/validate-agent-schemas.py
+
+# Report one Fleet's declared capacity; does not start workers
+validate-fleet fleet="homeric-fleet-native":
+    uv run --frozen python scripts/validate-agent-schemas.py --fleet {{quote(fleet)}}
+
+# Fail if selected pools are disabled or have unresolved images; still an offline check
+validate-runnable fleet="homeric-fleet-native":
+    uv run --frozen python scripts/validate-agent-schemas.py --fleet {{quote(fleet)}} --runnable
 
 # Run documentation-drift check
 test-doc-drift:

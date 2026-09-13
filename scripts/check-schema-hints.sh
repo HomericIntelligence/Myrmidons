@@ -32,8 +32,8 @@ FILES_CHECKED=0
 if [[ $# -gt 0 ]]; then
     FILES=("$@")
 else
-    # Default: scan all YAML files under agents/ and fleets/
-    mapfile -t FILES < <(find "${REPO_ROOT}/agents" "${REPO_ROOT}/fleets" \
+    # Default: scan all YAML files under agents/, fleets/, and pools/.
+    mapfile -t FILES < <(find "${REPO_ROOT}/agents" "${REPO_ROOT}/fleets" "${REPO_ROOT}/pools" \
         -name "*.yaml" -o -name "*.yml" 2>/dev/null | sort)
 fi
 
@@ -47,7 +47,7 @@ for file in "${FILES[@]}"; do
     first_line="$(head -1 "$file")"
 
     # Pass: correct canonical hint
-    if echo "$first_line" | grep -qE '^# yaml-language-server: \$schema=.+'; then
+    if echo "$first_line" | grep -qE '^# yaml-language-server: [$]schema=.+'; then
         continue
     fi
 
